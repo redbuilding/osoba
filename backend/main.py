@@ -5,7 +5,8 @@ import logging
 import os
 import signal
 import sys
-import time # Keep for time.time() but not time.sleep()
+import time
+import ollama
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any, Tuple, Union
 from contextlib import asynccontextmanager # For lifespan events
@@ -26,9 +27,6 @@ from mcp import ClientSession
 # from mcp.common.model.uri import Uri # Removed this incorrect import
 from fastmcp.client.transports import StdioServerParameters, stdio_client
 # from mcp.common.content import TextContent # For type checking if needed
-
-import ollama
-# import asyncio # Duplicate import, removed for cleanliness
 
 # Local imports for auth
 from auth_hubspot import router as hubspot_auth_router, get_valid_token, SESSION_COOKIE_NAME
@@ -775,30 +773,6 @@ Database Schema Context:
             assistant_error_message_obj = ChatMessage(role="assistant", content="⚠️ The HubSpot service is currently unavailable.")
         else:
             try:
-#                 hubspot_tool_schema = """
-# Your task is to act as a JSON generator. Based on the user's request, you must create a single JSON object that can be used to call a tool to create a HubSpot marketing email.
-# The JSON object must have the following top-level keys: "name", "subject", "from_sender", "to_recipients", "content".
-
-# Here is the detailed schema for the JSON object:
-# - "name" (string, required): An internal name for the email.
-# - "subject" (string, required): The subject line of the email.
-# - "from_sender" (object, required): Contains sender information.
-#   - "fromName" (string, required): The name of the sender.
-#   - "replyTo" (string, required): The email address for replies.
-# - "to_recipients" (object, required): Contains recipient information.
-#   - "contactLists" (object, required): Specifies which contact lists to use.
-#     - "include" (array of integers, required): An array of HubSpot Contact List IDs to send the email to.
-#     - "exclude" (array of integers, required): An array of HubSpot Contact List IDs to exclude from the send.
-# - "content" (object, required): Contains the email's content.
-#   - "templatePath" (string, required): The HubSpot design manager path to the email template. Example: "my_designs/my_template".
-#   - "plainTextVersion" (string, required): A plain text version of the email for clients that don't render HTML.
-
-# Rules:
-# 1. You MUST generate a valid JSON object that conforms to this schema.
-# 2. Infer the values for each field from the user's request.
-# 3. If the user does not provide enough information for a required field (e.g., contact list IDs, template path), you MUST ask clarifying questions. DO NOT generate the JSON. Instead, output the clarifying questions as a normal text response.
-# 4. If you have enough information, output ONLY the JSON object and nothing else. Do not wrap it in markdown or provide explanations.
-# """
                 hubspot_tool_schema = """
 You are a JSON‐only generator for the `create_hubspot_marketing_email` tool.  Based on the user’s instruction, **output exactly one** JSON object—no prose, no markdown fences—that matches this full schema:
 
