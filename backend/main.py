@@ -892,7 +892,9 @@ You are a JSON‐only generator for the `create_hubspot_marketing_email` tool.  
                     if mcp_resp.get("status") == "error":
                         raise Exception(f"HubSpot tool failed: {mcp_resp.get('error', 'Unknown error')}")
 
-                    hubspot_api_response = mcp_resp.get("data", {})
+                    raw_hubspot_data = mcp_resp.get("data")
+                    hubspot_api_response = extract_search_results(raw_hubspot_data)
+
                     if "error" in hubspot_api_response:
                         logger.error(f"[API_CHAT_HUBSPOT] HubSpot API returned an error: {hubspot_api_response}")
                         raise Exception(f"HubSpot API returned an error: {hubspot_api_response.get('body', 'Details not available.')}")
