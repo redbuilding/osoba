@@ -120,14 +120,33 @@ const App = () => {
   }, [conversationsError]);
 
   useEffect(() => {
-    const checkAuth = async () => {
+    const checkAuth = async (isInitialLoad = false) => {
       const { authenticated } = await getHubspotAuthStatus();
       setIsHubspotAuthenticated(authenticated);
+
+      // If this is the first check after the page loads,
+      // see if we just came back from the auth flow.
+      if (isInitialLoad) {
+        const pendingAuth = localStorage.getItem('pendingHubspotAuth');
+        if (pendingAuth === 'true') {
+          // We were trying to auth. Let's see if it succeeded.
+          localStorage.removeItem('pendingHubspotAuth'); // Clean up the flag immediately
+          if (authenticated) {
+            // It worked! Activate the HubSpot tool automatically.
+            setIsHubspotActive(true);
+            // Ensure other tools are off
+            setIsSearchActive(false);
+            setIsDatabaseActive(false);
+          }
+        }
+      }
     };
-    checkAuth();
-    const intervalId = setInterval(checkAuth, 30000); // Check every 30s
+
+    checkAuth(true); // Initial check on component mount
+    const intervalId = setInterval(() => checkAuth(false), 30000); // Subsequent checks every 30s
     return () => clearInterval(intervalId);
-  }, []);
+  }, []); // The empty dependency array ensures this effect runs only once on mount.
+
 
   useEffect(() => {
     fetchServiceStatus();
@@ -336,6 +355,8 @@ const App = () => {
 
   const handleHubspotButtonClick = () => {
     if (!isHubspotAuthenticated) {
+      // Set a flag in local storage before redirecting
+      localStorage.setItem('pendingHubspotAuth', 'true');
       const connectUrl = `${BACKEND_URL}/auth/hubspot/connect`;
       console.log(`Attempting to connect to HubSpot. Redirecting to: ${connectUrl}`);
       window.location.href = connectUrl;
