@@ -2,6 +2,10 @@ import axios from "axios";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 
+// The base URL for the backend, without the /api suffix.
+// Useful for hitting auth endpoints that are not under /api.
+export const BACKEND_URL = API_URL.endsWith('/api') ? API_URL.slice(0, -4) : API_URL;
+
 const apiClient = axios.create({
   baseURL: API_URL,
   headers: {

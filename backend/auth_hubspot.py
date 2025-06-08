@@ -15,7 +15,7 @@ load_dotenv()
 HUBSPOT_CLIENT_ID = os.getenv('HUBSPOT_CLIENT_ID')
 HUBSPOT_CLIENT_SECRET = os.getenv('HUBSPOT_CLIENT_SECRET')
 # This should be the full URL to your backend's callback endpoint
-REDIRECT_URI = os.getenv('HUBSPOT_REDIRECT_URI')
+REDIRECT_URI = os.getenv('HUBSPOT_REDIRECT_URI', 'http://localhost:8000/auth/hubspot/oauth-callback')
 # The URL to redirect to after successful authentication
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')
 
@@ -85,8 +85,9 @@ async def hubspot_connect():
     """
     Initiates the HubSpot OAuth2 flow by redirecting the user to HubSpot's authorization page.
     """
-    if not HUBSPOT_CLIENT_ID:
-        logger.error("HUBSPOT_CLIENT_ID is not set.")
+    logger.info("Received request to connect to HubSpot.")
+    if not HUBSPOT_CLIENT_ID or not REDIRECT_URI:
+        logger.error("HUBSPOT_CLIENT_ID or HUBSPOT_REDIRECT_URI is not set.")
         raise HTTPException(status_code=500, detail="HubSpot integration is not configured on the server.")
 
     params = {
@@ -95,6 +96,7 @@ async def hubspot_connect():
         'redirect_uri': REDIRECT_URI,
     }
     authorize_url = f"https://app.hubspot.com/oauth/authorize?{httpx.QueryParams(params)}"
+    logger.info(f"Redirecting user to HubSpot for OAuth consent. Callback URL: {REDIRECT_URI}")
     return RedirectResponse(authorize_url)
 
 @router.get("/auth/hubspot/oauth-callback", summary="Handle HubSpot OAuth callback")

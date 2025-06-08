@@ -17,6 +17,7 @@ import {
   deleteConversation,
   renameConversation,
   getHubspotAuthStatus,
+  BACKEND_URL,
 } from "./services/api";
 import {
   AlertTriangle,
@@ -335,7 +336,9 @@ const App = () => {
 
   const handleHubspotButtonClick = () => {
     if (!isHubspotAuthenticated) {
-      window.location.href = "/auth/hubspot/connect";
+      const connectUrl = `${BACKEND_URL}/auth/hubspot/connect`;
+      console.log(`Attempting to connect to HubSpot. Redirecting to: ${connectUrl}`);
+      window.location.href = connectUrl;
     } else {
       const turningOn = !isHubspotActive;
       setIsHubspotActive(turningOn);
