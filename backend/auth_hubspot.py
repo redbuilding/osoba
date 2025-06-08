@@ -3,7 +3,7 @@ import logging
 import time
 from typing import Dict
 import httpx
-from fastapi import APIRouter, Request, Response
+from fastapi import APIRouter, Request, Response, HTTPException
 from fastapi.responses import RedirectResponse
 from uuid import uuid4
 from dotenv import load_dotenv
