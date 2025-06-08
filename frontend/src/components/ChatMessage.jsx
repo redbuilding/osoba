@@ -48,17 +48,13 @@ const ChatMessage = ({ message }) => {
       tempDiv.innerHTML = htmlOrTextContent; // The content might already include indicators + actual message
       
       // Attempt to remove known indicator divs before extracting text
-      // This is a bit fragile and depends on the structure of indicators
-      const indicators = tempDiv.querySelectorAll('.search-indicator-custom, .db-indicator-custom');
+      const indicators = tempDiv.querySelectorAll('.search-indicator-custom, .db-indicator-custom, .hubspot-indicator-custom');
       indicators.forEach(indicator => {
-        // Add a newline or space if removing the indicator might merge text awkwardly
-        // For now, just remove. Text content extraction should handle spacing.
         indicator.remove();
       });
 
       // Extract text from the remaining content
       let text = "";
-      // If there are still child nodes, iterate through them. Otherwise, use textContent of tempDiv.
       const nodesToProcess = tempDiv.childNodes.length > 0 ? tempDiv.childNodes : [tempDiv];
 
       nodesToProcess.forEach(node => {

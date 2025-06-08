@@ -16,6 +16,7 @@ import {
   getOllamaModels,
   deleteConversation,
   renameConversation,
+  getHubspotAuthStatus,
 } from "./services/api";
 import {
   AlertTriangle,
@@ -26,11 +27,13 @@ import {
   PanelLeftClose,
   PanelRightOpen,
   Server,
-} from "lucide-react"; // Added Server icon
+  Share2,
+} from "lucide-react"; // Added Server, Share2 icons
 
 // Constants for MCP service names used in status checks
 const WEB_SEARCH_SERVICE_NAME = "web_search_service";
 const MYSQL_DB_SERVICE_NAME = "mysql_db_service";
+const HUBSPOT_SERVICE_NAME = "hubspot_service";
 
 const App = () => {
   const [chatHistory, setChatHistory] = useState([]);
@@ -39,11 +42,14 @@ const App = () => {
 
   // Tool Toggles
   const [isSearchActive, setIsSearchActive] = useState(false);
-  const [isDatabaseActive, setIsDatabaseActive] = useState(false); // New state for DB toggle
+  const [isDatabaseActive, setIsDatabaseActive] = useState(false);
+  const [isHubspotActive, setIsHubspotActive] = useState(false);
 
   // Service Status
   const [mcpSearchServiceReady, setMcpSearchServiceReady] = useState(false);
-  const [mcpDbServiceReady, setMcpDbServiceReady] = useState(false); // New state for MySQL MCP
+  const [mcpDbServiceReady, setMcpDbServiceReady] = useState(false);
+  const [mcpHubspotServiceReady, setMcpHubspotServiceReady] = useState(false);
+  const [isHubspotAuthenticated, setIsHubspotAuthenticated] = useState(false);
   const [dbConnected, setDbConnected] = useState(false); // MongoDB connection
   const [ollamaAvailable, setOllamaAvailable] = useState(false);
 
@@ -67,7 +73,7 @@ const App = () => {
     return {
       role: "assistant",
       content:
-        "Hello! I'm your AI assistant. Select a model for new chats. Toggle search or database icons to use those tools. Select 'New Chat' or a past conversation.",
+        "Hello! I'm your AI assistant. Select a model for new chats. Toggle tool icons to use them. Select 'New Chat' or a past conversation.",
       timestamp: new Date().toISOString(),
     };
   }, []);
@@ -82,47 +88,49 @@ const App = () => {
   const fetchServiceStatus = useCallback(async () => {
     try {
       const status = await getServiceStatus();
-      // MCP Services
       setMcpSearchServiceReady(
         status.mcp_services?.[WEB_SEARCH_SERVICE_NAME]?.ready || false,
       );
       setMcpDbServiceReady(
         status.mcp_services?.[MYSQL_DB_SERVICE_NAME]?.ready || false,
       );
-
+      setMcpHubspotServiceReady(
+        status.mcp_services?.[HUBSPOT_SERVICE_NAME]?.ready || false,
+      );
       setOllamaAvailable(status.ollama_available);
-
-      const newDbConnected = status.db_connected; // MongoDB for chat history
+      const newDbConnected = status.db_connected;
       setDbConnected(newDbConnected);
 
       if (!newDbConnected) {
-        setConversationsError(
-          "Chat history database (MongoDB) not connected. History is unavailable.",
-        );
+        setConversationsError("Chat history database (MongoDB) not connected. History is unavailable.");
       } else {
-        if (
-          conversationsError ===
-            "Chat history database (MongoDB) not connected. History is unavailable." ||
-          conversationsError ===
-            "Failed to fetch service status. History may be unavailable."
-        ) {
+        if (conversationsError?.includes("MongoDB")) {
           setConversationsError(null);
         }
       }
     } catch (err) {
       setMcpSearchServiceReady(false);
       setMcpDbServiceReady(false);
+      setMcpHubspotServiceReady(false);
       setDbConnected(false);
       setOllamaAvailable(false);
-      setConversationsError(
-        "Failed to fetch service status. History may be unavailable.",
-      );
+      setConversationsError("Failed to fetch service status. History may be unavailable.");
     }
   }, [conversationsError]);
 
   useEffect(() => {
+    const checkAuth = async () => {
+      const { authenticated } = await getHubspotAuthStatus();
+      setIsHubspotAuthenticated(authenticated);
+    };
+    checkAuth();
+    const intervalId = setInterval(checkAuth, 30000); // Check every 30s
+    return () => clearInterval(intervalId);
+  }, []);
+
+  useEffect(() => {
     fetchServiceStatus();
-    const intervalId = setInterval(fetchServiceStatus, 15000); // Poll status every 15s
+    const intervalId = setInterval(fetchServiceStatus, 15000);
     return () => clearInterval(intervalId);
   }, [fetchServiceStatus]);
 
@@ -133,12 +141,7 @@ const App = () => {
         setAvailableOllamaModels(models || []);
         if (models && models.length > 0) {
           const preferredModel =
-            models.find(
-              (m) =>
-                !m.toLowerCase().includes("embed") &&
-                (m.toLowerCase().includes("instruct") ||
-                  m.toLowerCase().includes("chat")),
-            ) || models[0];
+            models.find(m => !m.toLowerCase().includes("embed") && (m.toLowerCase().includes("instruct") || m.toLowerCase().includes("chat"))) || models[0];
           setSelectedOllamaModel(preferredModel);
         } else {
           setSelectedOllamaModel("");
@@ -146,9 +149,7 @@ const App = () => {
         setOllamaModelsError(null);
       } catch (err) {
         console.error("Failed to fetch Ollama models:", err);
-        setOllamaModelsError(
-          err.detail || err.message || "Failed to load models.",
-        );
+        setOllamaModelsError(err.detail || err.message || "Failed to load models.");
         setAvailableOllamaModels([]);
         setSelectedOllamaModel("");
       }
@@ -169,8 +170,7 @@ const App = () => {
       const convs = await getConversations();
       setConversations(convs || []);
     } catch (err) {
-      const errorDetail =
-        err.detail || err.message || "Failed to fetch conversations list.";
+      const errorDetail = err.detail || err.message || "Failed to fetch conversations list.";
       setConversationsError(errorDetail);
       setConversations([]);
     } finally {
@@ -180,18 +180,12 @@ const App = () => {
 
   useEffect(() => {
     if (dbConnected) {
-      // MongoDB for chat history
       fetchConversationsList();
     } else {
       setConversations([]);
       setIsConversationsLoading(false);
-      if (
-        conversationsError !==
-        "Failed to fetch service status. History may be unavailable."
-      ) {
-        setConversationsError(
-          "Chat history database (MongoDB) not connected. History is unavailable.",
-        );
+      if (!conversationsError?.includes("status")) {
+        setConversationsError("Chat history database (MongoDB) not connected. History is unavailable.");
       }
     }
   }, [dbConnected, fetchConversationsList, conversationsError]);
@@ -205,10 +199,7 @@ const App = () => {
           const messages = await getConversationMessages(currentConversationId);
           setChatHistory(messages || []);
         } catch (err) {
-          const errorDetail =
-            err.detail ||
-            err.message ||
-            `Failed to load messages for conversation.`;
+          const errorDetail = err.detail || err.message || `Failed to load messages for conversation.`;
           setError(errorDetail);
           setChatHistory([initialWelcomeMessage]);
         } finally {
@@ -226,26 +217,10 @@ const App = () => {
     setIsLoading(true);
     setError(null);
 
-    const modelForThisMessage = currentConversationId
-      ? null
-      : selectedOllamaModel;
+    const modelForThisMessage = currentConversationId ? null : selectedOllamaModel;
 
-    if (
-      !modelForThisMessage &&
-      !currentConversationId &&
-      availableOllamaModels.length > 0
-    ) {
+    if (!modelForThisMessage && !currentConversationId && availableOllamaModels.length > 0) {
       setError("Please select an Ollama model for this new chat.");
-      setIsLoading(false);
-      return;
-    }
-    if (
-      !modelForThisMessage &&
-      !currentConversationId &&
-      availableOllamaModels.length === 0 &&
-      ollamaAvailable
-    ) {
-      setError("No Ollama models available. Cannot start chat.");
       setIsLoading(false);
       return;
     }
@@ -260,27 +235,22 @@ const App = () => {
         userInput,
         chatHistory,
         isSearchActive,
-        isDatabaseActive, // Pass new flag
+        isDatabaseActive,
+        isHubspotActive,
         currentConversationId,
         modelForThisMessage,
       );
 
       setChatHistory(response.chat_history || []);
 
-      if (
-        response.conversation_id &&
-        response.conversation_id !== currentConversationId
-      ) {
+      if (response.conversation_id && response.conversation_id !== currentConversationId) {
         setCurrentConversationId(response.conversation_id);
         await fetchConversationsList();
       } else if (response.conversation_id === currentConversationId) {
-        // Refresh conversation list if title or message count might have changed
-        // (e.g. if backend auto-titles or updates message count on existing conv)
         await fetchConversationsList();
       }
     } catch (err) {
-      const errorMessage =
-        err.detail || err.message || "Failed to send message.";
+      const errorMessage = err.detail || err.message || "Failed to send message.";
       setError(errorMessage);
     } finally {
       setIsLoading(false);
@@ -290,9 +260,9 @@ const App = () => {
   const handleSelectConversation = (conversationId) => {
     if (conversationId !== currentConversationId) {
       setCurrentConversationId(conversationId);
-      // Reset tool toggles when switching conversations, or load their state if stored per-conversation
       setIsSearchActive(false);
       setIsDatabaseActive(false);
+      setIsHubspotActive(false);
     }
   };
 
@@ -301,15 +271,11 @@ const App = () => {
     setChatHistory([initialWelcomeMessage]);
     setIsSearchActive(false);
     setIsDatabaseActive(false);
+    setIsHubspotActive(false);
     setError(null);
     if (availableOllamaModels.length > 0 && !selectedOllamaModel) {
       const preferredModel =
-        availableOllamaModels.find(
-          (m) =>
-            !m.toLowerCase().includes("embed") &&
-            (m.toLowerCase().includes("instruct") ||
-              m.toLowerCase().includes("chat")),
-        ) || availableOllamaModels[0];
+        availableOllamaModels.find(m => !m.toLowerCase().includes("embed") && (m.toLowerCase().includes("instruct") || m.toLowerCase().includes("chat"))) || availableOllamaModels[0];
       setSelectedOllamaModel(preferredModel);
     }
   };
@@ -318,15 +284,12 @@ const App = () => {
     setError(null);
     try {
       await deleteConversation(conversationIdToDelete);
-      setConversations((prevConvs) =>
-        prevConvs.filter((conv) => conv.id !== conversationIdToDelete),
-      );
+      setConversations((prevConvs) => prevConvs.filter((conv) => conv.id !== conversationIdToDelete));
       if (currentConversationId === conversationIdToDelete) {
         handleNewChat();
       }
     } catch (err) {
-      const errorMessage =
-        err.detail || err.message || "Failed to delete conversation.";
+      const errorMessage = err.detail || err.message || "Failed to delete conversation.";
       setError(errorMessage);
     }
   };
@@ -334,53 +297,67 @@ const App = () => {
   const handleRenameConversation = async (conversationIdToRename, newTitle) => {
     setError(null);
     try {
-      const updatedConversation = await renameConversation(
-        conversationIdToRename,
-        newTitle,
-      );
+      const updatedConversation = await renameConversation(conversationIdToRename, newTitle);
       setConversations((prevConvs) =>
         prevConvs
           .map((conv) =>
             conv.id === conversationIdToRename
-              ? {
-                  ...conv,
-                  title: updatedConversation.title,
-                  updated_at: updatedConversation.updated_at,
-                }
+              ? { ...conv, title: updatedConversation.title, updated_at: updatedConversation.updated_at }
               : conv,
           )
           .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at)),
       );
     } catch (err) {
-      const errorMessage =
-        err.detail || err.message || "Failed to rename conversation.";
+      const errorMessage = err.detail || err.message || "Failed to rename conversation.";
       setError(errorMessage);
     }
   };
 
   const toggleSidebarCollapse = () => setIsSidebarCollapsed((prev) => !prev);
-  const toggleSearch = () => setIsSearchActive((prev) => !prev);
-  const toggleDatabase = () => setIsDatabaseActive((prev) => !prev); // New toggle function
+
+  const toggleSearch = () => {
+    const turningOn = !isSearchActive;
+    setIsSearchActive(turningOn);
+    if (turningOn) {
+      setIsDatabaseActive(false);
+      setIsHubspotActive(false);
+    }
+  };
+
+  const toggleDatabase = () => {
+    const turningOn = !isDatabaseActive;
+    setIsDatabaseActive(turningOn);
+    if (turningOn) {
+      setIsSearchActive(false);
+      setIsHubspotActive(false);
+    }
+  };
+
+  const handleHubspotButtonClick = () => {
+    if (!isHubspotAuthenticated) {
+      window.location.href = "/auth/hubspot/connect";
+    } else {
+      const turningOn = !isHubspotActive;
+      setIsHubspotActive(turningOn);
+      if (turningOn) {
+        setIsSearchActive(false);
+        setIsDatabaseActive(false);
+      }
+    }
+  };
 
   const currentConversationDetails = useMemo(() => {
     return conversations.find((c) => c.id === currentConversationId);
   }, [conversations, currentConversationId]);
 
-  const modelForDisplay =
-    currentConversationDetails?.ollama_model_name ||
-    selectedOllamaModel ||
-    "N/A";
+  const modelForDisplay = currentConversationDetails?.ollama_model_name || selectedOllamaModel || "N/A";
 
   const getChatInputPlaceholder = () => {
     if (!ollamaAvailable) return "Ollama server unavailable...";
-    if (
-      !selectedOllamaModel &&
-      !currentConversationId &&
-      availableOllamaModels.length > 0
-    )
-      return "Select a model to begin...";
+    if (!selectedOllamaModel && !currentConversationId && availableOllamaModels.length > 0) return "Select a model to begin...";
     if (isSearchActive) return "Enter web search query...";
     if (isDatabaseActive) return "Enter question for database query...";
+    if (isHubspotActive) return "Describe the HubSpot email to create...";
     return "Type your message...";
   };
 
@@ -394,14 +371,12 @@ const App = () => {
         onDeleteConversation={handleDeleteConversation}
         onRenameConversation={handleRenameConversation}
         isLoading={isConversationsLoading}
-        dbConnected={dbConnected} // MongoDB connection status
+        dbConnected={dbConnected}
         conversationsError={conversationsError}
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={toggleSidebarCollapse}
       />
-      <div
-        className={`flex flex-col flex-grow h-screen transition-all duration-300 ease-in-out`}
-      >
+      <div className={`flex flex-col flex-grow h-screen transition-all duration-300 ease-in-out`}>
         <header className="p-4 bg-brand-surface-bg shadow-md border-b border-gray-700 flex items-center justify-between">
           <div className="flex items-center">
             <button
@@ -409,90 +384,54 @@ const App = () => {
               className="p-2 mr-2 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-purple"
               title={isSidebarCollapsed ? "Open sidebar" : "Close sidebar"}
             >
-              {isSidebarCollapsed ? (
-                <PanelRightOpen size={20} />
-              ) : (
-                <PanelLeftClose size={20} />
-              )}
+              {isSidebarCollapsed ? <PanelRightOpen size={20} /> : <PanelLeftClose size={20} />}
             </button>
             <h1 className="text-xl font-semibold text-brand-purple">OhSee</h1>
           </div>
           <div className="text-xs text-brand-text-secondary flex items-center space-x-2 sm:space-x-3 flex-wrap">
-            <span
-              className={`flex items-center ${mcpSearchServiceReady ? "text-brand-success-green" : "text-brand-alert-red"}`}
-              title="Web Search Service Status"
-            >
+            <span className={`flex items-center ${mcpSearchServiceReady ? "text-brand-success-green" : "text-brand-alert-red"}`} title="Web Search Service Status">
               <Wifi size={14} className="mr-1" />
               Search: {mcpSearchServiceReady ? "Ready" : "N/A"}
             </span>
-            <span
-              className={`flex items-center ${mcpDbServiceReady ? "text-brand-success-green" : "text-brand-alert-red"}`}
-              title="Database Query Service Status"
-            >
-              <Server size={14} className="mr-1" />{" "}
-              {/* Changed icon for DB service */}
+            <span className={`flex items-center ${mcpDbServiceReady ? "text-brand-success-green" : "text-brand-alert-red"}`} title="Database Query Service Status">
+              <Server size={14} className="mr-1" />
               DB Query: {mcpDbServiceReady ? "Ready" : "N/A"}
+            </span>
+            <span className={`flex items-center ${mcpHubspotServiceReady ? "text-brand-success-green" : "text-brand-alert-red"}`} title="HubSpot Service Status">
+              <Share2 size={14} className="mr-1" />
+              HubSpot: {mcpHubspotServiceReady ? "Ready" : "N/A"}
             </span>
 
             <div className="flex items-center" title="Ollama Model Selection">
-              <BrainCircuit
-                size={14}
-                className={`mr-1 ${ollamaAvailable ? "text-brand-purple" : "text-brand-alert-red"}`}
-              />
+              <BrainCircuit size={14} className={`mr-1 ${ollamaAvailable ? "text-brand-purple" : "text-brand-alert-red"}`} />
               {!currentConversationId ? (
                 <select
                   value={selectedOllamaModel}
                   onChange={(e) => setSelectedOllamaModel(e.target.value)}
-                  disabled={
-                    !availableOllamaModels.length ||
-                    isLoading ||
-                    isChatHistoryLoading ||
-                    !ollamaAvailable
-                  }
+                  disabled={!availableOllamaModels.length || isLoading || isChatHistoryLoading || !ollamaAvailable}
                   className="bg-brand-surface-bg text-brand-text-secondary text-xs p-1 rounded border border-gray-600 focus:outline-none focus:ring-1 focus:ring-brand-purple max-w-[120px] sm:max-w-[180px] truncate"
                   title={modelForDisplay}
                 >
-                  {ollamaModelsError && (
-                    <option value="">{ollamaModelsError}</option>
-                  )}
-                  {!ollamaModelsError && !ollamaAvailable && (
-                    <option value="">Ollama N/A</option>
-                  )}
-                  {!ollamaModelsError &&
-                    ollamaAvailable &&
-                    availableOllamaModels.length === 0 && (
-                      <option value="">No models</option>
-                    )}
-                  {availableOllamaModels.map((model) => (
-                    <option key={model} value={model}>
-                      {model}
-                    </option>
-                  ))}
+                  {ollamaModelsError && <option value="">{ollamaModelsError}</option>}
+                  {!ollamaModelsError && !ollamaAvailable && <option value="">Ollama N/A</option>}
+                  {!ollamaModelsError && ollamaAvailable && availableOllamaModels.length === 0 && <option value="">No models</option>}
+                  {availableOllamaModels.map((model) => (<option key={model} value={model}>{model}</option>))}
                 </select>
               ) : (
-                <span
-                  className="text-brand-text-secondary max-w-[120px] sm:max-w-[180px] truncate"
-                  title={modelForDisplay}
-                >
+                <span className="text-brand-text-secondary max-w-[120px] sm:max-w-[180px] truncate" title={modelForDisplay}>
                   Model: {modelForDisplay}
                 </span>
               )}
             </div>
 
-            <span
-              className={`flex items-center ${dbConnected ? "text-brand-success-green" : "text-brand-alert-red"}`}
-              title="Chat History DB (MongoDB) Status"
-            >
+            <span className={`flex items-center ${dbConnected ? "text-brand-success-green" : "text-brand-alert-red"}`} title="Chat History DB (MongoDB) Status">
               <Database size={14} className="mr-1" />
               History DB: {dbConnected ? "Conn." : "Disc."}
             </span>
           </div>
         </header>
 
-        <div
-          ref={chatContainerRef}
-          className="flex-grow p-4 overflow-y-auto space-y-2 bg-brand-main-bg"
-        >
+        <div ref={chatContainerRef} className="flex-grow p-4 overflow-y-auto space-y-2 bg-brand-main-bg">
           {isChatHistoryLoading && (
             <div className="flex justify-center items-center h-full">
               <Loader2 size={32} className="animate-spin text-brand-purple" />
@@ -500,18 +439,12 @@ const App = () => {
           )}
           {!isChatHistoryLoading &&
             chatHistory.map((msg, index) => (
-              <ChatMessage
-                key={msg.timestamp ? `${msg.timestamp}-${index}` : index}
-                message={msg}
-              />
+              <ChatMessage key={msg.timestamp ? `${msg.timestamp}-${index}` : index} message={msg} />
             ))}
           {isLoading && !isChatHistoryLoading && (
             <div className="flex justify-start mb-4 animate-pulse">
               <div className="max-w-[70%] p-3 rounded-lg shadow bg-brand-surface-bg text-brand-text-primary rounded-bl-none">
-                Thinking with{" "}
-                {currentConversationDetails?.ollama_model_name ||
-                  selectedOllamaModel}
-                ...
+                Thinking with {currentConversationDetails?.ollama_model_name || selectedOllamaModel}...
               </div>
             </div>
           )}
@@ -528,17 +461,12 @@ const App = () => {
           isLoading={isLoading || isChatHistoryLoading}
           isSearchActive={isSearchActive}
           onToggleSearch={toggleSearch}
-          isDatabaseActive={isDatabaseActive} // Pass new prop
-          onToggleDatabase={toggleDatabase} // Pass new prop
-          disabled={
-            isChatHistoryLoading ||
-            isLoading ||
-            (!selectedOllamaModel &&
-              !currentConversationId &&
-              availableOllamaModels.length > 0 &&
-              ollamaAvailable) ||
-            !ollamaAvailable
-          }
+          isDatabaseActive={isDatabaseActive}
+          onToggleDatabase={toggleDatabase}
+          isHubspotActive={isHubspotActive}
+          onHubspotButtonClick={handleHubspotButtonClick}
+          isHubspotAuthenticated={isHubspotAuthenticated}
+          disabled={isChatHistoryLoading || isLoading || (!selectedOllamaModel && !currentConversationId && availableOllamaModels.length > 0 && ollamaAvailable) || !ollamaAvailable}
           placeholder={getChatInputPlaceholder()}
         />
       </div>

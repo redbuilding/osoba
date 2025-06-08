@@ -30,6 +30,9 @@ from fastmcp.client.transports import StdioServerParameters, stdio_client
 import ollama
 # import asyncio # Duplicate import, removed for cleanliness
 
+# Local imports for auth
+from backend.auth_hubspot import router as hubspot_auth_router, get_valid_token, SESSION_COOKIE_NAME
+
 # --- Environment Setup ---
 _main_py_dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -48,6 +51,7 @@ logger.setLevel(logging.INFO)
 # --- Constants ---
 WEB_SEARCH_SERVICE_NAME = "web_search_service"
 MYSQL_DB_SERVICE_NAME = "mysql_db_service"
+HUBSPOT_SERVICE_NAME = "hubspot_service"
 MAX_DB_RESULT_CHARS = 5000 # Proxy for token limit (approx 1000-1200 tokens)
 MAX_TABLES_FOR_SCHEMA_CONTEXT = 7 # Max tables to fetch full schema for, to keep prompt size reasonable
 
@@ -105,6 +109,11 @@ class AppState:
                 required_tools=["execute_sql_query_tool"], # Still list tools for general service health
                 # Resources like "resource://tables" will be called directly
                 # enabled=False # Example: Can be disabled here if not ready for use
+            ),
+            HUBSPOT_SERVICE_NAME: MCPServiceConfig(
+                name=HUBSPOT_SERVICE_NAME,
+                script_name="server_hubspot.py",
+                required_tools=["create_hubspot_marketing_email", "update_hubspot_marketing_email"]
             ),
         }
 
@@ -317,6 +326,7 @@ async def lifespan(app: FastAPI):
     logger.info("FastAPI Lifespan: Shutdown complete.")
 
 app = FastAPI(lifespan=lifespan)
+app.include_router(hubspot_auth_router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -453,7 +463,7 @@ def format_db_results_for_prompt(query: str, db_results: Union[Dict, List], max_
 class ChatMessage(BaseModel):
     role: str; content: str; is_html: Optional[bool] = False; timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 class ChatPayload(BaseModel):
-    user_message: str; chat_history: List[ChatMessage]; use_search: bool; use_database: bool = False; conversation_id: Optional[str] = None; ollama_model_name: Optional[str] = None
+    user_message: str; chat_history: List[ChatMessage]; use_search: bool; use_database: bool = False; use_hubspot: bool = False; conversation_id: Optional[str] = None; ollama_model_name: Optional[str] = None
 class ChatResponse(BaseModel):
     conversation_id: str; chat_history: List[ChatMessage]; ollama_model_name: Optional[str] = None
 class ConversationListItem(BaseModel):
@@ -480,7 +490,7 @@ async def get_default_ollama_model() -> str:
     return DEFAULT_OLLAMA_MODEL
 
 
-async def process_chat_request(payload: ChatPayload) -> ChatResponse:
+async def process_chat_request(request: Request, payload: ChatPayload) -> ChatResponse:
     if conversations_collection is None: raise HTTPException(status_code=503, detail="MongoDB unavailable.")
     user_msg_content = payload.user_message; conv_id = payload.conversation_id
     llm_history: List[Dict[str, str]] = []; ui_history: List[ChatMessage] = []
@@ -525,6 +535,7 @@ async def process_chat_request(payload: ChatPayload) -> ChatResponse:
     prompt_for_llm = user_msg_content
     search_html_indicator = None
     db_html_indicator = None
+    hubspot_html_indicator = None
     assistant_error_message_obj = None
 
     if payload.use_search:
@@ -751,6 +762,104 @@ Database Schema Context:
                 logger.error(f"[API_CHAT_DB] Database interaction processing error: {e}", exc_info=True)
                 assistant_error_message_obj = ChatMessage(role="assistant", content=f"⚠️ Database interaction failed: {str(e)}")
 
+    if payload.use_hubspot and not assistant_error_message_obj:
+        logger.info(f"[API_CHAT] HubSpot interaction active for: '{user_msg_content}'")
+        session_id = request.cookies.get(SESSION_COOKIE_NAME)
+        access_token = await get_valid_token(session_id) if session_id else None
+
+        if not access_token:
+            logger.warning("[API_CHAT] HubSpot action requested but user is not authenticated or token is invalid.")
+            assistant_error_message_obj = ChatMessage(role="assistant", content="⚠️ You are not connected to HubSpot, or your session has expired. Please connect to HubSpot first.")
+        elif not app_state.mcp_service_ready.get(HUBSPOT_SERVICE_NAME, False):
+            logger.warning("[API_CHAT] HubSpot action requested but MCP service unavailable.")
+            assistant_error_message_obj = ChatMessage(role="assistant", content="⚠️ The HubSpot service is currently unavailable.")
+        else:
+            try:
+                hubspot_tool_schema = """
+Your task is to act as a JSON generator. Based on the user's request, you must create a single JSON object that can be used to call a tool to create a HubSpot marketing email.
+The JSON object must have the following top-level keys: "name", "subject", "from_sender", "to_recipients", "content".
+
+Here is the detailed schema for the JSON object:
+- "name" (string, required): An internal name for the email.
+- "subject" (string, required): The subject line of the email.
+- "from_sender" (object, required): Contains sender information.
+  - "fromName" (string, required): The name of the sender.
+  - "replyTo" (string, required): The email address for replies.
+- "to_recipients" (object, required): Contains recipient information.
+  - "contactLists" (object, required): Specifies which contact lists to use.
+    - "include" (array of integers, required): An array of HubSpot Contact List IDs to send the email to.
+    - "exclude" (array of integers, required): An array of HubSpot Contact List IDs to exclude from the send.
+- "content" (object, required): Contains the email's content.
+  - "templatePath" (string, required): The HubSpot design manager path to the email template. Example: "my_designs/my_template".
+  - "plainTextVersion" (string, required): A plain text version of the email for clients that don't render HTML.
+
+Rules:
+1. You MUST generate a valid JSON object that conforms to this schema.
+2. Infer the values for each field from the user's request.
+3. If the user does not provide enough information for a required field (e.g., contact list IDs, template path), you MUST ask clarifying questions. DO NOT generate the JSON. Instead, output the clarifying questions as a normal text response.
+4. If you have enough information, output ONLY the JSON object and nothing else. Do not wrap it in markdown or provide explanations.
+"""
+                json_generation_messages = [
+                    {"role": "system", "content": hubspot_tool_schema},
+                    {"role": "user", "content": user_msg_content}
+                ]
+
+                logger.info("[API_CHAT_HUBSPOT] Calling LLM to generate HubSpot email JSON...")
+                llm_json_response = await chat_with_ollama(json_generation_messages, model_name)
+
+                if not llm_json_response:
+                    raise Exception("LLM did not return a response for JSON generation.")
+
+                if '?' in llm_json_response or not llm_json_response.strip().startswith('{'):
+                    logger.info(f"[API_CHAT_HUBSPOT] LLM is asking for clarification: {llm_json_response}")
+                    assistant_error_message_obj = ChatMessage(role="assistant", content=llm_json_response)
+                else:
+                    logger.debug(f"[API_CHAT_HUBSPOT] Raw JSON from LLM: {llm_json_response}")
+                    try:
+                        email_payload = json.loads(llm_json_response)
+                    except json.JSONDecodeError:
+                        logger.error(f"[API_CHAT_HUBSPOT] Failed to decode JSON from LLM: {llm_json_response}")
+                        raise Exception("I tried to create the email details but couldn't format them correctly. Please try rephrasing your request.")
+
+                    tool_params = {
+                        "access_token": access_token,
+                        "name": email_payload.get("name"),
+                        "subject": email_payload.get("subject"),
+                        "from_sender": email_payload.get("from_sender"),
+                        "to_recipients": email_payload.get("to_recipients"),
+                        "content": email_payload.get("content"),
+                    }
+
+                    required_keys = ["name", "subject", "from_sender", "to_recipients", "content"]
+                    if not all(tool_params.get(k) for k in required_keys):
+                        missing_keys = [k for k in required_keys if not tool_params.get(k)]
+                        logger.error(f"[API_CHAT_HUBSPOT] LLM-generated JSON is missing required keys: {missing_keys}")
+                        raise Exception(f"I couldn't create the email because some information was missing from your request: {', '.join(missing_keys)}. Please provide these details.")
+
+                    logger.info("[API_CHAT_HUBSPOT] Calling create_hubspot_marketing_email tool...")
+                    req_id = await submit_mcp_tool_request(HUBSPOT_SERVICE_NAME, "create_hubspot_marketing_email", tool_params)
+                    mcp_resp = await wait_mcp_response(HUBSPOT_SERVICE_NAME, req_id, timeout=60)
+
+                    if mcp_resp.get("status") == "error":
+                        raise Exception(f"HubSpot tool failed: {mcp_resp.get('error', 'Unknown error')}")
+
+                    hubspot_api_response = mcp_resp.get("data", {})
+                    if "error" in hubspot_api_response:
+                        logger.error(f"[API_CHAT_HUBSPOT] HubSpot API returned an error: {hubspot_api_response}")
+                        raise Exception(f"HubSpot API returned an error: {hubspot_api_response.get('body', 'Details not available.')}")
+
+                    created_email_id = hubspot_api_response.get("id")
+                    created_email_name = hubspot_api_response.get("name")
+                    logger.info(f"[API_CHAT_HUBSPOT] Successfully created email '{created_email_name}' with ID {created_email_id}.")
+
+                    hubspot_html_indicator = f"<div class='hubspot-indicator-custom'><b>🤖 HubSpot:</b> An email was created based on your request.</div>"
+                    prompt_for_llm = (f"You have just successfully created a marketing email in HubSpot named '{created_email_name}' (ID: {created_email_id}). "
+                                      f"Now, provide a friendly confirmation to the user acknowledging that their request to '{user_msg_content}' has been completed.")
+
+            except Exception as e:
+                logger.error(f"[API_CHAT_HUBSPOT] HubSpot interaction processing error: {e}", exc_info=True)
+                assistant_error_message_obj = ChatMessage(role="assistant", content=f"⚠️ HubSpot action failed: {str(e)}")
+
 
     if assistant_error_message_obj:
         ui_history.append(assistant_error_message_obj)
@@ -765,6 +874,9 @@ Database Schema Context:
         is_html_response = False
 
         html_prefix = ""
+        if hubspot_html_indicator:
+            html_prefix += hubspot_html_indicator
+            is_html_response = True
         if search_html_indicator:
             html_prefix += search_html_indicator
             is_html_response = True
@@ -791,9 +903,9 @@ Database Schema Context:
 
 # --- FastAPI Endpoints ---
 @app.post("/api/chat", response_model=ChatResponse)
-async def chat_endpoint(payload: ChatPayload):
+async def chat_endpoint(request: Request, payload: ChatPayload):
     try:
-        return await process_chat_request(payload)
+        return await process_chat_request(request, payload)
     except HTTPException:
         raise
     except Exception as e:

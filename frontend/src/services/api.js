@@ -9,13 +9,14 @@ const apiClient = axios.create({
   },
 });
 
-export const sendMessage = async (userMessage, chatHistory, useSearch, useDatabase, conversationId = null, ollamaModelName = null) => {
+export const sendMessage = async (userMessage, chatHistory, useSearch, useDatabase, useHubspot, conversationId = null, ollamaModelName = null) => {
   try {
     const payload = {
       user_message: userMessage,
       chat_history: chatHistory,
       use_search: useSearch,
-      use_database: useDatabase, // New flag
+      use_database: useDatabase,
+      use_hubspot: useHubspot, // New flag
       conversation_id: conversationId,
     };
     if (ollamaModelName && !conversationId) {
@@ -42,7 +43,8 @@ export const getServiceStatus = async () => {
     //   ollama_available: bool,
     //   mcp_services: { 
     //     web_search_service: { ready: bool }, 
-    //     mysql_db_service: { ready: bool } 
+    //     mysql_db_service: { ready: bool },
+    //     hubspot_service: { ready: bool }
     //   } 
     // }
     return response.data;
@@ -54,6 +56,20 @@ export const getServiceStatus = async () => {
     throw error.response
       ? error.response.data
       : new Error("Network error or server unavailable");
+  }
+};
+
+export const getHubspotAuthStatus = async () => {
+  try {
+    const response = await apiClient.get("/auth/hubspot/status");
+    return response.data; // Expected: { authenticated: bool }
+  } catch (error) {
+    console.error(
+      "Error fetching HubSpot auth status:",
+      error.response ? error.response.data : error.message,
+    );
+    // Assume not authenticated on error to be safe
+    return { authenticated: false };
   }
 };
 

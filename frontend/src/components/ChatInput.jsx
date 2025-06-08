@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
-import { Send, Search, Zap, Database, Server } from 'lucide-react'; // Added Database, Server icons
+import { Send, Search, Zap, Database, Server, Share2, LogIn } from 'lucide-react';
 
 const ChatInput = ({ 
   onSendMessage, 
   isLoading, 
   isSearchActive, 
   onToggleSearch,
-  isDatabaseActive, // New prop
-  onToggleDatabase, // New prop
+  isDatabaseActive,
+  onToggleDatabase,
+  isHubspotActive,
+  onHubspotButtonClick,
+  isHubspotAuthenticated,
   disabled,
   placeholder
 }) => {
@@ -30,10 +33,7 @@ const ChatInput = ({
         {/* Search Toggle Button */}
         <button
           type="button"
-          onClick={() => {
-            onToggleSearch();
-            if (isDatabaseActive && !isSearchActive) onToggleDatabase(); // Deactivate DB if activating Search
-          }}
+          onClick={onToggleSearch}
           title={isSearchActive ? "Disable Web Search" : "Enable Web Search"}
           disabled={disabled}
           className={`p-2 rounded-md mr-2 transition-colors duration-200 focus:outline-none focus:ring-2
@@ -47,10 +47,7 @@ const ChatInput = ({
         {/* Database Toggle Button */}
         <button
           type="button"
-          onClick={() => {
-            onToggleDatabase();
-            if (isSearchActive && !isDatabaseActive) onToggleSearch(); // Deactivate Search if activating DB
-          }}
+          onClick={onToggleDatabase}
           title={isDatabaseActive ? "Disable Database Query" : "Enable Database Query"}
           disabled={disabled}
           className={`p-2 rounded-md mr-2 transition-colors duration-200 focus:outline-none focus:ring-2
@@ -59,6 +56,20 @@ const ChatInput = ({
           } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
           {isDatabaseActive ? <Server size={20} /> : <Database size={20} />}
+        </button>
+
+        {/* HubSpot Toggle/Connect Button */}
+        <button
+          type="button"
+          onClick={onHubspotButtonClick}
+          title={isHubspotAuthenticated ? (isHubspotActive ? "Disable HubSpot Actions" : "Enable HubSpot Actions") : "Connect to HubSpot"}
+          disabled={disabled}
+          className={`p-2 rounded-md mr-2 transition-colors duration-200 focus:outline-none focus:ring-2
+            focus:ring-brand-purple ${
+            isHubspotActive ? 'bg-orange-500 text-white hover:bg-orange-600' : 'bg-gray-700 text-brand-text-secondary hover:bg-gray-600'
+          } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+        >
+          {isHubspotAuthenticated ? <Share2 size={20} /> : <LogIn size={20} />}
         </button>
         
         <input
@@ -82,20 +93,23 @@ const ChatInput = ({
           )}
         </button>
       </div>
-       {isSearchActive && (
-        <p className="text-xs text-brand-accent mt-2 ml-12 sm:ml-28"> {/* Adjusted margin for two buttons */}
-          ⚡ Web search is active. Your message will be used as a search query.
-        </p>
-      )}
-      {isDatabaseActive && (
-        <p className="text-xs text-brand-blue mt-2 ml-12 sm:ml-28"> {/* Adjusted margin */}
-          💾 Database query is active. Your message will be interpreted to query the database.
-        </p>
-      )}
-      {!isSearchActive && !isDatabaseActive && (
-         <p className="text-xs text-brand-text-secondary mt-2 ml-12 sm:ml-28 h-4"> {/* Placeholder for consistent height */}
-         </p>
-      )}
+       <div className="h-4 mt-2 text-xs ml-12 sm:ml-40"> {/* Container for consistent height */}
+        {isSearchActive && (
+          <p className="text-brand-accent">
+            ⚡ Web search is active. Your message will be used as a search query.
+          </p>
+        )}
+        {isDatabaseActive && (
+          <p className="text-brand-blue">
+            💾 Database query is active. Your message will be interpreted to query the database.
+          </p>
+        )}
+        {isHubspotActive && (
+          <p className="text-orange-400">
+            🤖 HubSpot actions are active. Describe the email you want to create.
+          </p>
+        )}
+      </div>
     </form>
   );
 };
