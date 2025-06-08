@@ -15,7 +15,7 @@ load_dotenv()
 HUBSPOT_CLIENT_ID = os.getenv('HUBSPOT_CLIENT_ID')
 HUBSPOT_CLIENT_SECRET = os.getenv('HUBSPOT_CLIENT_SECRET')
 # This should be the full URL to your backend's callback endpoint
-REDIRECT_URI = os.getenv('HUBSPOT_REDIRECT_URI', 'http://localhost:8000/auth/hubspot/oauth-callback')
+REDIRECT_URI = os.getenv('HUBSPOT_REDIRECT_URI')
 # The URL to redirect to after successful authentication
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')
 
@@ -88,7 +88,7 @@ async def hubspot_connect():
     if not HUBSPOT_CLIENT_ID:
         logger.error("HUBSPOT_CLIENT_ID is not set.")
         raise HTTPException(status_code=500, detail="HubSpot integration is not configured on the server.")
-    
+
     params = {
         'client_id': HUBSPOT_CLIENT_ID,
         'scope': 'content marketing-email',
@@ -134,7 +134,7 @@ async def hubspot_oauth_callback(request: Request, code: str | None = None, erro
                 "expires_at": time.time() + tokens["expires_in"],
             }
             logger.info(f"Successfully obtained HubSpot tokens for session {session_id[:8]}...")
-            
+
             # Redirect back to the frontend, indicating success
             response = RedirectResponse(url=f"{FRONTEND_URL}?auth_status=success")
             # Ensure the session cookie is set on the successful response
@@ -153,7 +153,7 @@ async def hubspot_auth_status(request: Request):
     session_id = request.cookies.get(SESSION_COOKIE_NAME)
     if not session_id:
         return {"authenticated": False}
-    
+
     # get_valid_token will return None if the token is missing, expired and cannot be refreshed.
     token = await get_valid_token(session_id)
     return {"authenticated": token is not None}
