@@ -775,30 +775,64 @@ Database Schema Context:
             assistant_error_message_obj = ChatMessage(role="assistant", content="⚠️ The HubSpot service is currently unavailable.")
         else:
             try:
+#                 hubspot_tool_schema = """
+# Your task is to act as a JSON generator. Based on the user's request, you must create a single JSON object that can be used to call a tool to create a HubSpot marketing email.
+# The JSON object must have the following top-level keys: "name", "subject", "from_sender", "to_recipients", "content".
+
+# Here is the detailed schema for the JSON object:
+# - "name" (string, required): An internal name for the email.
+# - "subject" (string, required): The subject line of the email.
+# - "from_sender" (object, required): Contains sender information.
+#   - "fromName" (string, required): The name of the sender.
+#   - "replyTo" (string, required): The email address for replies.
+# - "to_recipients" (object, required): Contains recipient information.
+#   - "contactLists" (object, required): Specifies which contact lists to use.
+#     - "include" (array of integers, required): An array of HubSpot Contact List IDs to send the email to.
+#     - "exclude" (array of integers, required): An array of HubSpot Contact List IDs to exclude from the send.
+# - "content" (object, required): Contains the email's content.
+#   - "templatePath" (string, required): The HubSpot design manager path to the email template. Example: "my_designs/my_template".
+#   - "plainTextVersion" (string, required): A plain text version of the email for clients that don't render HTML.
+
+# Rules:
+# 1. You MUST generate a valid JSON object that conforms to this schema.
+# 2. Infer the values for each field from the user's request.
+# 3. If the user does not provide enough information for a required field (e.g., contact list IDs, template path), you MUST ask clarifying questions. DO NOT generate the JSON. Instead, output the clarifying questions as a normal text response.
+# 4. If you have enough information, output ONLY the JSON object and nothing else. Do not wrap it in markdown or provide explanations.
+# """
                 hubspot_tool_schema = """
-Your task is to act as a JSON generator. Based on the user's request, you must create a single JSON object that can be used to call a tool to create a HubSpot marketing email.
-The JSON object must have the following top-level keys: "name", "subject", "from_sender", "to_recipients", "content".
+You are a JSON‐only generator for the `create_hubspot_marketing_email` tool.  Based on the user’s instruction, **output exactly one** JSON object—no prose, no markdown fences—that matches this full schema:
 
-Here is the detailed schema for the JSON object:
-- "name" (string, required): An internal name for the email.
-- "subject" (string, required): The subject line of the email.
-- "from_sender" (object, required): Contains sender information.
-  - "fromName" (string, required): The name of the sender.
-  - "replyTo" (string, required): The email address for replies.
-- "to_recipients" (object, required): Contains recipient information.
-  - "contactLists" (object, required): Specifies which contact lists to use.
-    - "include" (array of integers, required): An array of HubSpot Contact List IDs to send the email to.
-    - "exclude" (array of integers, required): An array of HubSpot Contact List IDs to exclude from the send.
-- "content" (object, required): Contains the email's content.
-  - "templatePath" (string, required): The HubSpot design manager path to the email template. Example: "my_designs/my_template".
-  - "plainTextVersion" (string, required): A plain text version of the email for clients that don't render HTML.
+```json
+{
+"access_token": "string",
+"content": {
+"templatePath": "string (e.g. /EmailTemplate.html)",
+"plainTextVersion": "string"
+},
+"from_sender": {
+"fromName": "string",
+"replyTo": "string",
+"customReplyTo": "string (optional)"
+},
+"name": "string",
+"subject": "string",
+"to_recipients": {
+"contactLists": {
+"include": [integer],
+"exclude": [integer]
+}
+},
+"sendOnPublish": boolean
+}
+```
 
-Rules:
-1. You MUST generate a valid JSON object that conforms to this schema.
-2. Infer the values for each field from the user's request.
-3. If the user does not provide enough information for a required field (e.g., contact list IDs, template path), you MUST ask clarifying questions. DO NOT generate the JSON. Instead, output the clarifying questions as a normal text response.
-4. If you have enough information, output ONLY the JSON object and nothing else. Do not wrap it in markdown or provide explanations.
+**Rules:**
+1. Fill in *all* required fields.
+2. Infer values from the user’s request.
+3. If *any* required piece is missing (e.g. list IDs, templatePath), *do not* output JSON; instead respond with a natural‐language clarification question.
+4. Do *not* wrap JSON in markdown or add any extra text—output *only* the JSON object.
 """
+
                 json_generation_messages = [
                     {"role": "system", "content": hubspot_tool_schema},
                     {"role": "user", "content": user_msg_content}
@@ -807,20 +841,35 @@ Rules:
                 logger.info("[API_CHAT_HUBSPOT] Calling LLM to generate HubSpot email JSON...")
                 llm_json_response = await chat_with_ollama(json_generation_messages, model_name)
 
-                if not llm_json_response:
+                raw = llm_json_response or ""
+                if not raw:
                     raise Exception("LLM did not return a response for JSON generation.")
 
-                if '?' in llm_json_response or not llm_json_response.strip().startswith('{'):
-                    logger.info(f"[API_CHAT_HUBSPOT] LLM is asking for clarification: {llm_json_response}")
-                    assistant_error_message_obj = ChatMessage(role="assistant", content=llm_json_response)
+                # 1) Try JSON-fence → 2) any fence → 3) raw
+                json_block = re.search(r"```json\s*([\s\S]+?)```", raw, re.IGNORECASE)
+                if json_block:
+                    candidate = json_block.group(1).strip()
                 else:
-                    logger.debug(f"[API_CHAT_HUBSPOT] Raw JSON from LLM: {llm_json_response}")
-                    try:
-                        email_payload = json.loads(llm_json_response)
-                    except json.JSONDecodeError:
-                        logger.error(f"[API_CHAT_HUBSPOT] Failed to decode JSON from LLM: {llm_json_response}")
-                        raise Exception("I tried to create the email details but couldn't format them correctly. Please try rephrasing your request.")
+                    any_block = re.search(r"```\s*[\w]*\s*\n([\s\S]+?)```", raw)
+                    candidate = any_block.group(1).strip() if any_block else raw.strip()
 
+                # Parse candidate, fallback to raw
+                try:
+                    email_payload = json.loads(candidate)
+                except json.JSONDecodeError:
+                    try:
+                        email_payload = json.loads(raw)
+                    except json.JSONDecodeError:
+                        email_payload = None
+
+                if not isinstance(email_payload, dict):
+                    logger.error(f"[API_CHAT_HUBSPOT] Could not extract JSON. Raw: {raw}")
+                    assistant_error_message_obj = ChatMessage(
+                        role="assistant",
+                        content="⚠️ I couldn’t format your email request into JSON. Could you rephrase or clarify?"
+                    )
+                else:
+                    # Build and validate the params
                     tool_params = {
                         "access_token": access_token,
                         "name": email_payload.get("name"),
@@ -828,18 +877,18 @@ Rules:
                         "from_sender": email_payload.get("from_sender"),
                         "to_recipients": email_payload.get("to_recipients"),
                         "content": email_payload.get("content"),
+                        "sendOnPublish": email_payload.get("sendOnPublish", False)
                     }
+                    missing = [k for k in ["name","subject","from_sender","to_recipients","content"] if not tool_params.get(k)]
+                    if missing:
+                        raise Exception(f"Missing required fields: {', '.join(missing)}")
 
-                    required_keys = ["name", "subject", "from_sender", "to_recipients", "content"]
-                    if not all(tool_params.get(k) for k in required_keys):
-                        missing_keys = [k for k in required_keys if not tool_params.get(k)]
-                        logger.error(f"[API_CHAT_HUBSPOT] LLM-generated JSON is missing required keys: {missing_keys}")
-                        raise Exception(f"I couldn't create the email because some information was missing from your request: {', '.join(missing_keys)}. Please provide these details.")
+                    logger.debug(f"[API_CHAT_HUBSPOT] Final tool_params: {json.dumps(tool_params, indent=2)}")
 
-                    logger.info("[API_CHAT_HUBSPOT] Calling create_hubspot_marketing_email tool...")
+                    # Call the tool
+                    logger.info("[API_CHAT_HUBSPOT] Calling create_hubspot_marketing_email tool…")
                     req_id = await submit_mcp_tool_request(HUBSPOT_SERVICE_NAME, "create_hubspot_marketing_email", tool_params)
                     mcp_resp = await wait_mcp_response(HUBSPOT_SERVICE_NAME, req_id, timeout=60)
-
                     if mcp_resp.get("status") == "error":
                         raise Exception(f"HubSpot tool failed: {mcp_resp.get('error', 'Unknown error')}")
 
