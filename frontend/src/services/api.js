@@ -11,6 +11,7 @@ const apiClient = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
+  withCredentials: true,
 });
 
 export const sendMessage = async (userMessage, chatHistory, useSearch, useDatabase, useHubspot, conversationId = null, ollamaModelName = null) => {
