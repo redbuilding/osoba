@@ -31,7 +31,7 @@ import ollama
 # import asyncio # Duplicate import, removed for cleanliness
 
 # Local imports for auth
-from backend.auth_hubspot import router as hubspot_auth_router, get_valid_token, SESSION_COOKIE_NAME
+from auth_hubspot import router as hubspot_auth_router, get_valid_token, SESSION_COOKIE_NAME
 
 # --- Environment Setup ---
 _main_py_dir = os.path.dirname(os.path.abspath(__file__))
