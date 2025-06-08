@@ -1,16 +1,11 @@
 import React, { useState } from 'react';
-import { Send, Search, Zap, Database, Server, Share2, LogIn } from 'lucide-react';
+import { Send, Sparkles, Search, Database, Share2 } from 'lucide-react';
 
-const ChatInput = ({ 
-  onSendMessage, 
-  isLoading, 
-  isSearchActive, 
-  onToggleSearch,
-  isDatabaseActive,
-  onToggleDatabase,
-  isHubspotActive,
-  onHubspotButtonClick,
-  isHubspotAuthenticated,
+const ChatInput = ({
+  onSendMessage,
+  isLoading,
+  activeTool,
+  onToggleToolSelector,
   disabled,
   placeholder
 }) => {
@@ -24,54 +19,56 @@ const ChatInput = ({
     }
   };
 
+  const getActiveToolInfo = () => {
+    switch (activeTool) {
+      case 'search':
+        return {
+          Icon: Search,
+          text: 'Web search is active. Your message will be used as a search query.',
+          colorClass: 'text-brand-accent',
+          buttonColorClass: 'bg-brand-accent text-brand-main-bg hover:bg-yellow-400',
+        };
+      case 'database':
+        return {
+          Icon: Database,
+          text: 'Database query is active. Your message will be interpreted to query the database.',
+          colorClass: 'text-brand-blue',
+          buttonColorClass: 'bg-brand-blue text-white hover:bg-blue-500',
+        };
+      case 'hubspot':
+        return {
+          Icon: Share2,
+          text: 'HubSpot actions are active. Describe the email you want to create.',
+          colorClass: 'text-orange-400',
+          buttonColorClass: 'bg-orange-500 text-white hover:bg-orange-600',
+        };
+      default:
+        return null;
+    }
+  };
+
+  const activeToolInfo = getActiveToolInfo();
+
   return (
     <form
       onSubmit={handleSubmit}
       className="sticky bottom-0 left-0 right-0 p-4 bg-brand-main-bg border-t border-brand-surface-bg"
     >
       <div className="flex items-center bg-brand-surface-bg rounded-lg p-2 shadow-md">
-        {/* Search Toggle Button */}
+        {/* Tool Selector Button */}
         <button
           type="button"
-          onClick={onToggleSearch}
-          title={isSearchActive ? "Disable Web Search" : "Enable Web Search"}
+          onClick={onToggleToolSelector}
+          title={activeTool ? `Disable ${activeTool} Tool` : "Select a Tool"}
           disabled={disabled}
           className={`p-2 rounded-md mr-2 transition-colors duration-200 focus:outline-none focus:ring-2
             focus:ring-brand-purple ${
-            isSearchActive ? 'bg-brand-accent text-brand-main-bg hover:bg-yellow-400' : 'bg-gray-700 text-brand-text-secondary hover:bg-gray-600'
+            activeToolInfo ? activeToolInfo.buttonColorClass : 'bg-gray-700 text-brand-text-secondary hover:bg-gray-600'
           } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
-          {isSearchActive ? <Zap size={20} /> : <Search size={20} />}
+          {activeToolInfo ? <activeToolInfo.Icon size={20} /> : <Sparkles size={20} />}
         </button>
 
-        {/* Database Toggle Button */}
-        <button
-          type="button"
-          onClick={onToggleDatabase}
-          title={isDatabaseActive ? "Disable Database Query" : "Enable Database Query"}
-          disabled={disabled}
-          className={`p-2 rounded-md mr-2 transition-colors duration-200 focus:outline-none focus:ring-2
-            focus:ring-brand-purple ${
-            isDatabaseActive ? 'bg-brand-blue text-white hover:bg-blue-500' : 'bg-gray-700 text-brand-text-secondary hover:bg-gray-600'
-          } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-        >
-          {isDatabaseActive ? <Server size={20} /> : <Database size={20} />}
-        </button>
-
-        {/* HubSpot Toggle/Connect Button */}
-        <button
-          type="button"
-          onClick={onHubspotButtonClick}
-          title={isHubspotAuthenticated ? (isHubspotActive ? "Disable HubSpot Actions" : "Enable HubSpot Actions") : "Connect to HubSpot"}
-          disabled={disabled}
-          className={`p-2 rounded-md mr-2 transition-colors duration-200 focus:outline-none focus:ring-2
-            focus:ring-brand-purple ${
-            isHubspotActive ? 'bg-orange-500 text-white hover:bg-orange-600' : 'bg-gray-700 text-brand-text-secondary hover:bg-gray-600'
-          } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-        >
-          {isHubspotAuthenticated ? <Share2 size={20} /> : <LogIn size={20} />}
-        </button>
-        
         <input
           type="text"
           value={inputValue}
@@ -93,20 +90,10 @@ const ChatInput = ({
           )}
         </button>
       </div>
-       <div className="h-4 mt-2 text-xs ml-12 sm:ml-40"> {/* Container for consistent height */}
-        {isSearchActive && (
-          <p className="text-brand-accent">
-            ⚡ Web search is active. Your message will be used as a search query.
-          </p>
-        )}
-        {isDatabaseActive && (
-          <p className="text-brand-blue">
-            💾 Database query is active. Your message will be interpreted to query the database.
-          </p>
-        )}
-        {isHubspotActive && (
-          <p className="text-orange-400">
-            🤖 HubSpot actions are active. Describe the email you want to create.
+       <div className="h-4 mt-2 text-xs ml-4"> {/* Container for consistent height */}
+        {activeToolInfo && (
+          <p className={activeToolInfo.colorClass}>
+            ⚡ {activeToolInfo.text}
           </p>
         )}
       </div>

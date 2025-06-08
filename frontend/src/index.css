@@ -73,4 +73,14 @@
         font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
         @apply text-gray-300;
     }
+
+    /* Tool Selector Modal Styles */
+    .tool-selector-overlay {
+        @apply fixed inset-0 bg-black bg-opacity-60 z-40 flex justify-center items-center p-4;
+        animation: fadeIn 0.2s ease-out;
+    }
+    .tool-selector-container {
+        @apply bg-brand-surface-bg rounded-xl shadow-2xl p-6 w-full max-w-md border border-gray-700;
+        animation: slideUp 0.3s ease-out;
+    }
 }

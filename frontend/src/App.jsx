@@ -8,6 +8,7 @@ import React, {
 import ChatMessage from "./components/ChatMessage";
 import ChatInput from "./components/ChatInput";
 import ConversationSidebar from "./components/ConversationSidebar";
+import ToolSelector from "./components/ToolSelector"; // Import new component
 import {
   sendMessage,
   getServiceStatus,
@@ -29,7 +30,8 @@ import {
   PanelRightOpen,
   Server,
   Share2,
-} from "lucide-react"; // Added Server, Share2 icons
+  Search, // Import icons for ToolSelector
+} from "lucide-react";
 
 // Constants for MCP service names used in status checks
 const WEB_SEARCH_SERVICE_NAME = "web_search_service";
@@ -41,10 +43,9 @@ const App = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Tool Toggles
-  const [isSearchActive, setIsSearchActive] = useState(false);
-  const [isDatabaseActive, setIsDatabaseActive] = useState(false);
-  const [isHubspotActive, setIsHubspotActive] = useState(false);
+  // Tool State
+  const [activeTool, setActiveTool] = useState(null); // Replaces individual booleans
+  const [isToolSelectorOpen, setIsToolSelectorOpen] = useState(false);
 
   // Service Status
   const [mcpSearchServiceReady, setMcpSearchServiceReady] = useState(false);
@@ -74,7 +75,7 @@ const App = () => {
     return {
       role: "assistant",
       content:
-        "Hello! I'm your AI assistant. Select a model for new chats. Toggle tool icons to use them. Select 'New Chat' or a past conversation.",
+        "Hello! I'm your AI assistant. Select a model for new chats. Click the ✨ icon to use tools. Select 'New Chat' or a past conversation.",
       timestamp: new Date().toISOString(),
     };
   }, []);
@@ -124,28 +125,21 @@ const App = () => {
       const { authenticated } = await getHubspotAuthStatus();
       setIsHubspotAuthenticated(authenticated);
 
-      // If this is the first check after the page loads,
-      // see if we just came back from the auth flow.
       if (isInitialLoad) {
         const pendingAuth = localStorage.getItem('pendingHubspotAuth');
         if (pendingAuth === 'true') {
-          // We were trying to auth. Let's see if it succeeded.
-          localStorage.removeItem('pendingHubspotAuth'); // Clean up the flag immediately
+          localStorage.removeItem('pendingHubspotAuth');
           if (authenticated) {
-            // It worked! Activate the HubSpot tool automatically.
-            setIsHubspotActive(true);
-            // Ensure other tools are off
-            setIsSearchActive(false);
-            setIsDatabaseActive(false);
+            setActiveTool('hubspot');
           }
         }
       }
     };
 
-    checkAuth(true); // Initial check on component mount
-    const intervalId = setInterval(() => checkAuth(false), 30000); // Subsequent checks every 30s
+    checkAuth(true);
+    const intervalId = setInterval(() => checkAuth(false), 30000);
     return () => clearInterval(intervalId);
-  }, []); // The empty dependency array ensures this effect runs only once on mount.
+  }, []);
 
 
   useEffect(() => {
@@ -254,9 +248,9 @@ const App = () => {
       const response = await sendMessage(
         userInput,
         chatHistory,
-        isSearchActive,
-        isDatabaseActive,
-        isHubspotActive,
+        activeTool === 'search',
+        activeTool === 'database',
+        activeTool === 'hubspot',
         currentConversationId,
         modelForThisMessage,
       );
@@ -280,18 +274,14 @@ const App = () => {
   const handleSelectConversation = (conversationId) => {
     if (conversationId !== currentConversationId) {
       setCurrentConversationId(conversationId);
-      setIsSearchActive(false);
-      setIsDatabaseActive(false);
-      setIsHubspotActive(false);
+      setActiveTool(null);
     }
   };
 
   const handleNewChat = () => {
     setCurrentConversationId(null);
     setChatHistory([initialWelcomeMessage]);
-    setIsSearchActive(false);
-    setIsDatabaseActive(false);
-    setIsHubspotActive(false);
+    setActiveTool(null);
     setError(null);
     if (availableOllamaModels.length > 0 && !selectedOllamaModel) {
       const preferredModel =
@@ -335,40 +325,36 @@ const App = () => {
 
   const toggleSidebarCollapse = () => setIsSidebarCollapsed((prev) => !prev);
 
-  const toggleSearch = () => {
-    const turningOn = !isSearchActive;
-    setIsSearchActive(turningOn);
-    if (turningOn) {
-      setIsDatabaseActive(false);
-      setIsHubspotActive(false);
-    }
+  const handleHubspotConnect = () => {
+    localStorage.setItem('pendingHubspotAuth', 'true');
+    const connectUrl = `${BACKEND_URL}/auth/hubspot/connect`;
+    window.location.href = connectUrl;
   };
 
-  const toggleDatabase = () => {
-    const turningOn = !isDatabaseActive;
-    setIsDatabaseActive(turningOn);
-    if (turningOn) {
-      setIsSearchActive(false);
-      setIsHubspotActive(false);
-    }
-  };
-
-  const handleHubspotButtonClick = () => {
-    if (!isHubspotAuthenticated) {
-      // Set a flag in local storage before redirecting
-      localStorage.setItem('pendingHubspotAuth', 'true');
-      const connectUrl = `${BACKEND_URL}/auth/hubspot/connect`;
-      console.log(`Attempting to connect to HubSpot. Redirecting to: ${connectUrl}`);
-      window.location.href = connectUrl;
-    } else {
-      const turningOn = !isHubspotActive;
-      setIsHubspotActive(turningOn);
-      if (turningOn) {
-        setIsSearchActive(false);
-        setIsDatabaseActive(false);
-      }
-    }
-  };
+  const tools = useMemo(() => [
+    {
+      id: 'search',
+      name: 'Web Search',
+      description: 'Search the web for up-to-date information.',
+      icon: <Search size={24} />,
+      isReady: mcpSearchServiceReady,
+    },
+    {
+      id: 'database',
+      name: 'Database Query',
+      description: 'Ask questions about the connected SQL database.',
+      icon: <Database size={24} />,
+      isReady: mcpDbServiceReady,
+    },
+    {
+      id: 'hubspot',
+      name: 'HubSpot Actions',
+      description: 'Create marketing emails in HubSpot.',
+      icon: <Share2 size={24} />,
+      isReady: mcpHubspotServiceReady,
+      isAuthenticated: isHubspotAuthenticated,
+    },
+  ], [mcpSearchServiceReady, mcpDbServiceReady, mcpHubspotServiceReady, isHubspotAuthenticated]);
 
   const currentConversationDetails = useMemo(() => {
     return conversations.find((c) => c.id === currentConversationId);
@@ -379,9 +365,9 @@ const App = () => {
   const getChatInputPlaceholder = () => {
     if (!ollamaAvailable) return "Ollama server unavailable...";
     if (!selectedOllamaModel && !currentConversationId && availableOllamaModels.length > 0) return "Select a model to begin...";
-    if (isSearchActive) return "Enter web search query...";
-    if (isDatabaseActive) return "Enter question for database query...";
-    if (isHubspotActive) return "Describe the HubSpot email to create...";
+    if (activeTool === 'search') return "Enter web search query...";
+    if (activeTool === 'database') return "Enter question for database query...";
+    if (activeTool === 'hubspot') return "Describe the HubSpot email to create...";
     return "Type your message...";
   };
 
@@ -399,6 +385,9 @@ const App = () => {
         conversationsError={conversationsError}
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={toggleSidebarCollapse}
+        mcpSearchServiceReady={mcpSearchServiceReady}
+        mcpDbServiceReady={mcpDbServiceReady}
+        mcpHubspotServiceReady={mcpHubspotServiceReady}
       />
       <div className={`flex flex-col flex-grow h-screen transition-all duration-300 ease-in-out`}>
         <header className="p-4 bg-brand-surface-bg shadow-md border-b border-gray-700 flex items-center justify-between">
@@ -413,19 +402,6 @@ const App = () => {
             <h1 className="text-xl font-semibold text-brand-purple">OhSee</h1>
           </div>
           <div className="text-xs text-brand-text-secondary flex items-center space-x-2 sm:space-x-3 flex-wrap">
-            <span className={`flex items-center ${mcpSearchServiceReady ? "text-brand-success-green" : "text-brand-alert-red"}`} title="Web Search Service Status">
-              <Wifi size={14} className="mr-1" />
-              Search: {mcpSearchServiceReady ? "Ready" : "N/A"}
-            </span>
-            <span className={`flex items-center ${mcpDbServiceReady ? "text-brand-success-green" : "text-brand-alert-red"}`} title="Database Query Service Status">
-              <Server size={14} className="mr-1" />
-              DB Query: {mcpDbServiceReady ? "Ready" : "N/A"}
-            </span>
-            <span className={`flex items-center ${mcpHubspotServiceReady ? "text-brand-success-green" : "text-brand-alert-red"}`} title="HubSpot Service Status">
-              <Share2 size={14} className="mr-1" />
-              HubSpot: {mcpHubspotServiceReady ? "Ready" : "N/A"}
-            </span>
-
             <div className="flex items-center" title="Ollama Model Selection">
               <BrainCircuit size={14} className={`mr-1 ${ollamaAvailable ? "text-brand-purple" : "text-brand-alert-red"}`} />
               {!currentConversationId ? (
@@ -483,17 +459,20 @@ const App = () => {
         <ChatInput
           onSendMessage={handleSendMessage}
           isLoading={isLoading || isChatHistoryLoading}
-          isSearchActive={isSearchActive}
-          onToggleSearch={toggleSearch}
-          isDatabaseActive={isDatabaseActive}
-          onToggleDatabase={toggleDatabase}
-          isHubspotActive={isHubspotActive}
-          onHubspotButtonClick={handleHubspotButtonClick}
-          isHubspotAuthenticated={isHubspotAuthenticated}
+          activeTool={activeTool}
+          onToggleToolSelector={() => setIsToolSelectorOpen(!isToolSelectorOpen)}
           disabled={isChatHistoryLoading || isLoading || (!selectedOllamaModel && !currentConversationId && availableOllamaModels.length > 0 && ollamaAvailable) || !ollamaAvailable}
           placeholder={getChatInputPlaceholder()}
         />
       </div>
+      <ToolSelector
+        isOpen={isToolSelectorOpen}
+        onClose={() => setIsToolSelectorOpen(false)}
+        tools={tools}
+        activeTool={activeTool}
+        onSelectTool={setActiveTool}
+        onHubspotConnect={handleHubspotConnect}
+      />
     </div>
   );
 };
