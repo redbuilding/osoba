@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from fastapi import FastAPI, HTTPException, Request, Response, status
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 import uvicorn
 from pydantic import BaseModel, Field, constr
 from bson import ObjectId
@@ -57,7 +58,8 @@ MAX_TABLES_FOR_SCHEMA_CONTEXT = 7 # Max tables to fetch full schema for, to keep
 MONGODB_URI = os.getenv('MONGODB_URI', 'mongodb://localhost:27017/')
 MONGODB_DATABASE_NAME = os.getenv('MONGODB_DATABASE_NAME', 'mcp_chat_db')
 MONGODB_COLLECTION_NAME = os.getenv('MONGODB_COLLECTION_NAME', 'conversations')
-DEFAULT_OLLAMA_MODEL = os.getenv('DEFAULT_OLLAMA_MODEL', 'qwen2:7b') # Example, choose your default
+DEFAULT_OLLAMA_MODEL = os.getenv('DEFAULT_OLLAMA_MODEL', 'devstral:24b') # Example, choose your default
+DEFAULT_REPEAT_PENALTY = float(os.getenv("OLLAMA_REPEAT_PENALTY", "1.15"))
 
 try:
     mongo_client = MongoClient(MONGODB_URI)
@@ -334,14 +336,15 @@ app.add_middleware(
 
 
 # --- Ollama and Chat Logic ---
-async def chat_with_ollama(messages: List[Dict[str, str]], model_name: str) -> Optional[str]:
+async def chat_with_ollama(messages: List[Dict[str, str]], model_name: str,
+                            repeat_penalty: float = DEFAULT_REPEAT_PENALTY) -> Optional[str]:
     try:
         valid_messages = [msg for msg in messages if isinstance(msg, dict) and 'role' in msg and 'content' in msg]
         if not valid_messages:
             logger.error(f"[Ollama] No valid messages provided to model '{model_name}'.")
             return None
 
-        response = await asyncio.to_thread(ollama.chat, model=model_name, messages=valid_messages)
+        response = await asyncio.to_thread(ollama.chat, model=model_name, messages=valid_messages, options={"repeat_penalty": repeat_penalty})
         if response and "message" in response and "content" in response["message"]:
             return response["message"]["content"]
         logger.warning(f"[Ollama] Unexpected response structure from model '{model_name}': {response}")
@@ -349,6 +352,33 @@ async def chat_with_ollama(messages: List[Dict[str, str]], model_name: str) -> O
     except Exception as e:
         logger.error(f"[Ollama] Error with model '{model_name}': {e}", exc_info=True)
         return None
+
+async def stream_chat_with_ollama(messages: List[Dict[str, str]], model_name: str, repeat_penalty: float = DEFAULT_REPEAT_PENALTY):
+    """
+    Async generator that yields Server‑Sent Event (SSE) lines containing tokens
+    streamed from Ollama. Each line starts with 'data: ' and ends with two \n.
+    """
+    try:
+        # run the blocking generator in a thread so we don’t block the event loop
+        stream_iter = await asyncio.to_thread(
+            ollama.chat,
+            model=model_name,
+            messages=messages,
+            stream=True,
+            options={"repeat_penalty": repeat_penalty}
+        )
+
+        for chunk in stream_iter:
+            if chunk and "message" in chunk and "content" in chunk["message"]:
+                token = chunk["message"]["content"]
+                payload = json.dumps({"type": "token", "content": token})
+                yield f"data: {payload}\n\n"
+    except Exception as e:
+        logger.error(f"[OllamaStream] Error with model '{model_name}': {e}", exc_info=True)
+        err_payload = json.dumps(
+            {'type': 'error', 'content': f"Ollama stream error: {str(e)}"}
+        )
+        yield f"data: {err_payload}\n\n"
 
 def extract_search_results(response_content: Any) -> Dict:
     # This function is generally for parsing JSON content that might come from MCP tools/resources
@@ -461,7 +491,7 @@ def format_db_results_for_prompt(query: str, db_results: Union[Dict, List], max_
 class ChatMessage(BaseModel):
     role: str; content: str; is_html: Optional[bool] = False; timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 class ChatPayload(BaseModel):
-    user_message: str; chat_history: List[ChatMessage]; use_search: bool; use_database: bool = False; use_hubspot: bool = False; conversation_id: Optional[str] = None; ollama_model_name: Optional[str] = None
+    user_message: str; chat_history: List[ChatMessage]; use_search: bool; use_database: bool = False; use_hubspot: bool = False; conversation_id: Optional[str] = None; ollama_model_name: Optional[str] = None; repeat_penalty: Optional[float] = None
 class ChatResponse(BaseModel):
     conversation_id: str; chat_history: List[ChatMessage]; ollama_model_name: Optional[str] = None
 class ConversationListItem(BaseModel):
@@ -892,7 +922,8 @@ You are a JSON‐only generator for the `create_hubspot_marketing_email` tool.  
         return ChatResponse(conversation_id=conv_id, chat_history=ui_history, ollama_model_name=model_name)
 
     llm_history.append({"role": "user", "content": prompt_for_llm})
-    model_response_content = await chat_with_ollama(llm_history, model_name=model_name)
+    repeat_penalty = payload.repeat_penalty or DEFAULT_REPEAT_PENALTY
+    model_response_content = await chat_with_ollama(llm_history, model_name=model_name, repeat_penalty=repeat_penalty)
 
     if model_response_content:
         assistant_ui_response_content = model_response_content
@@ -936,6 +967,522 @@ async def chat_endpoint(request: Request, payload: ChatPayload):
     except Exception as e:
         logger.error(f"Error in /api/chat endpoint: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="An internal server error occurred processing your chat request.")
+
+@app.post("/api/chat/stream")
+async def stream_chat_endpoint(request: Request, payload: ChatPayload):
+    """
+    Mirrors the behaviour of /api/chat but streams the assistant’s reply
+    token‑by‑token via Server‑Sent Events (SSE).
+    """
+    if conversations_collection is None:
+        raise HTTPException(status_code=503, detail="MongoDB unavailable.")
+
+    # --- COPY of the INITIAL pre‑processing logic from process_chat_request ---
+    user_msg_content = payload.user_message
+    conv_id = payload.conversation_id
+    llm_history: List[Dict[str, str]] = []
+    ui_history: List['ChatMessage'] = []
+    model_name: Optional[str] = None
+    obj_id: Optional[ObjectId] = None
+
+    # Fetch / create conversation document, same as original logic
+    if conv_id:
+        if not ObjectId.is_valid(conv_id):
+            raise HTTPException(status_code=400, detail="Invalid conv_id.")
+        obj_id = ObjectId(conv_id)
+        conv = conversations_collection.find_one({"_id": obj_id})
+        if conv:
+            model_name = conv.get("ollama_model_name")
+            for msg_data in conv.get("messages", []):
+                if 'role' in msg_data and 'content' in msg_data:
+                    llm_content = msg_data.get("raw_content_for_llm", msg_data["content"])
+                    llm_history.append({"role": msg_data["role"], "content": llm_content})
+        else:
+            raise HTTPException(status_code=404, detail=f"Conv ID '{conv_id}' not found.")
+
+    async def get_default_ollama_model() -> str:
+        try:
+            resp = await asyncio.to_thread(ollama.list)
+            if resp and hasattr(resp, 'models') and isinstance(resp.models, list) and resp.models:
+                valid_models_info = [m for m in resp.models if hasattr(m, 'model') and isinstance(m.model, str) and m.model]
+                non_embed_models = [m.model for m in valid_models_info if 'embed' not in m.model.lower()]
+                return non_embed_models[0] if non_embed_models else valid_models_info[0].model
+            logger.warning("No Ollama models found or parsed correctly. Falling back to default.")
+        except Exception:
+            pass
+        return DEFAULT_OLLAMA_MODEL
+
+    if not model_name:
+        model_name = payload.ollama_model_name or await get_default_ollama_model()
+
+    if not conv_id:
+        new_title = f"Chat: {user_msg_content[:30]}{'...' if len(user_msg_content) > 30 else ''}"
+        new_doc = {
+            "title": new_title,
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc),
+            "messages": [],
+            "ollama_model_name": model_name
+        }
+        res = conversations_collection.insert_one(new_doc)
+        conv_id = str(res.inserted_id)
+        obj_id = res.inserted_id
+
+    # Store the user message immediately (for history)
+    ChatMessageRole = BaseModel  # placeholder to avoid re‑defining model here
+    user_chat_msg = ChatMessage(role="user", content=user_msg_content)  # type: ignore
+    user_msg_to_save = user_chat_msg.model_dump(exclude_none=True)
+    user_msg_to_save["raw_content_for_llm"] = user_msg_content
+    conversations_collection.update_one(
+        {"_id": obj_id},
+        {"$push": {"messages": user_msg_to_save}, "$set": {"updated_at": datetime.now(timezone.utc)}}
+    )
+
+    prompt_for_llm = user_msg_content
+    search_html_indicator = None
+    db_html_indicator = None
+    hubspot_html_indicator = None
+    assistant_error_message_obj = None
+
+    if payload.use_search:
+        if not app_state.mcp_service_ready.get(WEB_SEARCH_SERVICE_NAME, False):
+            logger.warning("[API_CHAT] Web search requested but MCP service unavailable.")
+            assistant_error_message_obj = ChatMessage(role="assistant", content="⚠️ Web search is currently unavailable.")
+        else:
+            logger.info(f"[API_CHAT] Web search active for: '{user_msg_content}'")
+            try:
+                req_id = await submit_mcp_tool_request(WEB_SEARCH_SERVICE_NAME, "web_search", {"query": user_msg_content})
+                mcp_resp = await wait_mcp_response(WEB_SEARCH_SERVICE_NAME, req_id, timeout=90)
+
+                if mcp_resp.get("status") == "error":
+                    raise Exception(mcp_resp.get("error", "MCP web_search tool returned an error"))
+
+                raw_data = mcp_resp.get("data")
+                extracted_results = extract_search_results(raw_data)
+                if extracted_results.get("status") == "error":
+                    raise Exception(extracted_results.get("message", "Failed to parse search results"))
+
+                search_summary_text = format_search_results_for_prompt(extracted_results, user_msg_content)
+                search_html_indicator = f"<div class='search-indicator-custom'><b>🔍 Web Search:</b> Results for \"{user_msg_content}\" were used.</div>"
+                prompt_for_llm = (f"Based on the following web search results for '{user_msg_content}':\n{search_summary_text}\n\n"
+                                  f"Please answer the user's original question: '{user_msg_content}'")
+                logger.info(f"[API_CHAT] Web search successful, enhanced prompt created.")
+
+            except Exception as e:
+                logger.error(f"[API_CHAT] Web search processing error: {e}", exc_info=True)
+                assistant_error_message_obj = ChatMessage(role="assistant", content=f"⚠️ Web search failed: {str(e)}")
+
+    if payload.use_database and not assistant_error_message_obj:
+        if not app_state.mcp_service_ready.get(MYSQL_DB_SERVICE_NAME, False):
+            logger.warning("[API_CHAT] Database interaction requested but MySQL MCP service unavailable.")
+            assistant_error_message_obj = ChatMessage(role="assistant", content="⚠️ Database interaction is currently unavailable.")
+        else:
+            logger.info(f"[API_CHAT] Database interaction active for: '{user_msg_content}'")
+            try:
+                tables_req_id = await submit_mcp_resource_request(MYSQL_DB_SERVICE_NAME, "resource://tables")
+                tables_resp = await wait_mcp_response(MYSQL_DB_SERVICE_NAME, tables_req_id)
+                schema_context_parts = []
+
+                if tables_resp.get("status") == "success":
+                    tables_data = extract_search_results(tables_resp.get("data"))
+                    if isinstance(tables_data, list) and tables_data:
+                        schema_context_parts.append(f"Available tables: {', '.join(tables_data)}.")
+                        tables_to_fetch_schema = tables_data[:MAX_TABLES_FOR_SCHEMA_CONTEXT]
+                        for i, table_name_from_list in enumerate(tables_to_fetch_schema):
+                            schema_req_id = await submit_mcp_resource_request(MYSQL_DB_SERVICE_NAME, f"resource://tables/{table_name_from_list}/schema")
+                            schema_resp = await wait_mcp_response(MYSQL_DB_SERVICE_NAME, schema_req_id)
+                            formatted_schema_str = f"\nTable: {table_name_from_list}\n"
+                            if schema_resp.get("status") == "success":
+                                schema_data = extract_search_results(schema_resp.get("data"))
+                                if isinstance(schema_data, list):
+                                    for col_info in schema_data:
+                                        col_name = col_info.get('Field', 'N/A')
+                                        col_type = col_info.get('Type', 'N/A')
+                                        formatted_schema_str += f"- {col_name}: {col_type}\n"
+                                elif isinstance(schema_data, dict) and "error" in schema_data: # Error from server_mysql for this table's schema
+                                    formatted_schema_str += f"  Error fetching schema: {schema_data['error']}\n"
+                                else: # Unexpected schema_data format
+                                    formatted_schema_str += f"  Could not parse schema data: {str(schema_data)[:100]}\n"
+                            else: # MCP error fetching schema for this table
+                                formatted_schema_str += f"  Error fetching schema via MCP: {schema_resp.get('error', 'Unknown MCP error')}\n"
+                            schema_context_parts.append(formatted_schema_str.strip())
+
+                        if len(tables_data) > MAX_TABLES_FOR_SCHEMA_CONTEXT:
+                            schema_context_parts.append(f"\n...and {len(tables_data) - MAX_TABLES_FOR_SCHEMA_CONTEXT} more tables (schema not shown due to context limits).")
+
+                    elif isinstance(tables_data, dict) and "error" in tables_data: # Error from server_mysql for resource://tables
+                         schema_context_parts.append(f"Could not list tables: {tables_data['error']}")
+                    else: # tables_data is not a list or is empty, or extract_search_results returned its own error
+                        schema_context_parts.append(f"Could not parse table list or no tables found. Raw: {str(tables_data)[:100]}")
+                else: # MCP error for resource://tables
+                    schema_context_parts.append(f"Could not retrieve table list from database. Error: {tables_resp.get('error', 'Unknown MCP error')}")
+
+                full_schema_context = "\n".join(schema_context_parts)
+                # logger.info(f"[API_CHAT_DB_PRE_SQL_GEN] User Query: '{user_msg_content}', Schema Context (Preview): '{full_schema_context[:300].replace('\n', ' ')}...'")
+
+                schema_preview = full_schema_context[:300].replace('\n', ' ')
+                logger.info(f"[API_CHAT_DB_PRE_SQL_GEN] User Query: '{user_msg_content}', Schema Context (Preview): '{schema_preview}...'")
+
+                # SQL Generation and Retry Loop (max 2 attempts)
+                extracted_sql = None
+                db_results_data = None
+                previous_faulty_sql = None
+                previous_db_error = None
+
+                for attempt in range(2): # 0: initial, 1: retry
+                    current_system_message_content = ""
+                    if attempt == 0:
+                        current_system_message_content = f"""== HARD RULES – FOLLOW STRICTLY ==
+① Use only the tables and columns that appear verbatim in the **Database Schema Context** block below.
+② Never invent, rename or infer table/column names.
+③ Before writing SQL, silently:
+    • list tables needed, then columns from each table,
+    • verify every identifier exists in the schema;
+    • if any do not, output NO_QUERY_POSSIBLE.
+④ Use aggregate functions (SUM, AVG, COUNT, MAX, MIN) **only if the user explicitly requests a total/average/count/etc.**
+    • If an aggregate is present, every non‑aggregated column in SELECT must be listed in GROUP BY.
+⑤ Every filter in the WHERE clause must reference an existing column appropriate to that filter.
+⑥ If any single part of the request cannot be mapped unambiguously to the schema, output exactly: NO_QUERY_POSSIBLE
+⑦ Output only a single, read‑only SQL SELECT statement. Do not include INSERT, UPDATE, DELETE, DROP, CREATE, ALTER, comments, explanations, markdown or back‑ticks.
+== DATABASE SCHEMA CONTEXT ==
+###
+{full_schema_context}
+###
+"""
+                    else: # This is a retry attempt
+                        logger.info(f"[API_CHAT_DB_RETRY_SQL_GEN] Retrying SQL generation. Previous SQL: '{previous_faulty_sql}', Previous Error: '{previous_db_error}'")
+                        current_system_message_content = f"""Your previous SQL query attempt failed.
+Original User Question: {user_msg_content}
+Your Faulty SQL Query: {previous_faulty_sql}
+Database Error Message: {previous_db_error}
+
+Please re-evaluate the provided database schema and the user's question carefully.
+Generate a corrected, safe, read-only SQL SELECT query.
+Follow these rules strictly:
+1. Base your query *only* on the tables and columns explicitly listed in the provided Database Schema Context.
+2. Do *not* invent or assume any table or column names that are not present in the schema.
+3. If the schema does not contain the necessary information to answer the question, or if the question is too ambiguous to translate into a SQL query based *only* on the provided schema, you MUST output the exact string: NO_QUERY_POSSIBLE
+4. Otherwise, output ONLY the SQL SELECT query. Do not include any explanations, natural language, or markdown formatting (like ```sql ... ```). Just the raw SQL query.
+
+Database Schema Context:
+{full_schema_context}
+"""
+                    sql_generation_prompt_messages = [
+                        {"role": "system", "content": current_system_message_content},
+                        {"role": "user", "content": user_msg_content}
+                    ]
+                    raw_llm_sql_response = await chat_with_ollama(sql_generation_prompt_messages, model_name)
+
+                    temp_extracted_sql = None
+                    if raw_llm_sql_response:
+                        sql_match = re.search(r"```(?:sql)?\s*([\s\S]+?)\s*```", raw_llm_sql_response, re.IGNORECASE)
+                        if sql_match: temp_extracted_sql = sql_match.group(1).strip()
+                        else: temp_extracted_sql = raw_llm_sql_response.strip()
+
+                    logger.info(f"[API_CHAT_DB_SQL_GENERATED] Attempt: {attempt + 1}, SQL: '{temp_extracted_sql}', Raw LLM Resp (Preview): '{str(raw_llm_sql_response)[:100]}'")
+
+                    if temp_extracted_sql and temp_extracted_sql.upper() == "NO_QUERY_POSSIBLE":
+                        user_err_msg = "I could not form a SQL query to answer your question based on the available database schema."
+                        if attempt == 1: user_err_msg += " (Retry also failed)."
+                        else: user_err_msg += " Please ensure your question relates to the provided table structures, or try rephrasing."
+                        logger.info(f"[API_CHAT_DB] LLM determined no query possible (Attempt {attempt+1}).")
+                        raise Exception(user_err_msg)
+
+                    if not temp_extracted_sql or not temp_extracted_sql.lower().strip().startswith("select"):
+                        user_err_msg = f"I had trouble generating a valid SQL query. The model's attempt was: {str(raw_llm_sql_response)[:100]}..."
+                        if attempt == 1: user_err_msg += " (Retry also failed to produce valid SQL)."
+                        logger.error(f"[API_CHAT_DB] Could not extract a valid SQL SELECT query (Attempt {attempt+1}). LLM raw: '{raw_llm_sql_response}'. Extracted: '{temp_extracted_sql}'")
+                        raise Exception(user_err_msg)
+
+                    if not temp_extracted_sql.lower().strip().startswith("select "): # Stricter check
+                        user_err_msg = "The generated query is not a SELECT query. For safety, only SELECT queries are allowed."
+                        if attempt == 1: user_err_msg += " (Retry also failed this check)."
+                        logger.warning(f"[API_CHAT_DB] Generated query not a SELECT query (Attempt {attempt+1}): {temp_extracted_sql}")
+                        raise Exception(user_err_msg)
+
+                    extracted_sql = temp_extracted_sql # Commit if valid so far
+
+                    query_req_id = await submit_mcp_tool_request(MYSQL_DB_SERVICE_NAME, "execute_sql_query_tool", {"query": extracted_sql})
+                    query_resp = await wait_mcp_response(MYSQL_DB_SERVICE_NAME, query_req_id)
+
+                    db_results_data = extract_search_results(query_resp.get("data")) # Parse response from MCP tool
+
+                    log_exec_payload = {
+                        "user_query": user_msg_content, "attempt_number": attempt + 1, "sql_generated": extracted_sql,
+                        "mcp_tool_status": query_resp.get("status"),
+                        "mcp_tool_error": query_resp.get("error") if query_resp.get("status") == "error" else None,
+                        "db_execution_error_in_data": db_results_data.get("error") if isinstance(db_results_data, dict) and "error" in db_results_data else None,
+                        "db_rows_returned_count": len(db_results_data.get("rows", [])) if isinstance(db_results_data, dict) and "rows" in db_results_data else None
+                    }
+                    logger.info(f"[API_CHAT_DB_SQL_EXECUTED] Details: {json.dumps(log_exec_payload)}")
+
+
+                    if query_resp.get("status") == "error": # MCP communication error
+                        err_msg = f"Database MCP tool communication failed: {query_resp.get('error', 'Unknown MCP error')}"
+                        if attempt == 1 : err_msg += " (on retry)"
+                        raise Exception(err_msg)
+
+                    if isinstance(db_results_data, dict) and "error" in db_results_data:
+                        error_detail_str = str(db_results_data["error"]).lower()
+                        is_recoverable_db_error = "unknown column" in error_detail_str or \
+                                                  "no such table" in error_detail_str or \
+                                                  "doesn't exist" in error_detail_str or \
+                                                  "syntax error" in error_detail_str # Consider syntax error potentially recoverable by LLM
+
+                        if attempt == 0 and is_recoverable_db_error:
+                            previous_faulty_sql = extracted_sql
+                            previous_db_error = db_results_data["error"]
+                            logger.warning(f"[API_CHAT_DB] Recoverable DB error on first attempt: '{previous_db_error}'. SQL: '{previous_faulty_sql}'. Proceeding to retry.")
+                            continue # Go to the next iteration for retry
+                        else: # Non-recoverable error, or error on retry attempt
+                            user_facing_error = "I encountered an issue while querying the database."
+                            if "unknown column" in error_detail_str or "no such table" in error_detail_str or "doesn't exist" in error_detail_str:
+                                user_facing_error = "It seems the information needed for your query (like a specific table or column) wasn't found in the database as expected."
+                            elif "syntax error" in error_detail_str:
+                                user_facing_error = "I had trouble constructing a valid query for the database based on your request."
+
+                            if attempt == 1: user_facing_error += " (Even after a retry)."
+                            else: user_facing_error += " Could you try rephrasing or ensuring your question matches the database's structure?"
+
+                            logger.error(f"[API_CHAT_DB] SQL execution error (Attempt {attempt+1}): '{db_results_data['error']}'. SQL: '{extracted_sql}'")
+                            raise Exception(user_facing_error)
+
+                    # If we reach here, SQL execution was successful (no error in db_results_data)
+                    break # Exit retry loop successfully
+                # End of SQL Generation and Retry Loop
+
+                # This part is reached only if the loop completed successfully (i.e., break was hit)
+                formatted_db_results = format_db_results_for_prompt(extracted_sql, db_results_data, MAX_DB_RESULT_CHARS)
+
+                if "failed to parse" in formatted_db_results.lower() or \
+                   (isinstance(db_results_data, dict) and db_results_data.get("status") == "error"): # from extract_search_results if it put its own error
+                    logger.error(f"[API_CHAT_DB] Error formatting or parsing DB results. Formatted: '{formatted_db_results}'. Raw Data: '{str(db_results_data)[:200]}'")
+                    raise Exception("I received data from the database, but had trouble understanding or formatting it.")
+
+                db_html_indicator = f"<div class='db-indicator-custom'><b>💾 Database:</b> Info from query \"{extracted_sql[:50].replace('<', '&lt;').replace('>', '&gt;')}...\" was used.</div>"
+                prompt_for_llm = (f"Using the following database information related to '{user_msg_content}':\n{formatted_db_results}\n\n"
+                                  f"{prompt_for_llm}")
+                logger.info(f"[API_CHAT_DB] Database interaction successful, enhanced prompt with DB results.")
+
+            except Exception as e:
+                logger.error(f"[API_CHAT_DB] Database interaction processing error: {e}", exc_info=True)
+                assistant_error_message_obj = ChatMessage(role="assistant", content=f"⚠️ Database interaction failed: {str(e)}")
+
+    if payload.use_hubspot and not assistant_error_message_obj:
+        logger.info(f"[API_CHAT] HubSpot interaction active for: '{user_msg_content}'")
+        session_id = request.cookies.get(SESSION_COOKIE_NAME)
+        access_token = await get_valid_token(session_id) if session_id else None
+
+        if not access_token:
+            logger.warning("[API_CHAT] HubSpot action requested but user is not authenticated or token is invalid.")
+            assistant_error_message_obj = ChatMessage(role="assistant", content="⚠️ You are not connected to HubSpot, or your session has expired. Please connect to HubSpot first.")
+        elif not app_state.mcp_service_ready.get(HUBSPOT_SERVICE_NAME, False):
+            logger.warning("[API_CHAT] HubSpot action requested but MCP service unavailable.")
+            assistant_error_message_obj = ChatMessage(role="assistant", content="⚠️ The HubSpot service is currently unavailable.")
+        else:
+            try:
+                hubspot_tool_schema = """
+You are a JSON‐only generator for the `create_hubspot_marketing_email` tool.  Based on the user’s instruction, **output exactly one** JSON object—no prose, no markdown fences—that matches this full schema:
+
+```json
+{
+"access_token": "string",
+"content": {
+"templatePath": "string (e.g. /EmailTemplate.html)",
+"plainTextVersion": "string"
+},
+"from_sender": {
+"fromName": "string",
+"replyTo": "string",
+"customReplyTo": "string (optional)"
+},
+"name": "string",
+"subject": "string",
+"to_recipients": {
+"contactLists": {
+"include": [integer],
+"exclude": [integer]
+}
+},
+"sendOnPublish": boolean
+}
+```
+
+**Rules:**
+1. Fill in *all* required fields.
+2. Infer values from the user’s request.
+3. If *any* required piece is missing (e.g. list IDs, templatePath), *do not* output JSON; instead respond with a natural‐language clarification question.
+4. Do *not* wrap JSON in markdown or add any extra text—output *only* the JSON object.
+"""
+
+                json_generation_messages = [
+                    {"role": "system", "content": hubspot_tool_schema},
+                    {"role": "user", "content": user_msg_content}
+                ]
+
+                logger.info("[API_CHAT_HUBSPOT] Calling LLM to generate HubSpot email JSON...")
+                llm_json_response = await chat_with_ollama(json_generation_messages, model_name)
+
+                raw = llm_json_response or ""
+                if not raw:
+                    raise Exception("LLM did not return a response for JSON generation.")
+
+                # 1) Try JSON-fence → 2) any fence → 3) raw
+                json_block = re.search(r"```json\s*([\s\S]+?)```", raw, re.IGNORECASE)
+                if json_block:
+                    candidate = json_block.group(1).strip()
+                else:
+                    any_block = re.search(r"```\s*[\w]*\s*\n([\s\S]+?)```", raw)
+                    candidate = any_block.group(1).strip() if any_block else raw.strip()
+
+                # Parse candidate, fallback to raw
+                try:
+                    email_payload = json.loads(candidate)
+                except json.JSONDecodeError:
+                    try:
+                        email_payload = json.loads(raw)
+                    except json.JSONDecodeError:
+                        email_payload = None
+
+                if not isinstance(email_payload, dict):
+                    logger.error(f"[API_CHAT_HUBSPOT] Could not extract JSON. Raw: {raw}")
+                    assistant_error_message_obj = ChatMessage(
+                        role="assistant",
+                        content="⚠️ I couldn’t format your email request into JSON. Could you rephrase or clarify?"
+                    )
+                else:
+                    # Build and validate the params
+                    tool_params = {
+                        "access_token": access_token,
+                        "name": email_payload.get("name"),
+                        "subject": email_payload.get("subject"),
+                        "from_sender": email_payload.get("from_sender"),
+                        "to_recipients": email_payload.get("to_recipients"),
+                        "content": email_payload.get("content"),
+                        "sendOnPublish": email_payload.get("sendOnPublish", False)
+                    }
+                    missing = [k for k in ["name","subject","from_sender","to_recipients","content"] if not tool_params.get(k)]
+                    if missing:
+                        raise Exception(f"Missing required fields: {', '.join(missing)}")
+
+                    logger.debug(f"[API_CHAT_HUBSPOT] Final tool_params: {json.dumps(tool_params, indent=2)}")
+
+                    # Call the tool
+                    logger.info("[API_CHAT_HUBSPOT] Calling create_hubspot_marketing_email tool…")
+                    req_id = await submit_mcp_tool_request(HUBSPOT_SERVICE_NAME, "create_hubspot_marketing_email", tool_params)
+                    mcp_resp = await wait_mcp_response(HUBSPOT_SERVICE_NAME, req_id, timeout=60)
+                    if mcp_resp.get("status") == "error":
+                        raise Exception(f"HubSpot tool failed: {mcp_resp.get('error', 'Unknown error')}")
+
+                    raw_hubspot_data = mcp_resp.get("data")
+                    hubspot_api_response = extract_search_results(raw_hubspot_data)
+
+                    if "error" in hubspot_api_response:
+                        logger.error(f"[API_CHAT_HUBSPOT] HubSpot API returned an error: {hubspot_api_response}")
+                        raise Exception(f"HubSpot API returned an error: {hubspot_api_response.get('body', 'Details not available.')}")
+
+                    created_email_id = hubspot_api_response.get("id")
+                    created_email_name = hubspot_api_response.get("name")
+                    logger.info(f"[API_CHAT_HUBSPOT] Successfully created email '{created_email_name}' with ID {created_email_id}.")
+
+                    hubspot_html_indicator = f"<div class='hubspot-indicator-custom'><b>🤖 HubSpot:</b> An email was created based on your request.</div>"
+                    prompt_for_llm = (f"You have just successfully created a marketing email in HubSpot named '{created_email_name}' (ID: {created_email_id}). "
+                                      f"Now, provide a friendly confirmation to the user acknowledging that their request to '{user_msg_content}' has been completed.")
+
+            except Exception as e:
+                logger.error(f"[API_CHAT_HUBSPOT] HubSpot interaction processing error: {e}", exc_info=True)
+                assistant_error_message_obj = ChatMessage(role="assistant", content=f"⚠️ HubSpot action failed: {str(e)}")
+
+    # ------------- END of pre‑processing section -------------------------------
+
+    # If an unrecoverable tool error occurred, stream that and finish early
+    if 'assistant_error_message_obj' in locals() and assistant_error_message_obj:
+        async def err_gen():
+            payload = json.dumps({
+                "type": "error",
+                "content": assistant_error_message_obj.content
+            })
+            yield f"data: {payload}\n\n"
+            done = json.dumps({"type": "done", "conversation_id": conv_id})
+            yield f"data: {done}\n\n"
+        return StreamingResponse(err_gen(), media_type="text/event-stream")
+
+    # ---------------------------------------------------------------------------
+    # MAIN RESPONSE GENERATOR
+    # ---------------------------------------------------------------------------
+    async def response_generator():
+        """Inner async gen that streams the full assistant reply + bookkeeping."""
+        # 1️⃣  Send any tool / indicator banners first
+        html_prefix = ""
+        is_html_response = False
+        if 'hubspot_html_indicator' in locals() and hubspot_html_indicator:
+            html_prefix += hubspot_html_indicator
+            is_html_response = True
+        if 'search_html_indicator' in locals() and search_html_indicator:
+            html_prefix += search_html_indicator
+            is_html_response = True
+        if 'db_html_indicator' in locals() and db_html_indicator:
+            html_prefix += db_html_indicator
+            is_html_response = True
+
+        if html_prefix:
+            ind_payload = json.dumps({
+                "type": "indicator",
+                "is_html": True,
+                "content": html_prefix
+            })
+            yield f"data: {ind_payload}\n\n"
+
+        # 2️⃣  Stream the LLM reply token‑by‑token
+        llm_history.append({"role": "user", "content": prompt_for_llm})  # type: ignore
+        accumulated_response = ""
+
+        repeat_penalty = payload.repeat_penalty or DEFAULT_REPEAT_PENALTY
+
+        async for chunk in stream_chat_with_ollama(llm_history, model_name=model_name, repeat_penalty=repeat_penalty):
+            # Relay chunk to client
+            yield chunk
+
+            # Accumulate only token chunks for DB save later
+            try:
+                data_part = chunk.strip().split("data: ")[1]
+                json_part = json.loads(data_part)
+                if json_part.get("type") == "token":
+                    accumulated_response += json_part.get("content", "")
+            except (IndexError, json.JSONDecodeError):
+                pass
+
+        # 3️⃣  After streaming completes, save assistant reply to Mongo
+        if accumulated_response:
+            assistant_chat_msg = ChatMessage(
+                role="assistant",
+                content=f"{html_prefix}\n\n{accumulated_response}" if is_html_response else accumulated_response,
+                is_html=is_html_response
+            )
+            assist_msg_to_save = assistant_chat_msg.model_dump(exclude_none=True)
+            assist_msg_to_save["raw_content_for_llm"] = accumulated_response
+            conversations_collection.update_one(
+                {"_id": obj_id},
+                {"$push": {"messages": assist_msg_to_save},
+                 "$set": {"updated_at": datetime.now(timezone.utc)}}
+            )
+            logger.info(f"[StreamSave] Stored streamed response (len={len(accumulated_response)}) for conversation {conv_id}")
+
+        # 4️⃣  Signal the end of the stream — now with the full, clean text
+        final_content = (
+            f"{html_prefix}\n\n{accumulated_response}"
+            if is_html_response
+            else accumulated_response
+        )
+        done_payload = json.dumps({
+            "type": "done",
+            "conversation_id": conv_id,
+            "content": final_content,
+            "is_html": is_html_response
+        })
+        yield f"data: {done_payload}\n\n"
+
+    return StreamingResponse(response_generator(), media_type="text/event-stream")
 
 @app.get("/api/status")
 async def get_status():
