@@ -9,6 +9,7 @@ from contextlib import contextmanager
 from typing import Iterable
 from urllib.parse import parse_qs, urlparse
 
+import requests
 from mcp.server.fastmcp import FastMCP
 from youtube_transcript_api import (
     CouldNotRetrieveTranscript,
@@ -102,56 +103,62 @@ def _pick_transcript(tlist: TranscriptList, pref_langs: Iterable[str] = LANG_PRE
         return next(iter(tlist))
 
 
-def _try_fetch_with_instance(api_instance: YouTubeTranscriptApi, video_id: str) -> str:
-    """
-    Perform the full list -> pick -> fetch sequence with a given API instance,
-    after setting a browser-like User-Agent.
-    """
-    # Set a browser-like User-Agent to avoid being blocked.
-    api_instance.http_client.headers.update({"User-Agent": USER_AGENT})
-
-    tlist = api_instance.list(video_id)
-    transcript = _pick_transcript(tlist)
-    content = transcript.fetch()
-    return _join_transcript(content)
-
-
 # ───────────────────────── core fetch logic ─────────────────────────
 def _fetch_transcript(video_id: str) -> str:
     """
     Fetches a transcript for a given video ID, trying different strategies.
 
     Strategy order:
-      1. Default instance (no cookies/proxy)
-      2. Instance with CONSENT cookie file
-      3. Instance with proxy (if YTA_PROXY is set)
+      1. Default instance (no cookies/proxy) with User-Agent
+      2. Instance with CONSENT cookie file and User-Agent
+      3. Instance with proxy and User-Agent (if YTA_PROXY is set)
 
     Raises CouldNotRetrieveTranscript if all attempts fail.
     """
-    # Attempt 1: Default instance
+    # Attempt 1: Default instance with User-Agent
     try:
         logger.debug("Attempt 1: Fetching transcript for %s (default)", video_id)
-        return _try_fetch_with_instance(YouTubeTranscriptApi(), video_id)
+        session = requests.Session()
+        session.headers.update({"User-Agent": USER_AGENT})
+        api_instance = YouTubeTranscriptApi(http_client=session)
+        tlist = api_instance.list(video_id)
+        transcript = _pick_transcript(tlist)
+        content = transcript.fetch()
+        return _join_transcript(content)
     except Exception as e:
         logger.warning("Attempt 1 failed for %s: %s", video_id, e)
 
-    # Attempt 2: Instance with CONSENT cookie
+    # Attempt 2: Instance with CONSENT cookie and User-Agent
     try:
         logger.debug("Attempt 2: Fetching transcript for %s (with cookie file)", video_id)
         with _temp_cookie_file() as cookie_path:
-            api_with_cookie = YouTubeTranscriptApi(cookie_path=cookie_path)
-            return _try_fetch_with_instance(api_with_cookie, video_id)
+            session = requests.Session()
+            session.headers.update({"User-Agent": USER_AGENT})
+            api_with_cookie = YouTubeTranscriptApi(
+                cookie_path=cookie_path, http_client=session
+            )
+            tlist = api_with_cookie.list(video_id)
+            transcript = _pick_transcript(tlist)
+            content = transcript.fetch()
+            return _join_transcript(content)
     except Exception as e:
         logger.warning("Attempt 2 (cookie) failed for %s: %s", video_id, e)
 
-    # Attempt 3: Instance with proxy
+    # Attempt 3: Instance with proxy and User-Agent
     proxy = os.getenv("YTA_PROXY")
     if proxy:
         try:
             logger.debug("Attempt 3: Fetching transcript for %s (with proxy)", video_id)
+            session = requests.Session()
+            session.headers.update({"User-Agent": USER_AGENT})
             proxy_config = GenericProxyConfig(https_url=proxy)
-            api_with_proxy = YouTubeTranscriptApi(proxy_config=proxy_config)
-            return _try_fetch_with_instance(api_with_proxy, video_id)
+            api_with_proxy = YouTubeTranscriptApi(
+                proxy_config=proxy_config, http_client=session
+            )
+            tlist = api_with_proxy.list(video_id)
+            transcript = _pick_transcript(tlist)
+            content = transcript.fetch()
+            return _join_transcript(content)
         except Exception as e:
             logger.warning("Attempt 3 (proxy) failed for %s: %s", video_id, e)
 
