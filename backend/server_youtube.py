@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 import os
 import tempfile
+import time
 from contextlib import contextmanager
 from typing import Iterable
 from urllib.parse import parse_qs, urlparse
@@ -15,7 +16,6 @@ from youtube_transcript_api import (
     TranscriptsDisabled,
     YouTubeTranscriptApi,
 )
-from youtube_transcript_api._transcripts import TranscriptList
 from youtube_transcript_api.proxies import GenericProxyConfig
 
 # ───────────────────────────── logging ──────────────────────────────
@@ -59,25 +59,23 @@ def _join_transcript(snips: Iterable) -> str:
     ).strip()
 
 
-def _pick_transcript(tlist: TranscriptList, pref_langs: Iterable[str] = LANG_PREF):
-    """Choose a transcript: first preferred language, else first available."""
-    try:
-        return tlist.find_transcript(pref_langs)
-    except NoTranscriptFound:
-        # Fallback to the first transcript in the list if preferred langs aren't found
-        return next(iter(tlist))
-
-
 @contextmanager
 def _temp_cookie_file():
     """Creates a temporary Netscape-formatted cookie file for consent."""
+    # A valid future expiration timestamp is required for the cookie to be accepted.
+    expiration = int(time.time()) + 31536000  # 1 year in the future
     cookie_content = (
         "# Netscape HTTP Cookie File\n"
-        ".youtube.com\tTRUE\t/\tTRUE\t0\t{name}\t{value}\n"
-    ).format(name=CONSENT_COOKIE["name"], value=CONSENT_COOKIE["value"])
+        ".youtube.com\tTRUE\t/\tTRUE\t{expiration}\t{name}\t{value}\n"
+    ).format(
+        expiration=expiration,
+        name=CONSENT_COOKIE["name"],
+        value=CONSENT_COOKIE["value"],
+    )
 
     filepath = None
     try:
+        # Suffix is important for the library to recognize it as a text file
         with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix=".txt") as f:
             f.write(cookie_content)
             filepath = f.name
@@ -89,12 +87,11 @@ def _temp_cookie_file():
             logger.debug("Removed temporary cookie file at %s", filepath)
 
 
-def _try_fetch_with_instance(api_instance: YouTubeTranscriptApi, video_id: str) -> str:
-    """Perform the full list -> pick -> fetch sequence with a given API instance."""
-    tlist = api_instance.list(video_id)
-    transcript = _pick_transcript(tlist)
-    content = transcript.fetch()
-    return _join_transcript(content)
+def _try_fetch_transcript(api_instance: YouTubeTranscriptApi, video_id: str) -> str:
+    """Perform the fetch sequence with a given API instance."""
+    # The fetch method handles language preference and the list->pick->fetch logic.
+    fetched_transcript = api_instance.fetch(video_id, languages=LANG_PREF)
+    return _join_transcript(fetched_transcript)
 
 
 # ───────────────────────── core fetch logic ─────────────────────────
@@ -112,7 +109,7 @@ def _fetch_transcript(video_id: str) -> str:
     # Attempt 1: Default instance
     try:
         logger.debug("Attempt 1: Fetching transcript for %s (default)", video_id)
-        return _try_fetch_with_instance(YouTubeTranscriptApi(), video_id)
+        return _try_fetch_transcript(YouTubeTranscriptApi(), video_id)
     except Exception as e:
         logger.warning("Attempt 1 failed for %s: %s", video_id, e)
 
@@ -121,7 +118,7 @@ def _fetch_transcript(video_id: str) -> str:
         logger.debug("Attempt 2: Fetching transcript for %s (with cookie file)", video_id)
         with _temp_cookie_file() as cookie_path:
             api_with_cookie = YouTubeTranscriptApi(cookie_path=cookie_path)
-            return _try_fetch_with_instance(api_with_cookie, video_id)
+            return _try_fetch_transcript(api_with_cookie, video_id)
     except Exception as e:
         logger.warning("Attempt 2 (cookie) failed for %s: %s", video_id, e)
 
@@ -132,7 +129,7 @@ def _fetch_transcript(video_id: str) -> str:
             logger.debug("Attempt 3: Fetching transcript for %s (with proxy)", video_id)
             proxy_config = GenericProxyConfig(https_url=proxy)
             api_with_proxy = YouTubeTranscriptApi(proxy_config=proxy_config)
-            return _try_fetch_with_instance(api_with_proxy, video_id)
+            return _try_fetch_transcript(api_with_proxy, video_id)
         except Exception as e:
             logger.warning("Attempt 3 (proxy) failed for %s: %s", video_id, e)
 
