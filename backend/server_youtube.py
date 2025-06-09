@@ -6,7 +6,6 @@ import os
 from typing import Iterable
 from urllib.parse import parse_qs, urlparse
 
-import requests
 from mcp.server.fastmcp import FastMCP
 from youtube_transcript_api import (
     CouldNotRetrieveTranscript,
@@ -25,7 +24,10 @@ logger = logging.getLogger("YouTubeTranscriptServer")
 logging.getLogger("youtube_transcript_api").setLevel(logging.DEBUG)
 
 # ──────────────────────────── constants ─────────────────────────────
-CONSENT_COOKIE = {"CONSENT": "YES+cb.20240402-18-0"}
+# NOTE: The installed version of youtube-transcript-api (likely v1.x) does not
+# support passing cookies, which is the most reliable way to handle YouTube's
+# consent requirements. The cookie-based retry logic has been removed.
+# For a more robust solution, please upgrade the library to the latest version.
 LANG_PREF      = ("en", "en-US")   # preferred languages
 
 # ──────────────────────── FastMCP server init ───────────────────────
@@ -62,9 +64,9 @@ def _pick_transcript(tlist: TranscriptList, pref_langs: Iterable[str] = LANG_PRE
         return next(iter(tlist))
 
 
-def _try_fetch_with_api(api_instance: YouTubeTranscriptApi, video_id: str) -> str:
-    """Perform the full list -> pick -> fetch sequence with a given API instance."""
-    tlist = api_instance.list(video_id)
+def _try_fetch_transcript(video_id: str, proxies: dict | None = None) -> str:
+    """Perform the full list -> pick -> fetch sequence using static methods."""
+    tlist = YouTubeTranscriptApi.list_transcripts(video_id, proxies=proxies)
     transcript = _pick_transcript(tlist)
     content = transcript.fetch()
     return _join_transcript(content)
@@ -73,42 +75,31 @@ def _try_fetch_with_api(api_instance: YouTubeTranscriptApi, video_id: str) -> st
 # ───────────────────────── core fetch logic ─────────────────────────
 def _fetch_transcript(video_id: str) -> str:
     """
-    Fetches a transcript for a given video ID, trying different strategies.
-    The entire list -> pick -> fetch process is retried on failure.
+    Fetches a transcript for a given video ID, trying different strategies
+    compatible with older versions of the youtube-transcript-api library.
 
     Strategy order:
-      1. Default (no cookies/proxy)
-      2. With CONSENT cookie
-      3. With proxy (if YTA_PROXY is set)
+      1. Default static method call
+      2. Static method call with proxy (if YTA_PROXY is set)
 
     Raises CouldNotRetrieveTranscript if all attempts fail.
     """
-    # Attempt 1: Default instance
+    # Attempt 1: Default static method call
     try:
         logger.debug("Attempt 1: Fetching transcript for %s (default)", video_id)
-        return _try_fetch_with_api(YouTubeTranscriptApi(), video_id)
+        return _try_fetch_transcript(video_id)
     except Exception as e:
         logger.warning("Attempt 1 failed for %s: %s", video_id, e)
 
-    # Attempt 2: Instance with CONSENT cookie via requests.Session
-    try:
-        logger.debug("Attempt 2: Fetching transcript for %s (with cookie)", video_id)
-        session = requests.Session()
-        session.cookies.update(CONSENT_COOKIE)
-        api_with_cookie = YouTubeTranscriptApi(session=session)
-        return _try_fetch_with_api(api_with_cookie, video_id)
-    except Exception as e:
-        logger.warning("Attempt 2 (cookie) failed for %s: %s", video_id, e)
-
-    # Attempt 3: Instance with proxy
+    # Attempt 2: Static method call with proxy
     proxy = os.getenv("YTA_PROXY")
     if proxy:
+        proxies = {"https": proxy}
         try:
-            logger.debug("Attempt 3: Fetching transcript for %s (with proxy)", video_id)
-            api_with_proxy = YouTubeTranscriptApi(proxies={"https": proxy})
-            return _try_fetch_with_api(api_with_proxy, video_id)
+            logger.debug("Attempt 2: Fetching transcript for %s (with proxy)", video_id)
+            return _try_fetch_transcript(video_id, proxies=proxies)
         except Exception as e:
-            logger.warning("Attempt 3 (proxy) failed for %s: %s", video_id, e)
+            logger.warning("Attempt 2 (proxy) failed for %s: %s", video_id, e)
 
     # If all attempts fail, raise the specific error
     raise CouldNotRetrieveTranscript(video_id)
