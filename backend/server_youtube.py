@@ -6,6 +6,7 @@ import os
 from typing import Iterable
 from urllib.parse import parse_qs, urlparse
 
+import requests
 from mcp.server.fastmcp import FastMCP
 from youtube_transcript_api import (
     CouldNotRetrieveTranscript,
@@ -89,10 +90,12 @@ def _fetch_transcript(video_id: str) -> str:
     except Exception as e:
         logger.warning("Attempt 1 failed for %s: %s", video_id, e)
 
-    # Attempt 2: Instance with CONSENT cookie
+    # Attempt 2: Instance with CONSENT cookie via requests.Session
     try:
         logger.debug("Attempt 2: Fetching transcript for %s (with cookie)", video_id)
-        api_with_cookie = YouTubeTranscriptApi(cookies=CONSENT_COOKIE)
+        session = requests.Session()
+        session.cookies.update(CONSENT_COOKIE)
+        api_with_cookie = YouTubeTranscriptApi(session=session)
         return _try_fetch_with_api(api_with_cookie, video_id)
     except Exception as e:
         logger.warning("Attempt 2 (cookie) failed for %s: %s", video_id, e)
