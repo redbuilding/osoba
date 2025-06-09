@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import html
+import json
 import logging
 import os
 import re
@@ -126,7 +127,10 @@ def _fetch_with_pytube(video_id: str) -> str:
 
 
 def _fetch_with_ytdlp(video_id: str) -> str:
-    """Fetches a transcript using the yt-dlp library."""
+    """
+    Fetches a transcript using the yt-dlp library, handling both VTT
+    and JSON transcript formats.
+    """
     url = f"https://www.youtube.com/watch?v={video_id}"
     ydl_opts = {
         "skip_download": True,
@@ -145,17 +149,37 @@ def _fetch_with_ytdlp(video_id: str) -> str:
         if not tracks:
             raise RuntimeError("yt-dlp: No English captions found.")
 
-        vtt_url = tracks[0]["url"]
+        # The URL can point to either a VTT file or a JSON object
+        transcript_url = tracks[0]["url"]
 
-    vtt = requests.get(vtt_url, timeout=30).text
-    if not vtt:
-        raise RuntimeError("yt-dlp: Failed to download VTT content.")
+    response_text = requests.get(transcript_url, timeout=30).text
+    if not response_text:
+        raise RuntimeError("yt-dlp: Failed to download transcript content.")
 
-    # Strip header and timestamps from VTT
-    plain = re.sub(r'^\s*WEBVTT.*?\n', '', vtt, flags=re.DOTALL)
-    plain = re.sub(r'\d{2}:\d{2}:\d{2}\.\d{3} --> .*?\n', '', plain)
-    plain = html.unescape(re.sub(r'\n{2,}', '\n', plain)).strip()
-    return plain
+    try:
+        # Attempt to parse as JSON (the newer format)
+        data = json.loads(response_text)
+        if 'events' in data:
+            segments = []
+            for event in data.get('events', []):
+                for seg in event.get('segs', []):
+                    segments.append(seg.get('utf8', ''))
+
+            # Join all segments, then normalize whitespace.
+            full_text = "".join(segments).replace('\n', ' ').strip()
+            # Collapse multiple spaces into one
+            clean_text = re.sub(r'\s+', ' ', full_text)
+            return clean_text
+    except json.JSONDecodeError:
+        # If JSON parsing fails, assume it's the older VTT format
+        logger.debug("yt-dlp response is not JSON, parsing as VTT.")
+        plain = re.sub(r'^\s*WEBVTT.*?\n', '', response_text, flags=re.DOTALL)
+        plain = re.sub(r'\d{2}:\d{2}:\d{2}\.\d{3} --> .*?\n', '', plain)
+        plain = html.unescape(re.sub(r'\n{2,}', '\n', plain)).strip()
+        return plain
+
+    # If it was JSON but didn't have 'events', it's an unknown format
+    raise RuntimeError("yt-dlp: Unknown transcript format.")
 
 
 def _fetch_with_yta(video_id: str, cookie_path: str | None = None, proxy: str | None = None) -> str:
