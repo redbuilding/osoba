@@ -1,7 +1,6 @@
 # server_youtube.py  – resilient YouTube transcript MCP server (YT‑API 1.0.3)
 from __future__ import annotations
 
-import inspect
 import logging
 import os
 from typing import Iterable
@@ -27,15 +26,6 @@ logging.getLogger("youtube_transcript_api").setLevel(logging.DEBUG)
 # ──────────────────────────── constants ─────────────────────────────
 CONSENT_COOKIE = {"CONSENT": "YES+cb.20240402-18-0"}
 LANG_PREF      = ("en", "en-US")   # preferred languages
-
-# Determine which kw‑arg name the installed library uses for dict cookies
-_GET_COOKIE_KW = (
-    "youtube_cookies"
-    if "youtube_cookies" in inspect.signature(
-        YouTubeTranscriptApi.get_transcript
-    ).parameters
-    else "cookies"
-)
 
 # ──────────────────────── FastMCP server init ───────────────────────
 mcp = FastMCP("YouTubeTranscriptServer")
@@ -72,44 +62,51 @@ def _pick_transcript(tlist, pref_langs: Iterable[str] = LANG_PREF):
 # ───────────────────────── core fetch logic ─────────────────────────
 def _fetch_transcript(video_id: str) -> str:
     """
+    Fetches a transcript for a given video ID, trying different strategies based on the modern
+    youtube-transcript-api v1.x instance-based API.
+
     Strategy order:
-      1. open (no cookies / no proxy)
-      2. CONSENT cookie
-      3. proxy (env YTA_PROXY)
-    Raises CouldNotRetrieveTranscript if all fail.
+      1. Default (no cookies/proxy)
+      2. With CONSENT cookie
+      3. With proxy (if YTA_PROXY is set)
+
+    Raises CouldNotRetrieveTranscript if all attempts fail.
     """
-    # 1) list_transcripts – no cookies
-    try:
-        tlist = YouTubeTranscriptApi.list_transcripts(video_id)
-        return _join_transcript(_pick_transcript(tlist).fetch())
-    except Exception as e:
-        logger.warning("Attempt 1 failed for %s: %s", video_id, e)
+    tlist = None
 
-    # 2) get_transcript + CONSENT cookie
+    # Attempt 1: Default instance
     try:
-        snips = YouTubeTranscriptApi.get_transcript(
-            video_id,
-            languages=LANG_PREF,
-            **{_GET_COOKIE_KW: CONSENT_COOKIE},
-        )
-        return _join_transcript(snips)
+        logger.debug("Attempt 1: Fetching list for %s (default)", video_id)
+        tlist = YouTubeTranscriptApi().list(video_id)
     except Exception as e:
-        logger.warning("Attempt 2 failed for %s (cookie): %s", video_id, e)
+        logger.warning("Attempt 1 failed for %s: %s", video_id, e)
 
-    # 3) proxy retry
-    proxy = os.getenv("YTA_PROXY")
-    if proxy:
+    # Attempt 2: Instance with CONSENT cookie
+    if not tlist:
         try:
-            snips = YouTubeTranscriptApi.get_transcript(
-                video_id,
-                languages=LANG_PREF,
-                proxies={"https": proxy},
-            )
-            return _join_transcript(snips)
+            logger.debug("Attempt 2: Fetching list for %s (with cookie)", video_id)
+            api_with_cookie = YouTubeTranscriptApi(cookies=CONSENT_COOKIE)
+            tlist = api_with_cookie.list(video_id)
         except Exception as e:
-            logger.warning("Attempt 3 failed for %s (proxy): %s", video_id, e)
+            logger.warning("Attempt 2 (cookie) failed for %s: %s", video_id, e)
 
-    raise CouldNotRetrieveTranscript(video_id)
+    # Attempt 3: Instance with proxy
+    if not tlist:
+        proxy = os.getenv("YTA_PROXY")
+        if proxy:
+            try:
+                logger.debug("Attempt 3: Fetching list for %s (with proxy)", video_id)
+                api_with_proxy = YouTubeTranscriptApi(proxies={"https": proxy})
+                tlist = api_with_proxy.list(video_id)
+            except Exception as e:
+                logger.warning("Attempt 3 (proxy) failed for %s: %s", video_id, e)
+
+    if not tlist:
+        raise CouldNotRetrieveTranscript(video_id)
+
+    # If a list was retrieved, pick the best transcript and fetch its content
+    transcript = _pick_transcript(tlist)
+    return _join_transcript(transcript.fetch())
 
 # ─────────────────────────── MCP tool API ───────────────────────────
 @mcp.tool()
