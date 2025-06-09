@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import logging
 import os
+import tempfile
+from contextlib import contextmanager
 from typing import Iterable
 from urllib.parse import parse_qs, urlparse
 
@@ -14,6 +16,7 @@ from youtube_transcript_api import (
     YouTubeTranscriptApi,
 )
 from youtube_transcript_api._transcripts import TranscriptList
+from youtube_transcript_api.proxies import GenericProxyConfig
 
 # ───────────────────────────── logging ──────────────────────────────
 logging.basicConfig(
@@ -24,10 +27,11 @@ logger = logging.getLogger("YouTubeTranscriptServer")
 logging.getLogger("youtube_transcript_api").setLevel(logging.DEBUG)
 
 # ──────────────────────────── constants ─────────────────────────────
-# NOTE: The installed version of youtube-transcript-api (likely v1.x) does not
-# support passing cookies, which is the most reliable way to handle YouTube's
-# consent requirements. The cookie-based retry logic has been removed.
-# For a more robust solution, please upgrade the library to the latest version.
+# NOTE: This implementation assumes a modern version of youtube-transcript-api
+# which supports instance-based configuration for cookies and proxies.
+# Intermittent failures are often due to YouTube's consent requirements,
+# which we attempt to solve by providing a consent cookie.
+CONSENT_COOKIE = {"name": "CONSENT", "value": "YES+cb.20240402-18-0"}
 LANG_PREF      = ("en", "en-US")   # preferred languages
 
 # ──────────────────────── FastMCP server init ───────────────────────
@@ -64,9 +68,30 @@ def _pick_transcript(tlist: TranscriptList, pref_langs: Iterable[str] = LANG_PRE
         return next(iter(tlist))
 
 
-def _try_fetch_transcript(video_id: str, proxies: dict | None = None) -> str:
-    """Perform the full list -> pick -> fetch sequence using static methods."""
-    tlist = YouTubeTranscriptApi.list_transcripts(video_id, proxies=proxies)
+@contextmanager
+def _temp_cookie_file():
+    """Creates a temporary Netscape-formatted cookie file for consent."""
+    cookie_content = (
+        "# Netscape HTTP Cookie File\n"
+        ".youtube.com\tTRUE\t/\tTRUE\t0\t{name}\t{value}\n"
+    ).format(name=CONSENT_COOKIE["name"], value=CONSENT_COOKIE["value"])
+
+    filepath = None
+    try:
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix=".txt") as f:
+            f.write(cookie_content)
+            filepath = f.name
+        logger.debug("Created temporary cookie file at %s", filepath)
+        yield filepath
+    finally:
+        if filepath and os.path.exists(filepath):
+            os.remove(filepath)
+            logger.debug("Removed temporary cookie file at %s", filepath)
+
+
+def _try_fetch_with_instance(api_instance: YouTubeTranscriptApi, video_id: str) -> str:
+    """Perform the full list -> pick -> fetch sequence with a given API instance."""
+    tlist = api_instance.list(video_id)
     transcript = _pick_transcript(tlist)
     content = transcript.fetch()
     return _join_transcript(content)
@@ -75,31 +100,41 @@ def _try_fetch_transcript(video_id: str, proxies: dict | None = None) -> str:
 # ───────────────────────── core fetch logic ─────────────────────────
 def _fetch_transcript(video_id: str) -> str:
     """
-    Fetches a transcript for a given video ID, trying different strategies
-    compatible with older versions of the youtube-transcript-api library.
+    Fetches a transcript for a given video ID, trying different strategies.
 
     Strategy order:
-      1. Default static method call
-      2. Static method call with proxy (if YTA_PROXY is set)
+      1. Default instance (no cookies/proxy)
+      2. Instance with CONSENT cookie file
+      3. Instance with proxy (if YTA_PROXY is set)
 
     Raises CouldNotRetrieveTranscript if all attempts fail.
     """
-    # Attempt 1: Default static method call
+    # Attempt 1: Default instance
     try:
         logger.debug("Attempt 1: Fetching transcript for %s (default)", video_id)
-        return _try_fetch_transcript(video_id)
+        return _try_fetch_with_instance(YouTubeTranscriptApi(), video_id)
     except Exception as e:
         logger.warning("Attempt 1 failed for %s: %s", video_id, e)
 
-    # Attempt 2: Static method call with proxy
+    # Attempt 2: Instance with CONSENT cookie
+    try:
+        logger.debug("Attempt 2: Fetching transcript for %s (with cookie file)", video_id)
+        with _temp_cookie_file() as cookie_path:
+            api_with_cookie = YouTubeTranscriptApi(cookie_path=cookie_path)
+            return _try_fetch_with_instance(api_with_cookie, video_id)
+    except Exception as e:
+        logger.warning("Attempt 2 (cookie) failed for %s: %s", video_id, e)
+
+    # Attempt 3: Instance with proxy
     proxy = os.getenv("YTA_PROXY")
     if proxy:
-        proxies = {"https": proxy}
         try:
-            logger.debug("Attempt 2: Fetching transcript for %s (with proxy)", video_id)
-            return _try_fetch_transcript(video_id, proxies=proxies)
+            logger.debug("Attempt 3: Fetching transcript for %s (with proxy)", video_id)
+            proxy_config = GenericProxyConfig(https_url=proxy)
+            api_with_proxy = YouTubeTranscriptApi(proxy_config=proxy_config)
+            return _try_fetch_with_instance(api_with_proxy, video_id)
         except Exception as e:
-            logger.warning("Attempt 2 (proxy) failed for %s: %s", video_id, e)
+            logger.warning("Attempt 3 (proxy) failed for %s: %s", video_id, e)
 
     # If all attempts fail, raise the specific error
     raise CouldNotRetrieveTranscript(video_id)
