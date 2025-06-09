@@ -30,8 +30,13 @@ logging.getLogger("youtube_transcript_api").setLevel(logging.DEBUG)
 # ──────────────────────────── constants ─────────────────────────────
 # NOTE: This implementation assumes a modern version of youtube-transcript-api
 # which supports instance-based configuration for cookies and proxies.
-# Intermittent failures are often due to YouTube's consent requirements,
-# which we attempt to solve by providing a consent cookie.
+# Intermittent failures are often due to YouTube's consent requirements or
+# bot detection, which we attempt to solve by providing a consent cookie and
+# a browser-like User-Agent.
+USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36"
+)
 CONSENT_COOKIE = {"name": "CONSENT", "value": "YES+cb.20240402-18-0"}
 LANG_PREF      = ("en", "en-US")   # preferred languages
 
@@ -98,7 +103,13 @@ def _pick_transcript(tlist: TranscriptList, pref_langs: Iterable[str] = LANG_PRE
 
 
 def _try_fetch_with_instance(api_instance: YouTubeTranscriptApi, video_id: str) -> str:
-    """Perform the full list -> pick -> fetch sequence with a given API instance."""
+    """
+    Perform the full list -> pick -> fetch sequence with a given API instance,
+    after setting a browser-like User-Agent.
+    """
+    # Set a browser-like User-Agent to avoid being blocked.
+    api_instance.http_client.headers.update({"User-Agent": USER_AGENT})
+
     tlist = api_instance.list(video_id)
     transcript = _pick_transcript(tlist)
     content = transcript.fetch()
