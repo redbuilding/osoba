@@ -5,7 +5,6 @@ import logging
 import os
 from typing import Iterable
 from urllib.parse import parse_qs, urlparse
-from xml.etree.ElementTree import ParseError
 
 from mcp.server.fastmcp import FastMCP
 from youtube_transcript_api import (
@@ -14,6 +13,7 @@ from youtube_transcript_api import (
     TranscriptsDisabled,
     YouTubeTranscriptApi,
 )
+from youtube_transcript_api._transcripts import TranscriptList
 
 # ───────────────────────────── logging ──────────────────────────────
 logging.basicConfig(
@@ -52,18 +52,28 @@ def _join_transcript(snips: Iterable) -> str:
     ).strip()
 
 
-def _pick_transcript(tlist, pref_langs: Iterable[str] = LANG_PREF):
+def _pick_transcript(tlist: TranscriptList, pref_langs: Iterable[str] = LANG_PREF):
     """Choose a transcript: first preferred language, else first available."""
     try:
         return tlist.find_transcript(pref_langs)
     except NoTranscriptFound:
+        # Fallback to the first transcript in the list if preferred langs aren't found
         return next(iter(tlist))
+
+
+def _try_fetch_with_api(api_instance: YouTubeTranscriptApi, video_id: str) -> str:
+    """Perform the full list -> pick -> fetch sequence with a given API instance."""
+    tlist = api_instance.list(video_id)
+    transcript = _pick_transcript(tlist)
+    content = transcript.fetch()
+    return _join_transcript(content)
+
 
 # ───────────────────────── core fetch logic ─────────────────────────
 def _fetch_transcript(video_id: str) -> str:
     """
-    Fetches a transcript for a given video ID, trying different strategies based on the modern
-    youtube-transcript-api v1.x instance-based API.
+    Fetches a transcript for a given video ID, trying different strategies.
+    The entire list -> pick -> fetch process is retried on failure.
 
     Strategy order:
       1. Default (no cookies/proxy)
@@ -72,41 +82,33 @@ def _fetch_transcript(video_id: str) -> str:
 
     Raises CouldNotRetrieveTranscript if all attempts fail.
     """
-    tlist = None
-
     # Attempt 1: Default instance
     try:
-        logger.debug("Attempt 1: Fetching list for %s (default)", video_id)
-        tlist = YouTubeTranscriptApi().list(video_id)
+        logger.debug("Attempt 1: Fetching transcript for %s (default)", video_id)
+        return _try_fetch_with_api(YouTubeTranscriptApi(), video_id)
     except Exception as e:
         logger.warning("Attempt 1 failed for %s: %s", video_id, e)
 
     # Attempt 2: Instance with CONSENT cookie
-    if not tlist:
-        try:
-            logger.debug("Attempt 2: Fetching list for %s (with cookie)", video_id)
-            api_with_cookie = YouTubeTranscriptApi(cookies=CONSENT_COOKIE)
-            tlist = api_with_cookie.list(video_id)
-        except Exception as e:
-            logger.warning("Attempt 2 (cookie) failed for %s: %s", video_id, e)
+    try:
+        logger.debug("Attempt 2: Fetching transcript for %s (with cookie)", video_id)
+        api_with_cookie = YouTubeTranscriptApi(cookies=CONSENT_COOKIE)
+        return _try_fetch_with_api(api_with_cookie, video_id)
+    except Exception as e:
+        logger.warning("Attempt 2 (cookie) failed for %s: %s", video_id, e)
 
     # Attempt 3: Instance with proxy
-    if not tlist:
-        proxy = os.getenv("YTA_PROXY")
-        if proxy:
-            try:
-                logger.debug("Attempt 3: Fetching list for %s (with proxy)", video_id)
-                api_with_proxy = YouTubeTranscriptApi(proxies={"https": proxy})
-                tlist = api_with_proxy.list(video_id)
-            except Exception as e:
-                logger.warning("Attempt 3 (proxy) failed for %s: %s", video_id, e)
+    proxy = os.getenv("YTA_PROXY")
+    if proxy:
+        try:
+            logger.debug("Attempt 3: Fetching transcript for %s (with proxy)", video_id)
+            api_with_proxy = YouTubeTranscriptApi(proxies={"https": proxy})
+            return _try_fetch_with_api(api_with_proxy, video_id)
+        except Exception as e:
+            logger.warning("Attempt 3 (proxy) failed for %s: %s", video_id, e)
 
-    if not tlist:
-        raise CouldNotRetrieveTranscript(video_id)
-
-    # If a list was retrieved, pick the best transcript and fetch its content
-    transcript = _pick_transcript(tlist)
-    return _join_transcript(transcript.fetch())
+    # If all attempts fail, raise the specific error
+    raise CouldNotRetrieveTranscript(video_id)
 
 # ─────────────────────────── MCP tool API ───────────────────────────
 @mcp.tool()
@@ -131,11 +133,6 @@ def get_youtube_transcript(youtube_url: str) -> str:
         return (
             f"Error: Unable to retrieve a transcript for '{vid}' after multiple attempts. "
             "The video may be region‑blocked or YouTube may be throttling this server."
-        )
-    except ParseError:
-        return (
-            f"Error: YouTube returned malformed caption data for ID '{vid}'. "
-            "Try again later."
         )
     except Exception as exc:
         logger.exception("Unhandled error while processing %s", youtube_url)
