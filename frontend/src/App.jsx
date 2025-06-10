@@ -33,12 +33,14 @@ import {
   Server,
   Share2,
   Search,
+  Youtube,
 } from "lucide-react";
 
 // MCP service names
 const WEB_SEARCH_SERVICE_NAME = "web_search_service";
 const MYSQL_DB_SERVICE_NAME = "mysql_db_service";
 const HUBSPOT_SERVICE_NAME = "hubspot_service";
+const YOUTUBE_SERVICE_NAME = "youtube_service";
 
 const App = () => {
   // Chat & loading state
@@ -54,6 +56,7 @@ const App = () => {
   const [mcpSearchServiceReady, setMcpSearchServiceReady] = useState(false);
   const [mcpDbServiceReady, setMcpDbServiceReady] = useState(false);
   const [mcpHubspotServiceReady, setMcpHubspotServiceReady] = useState(false);
+  const [mcpYoutubeServiceReady, setMcpYoutubeServiceReady] = useState(false);
   const [isHubspotAuthenticated, setIsHubspotAuthenticated] = useState(false);
   const [dbConnected, setDbConnected] = useState(false);
   const [ollamaAvailable, setOllamaAvailable] = useState(false);
@@ -113,6 +116,9 @@ const App = () => {
       setMcpHubspotServiceReady(
         status.mcp_services?.[HUBSPOT_SERVICE_NAME]?.ready || false,
       );
+      setMcpYoutubeServiceReady(
+        status.mcp_services?.[YOUTUBE_SERVICE_NAME]?.ready || false,
+      );
       setOllamaAvailable(status.ollama_available);
       const newDbConnected = status.db_connected;
       setDbConnected(newDbConnected);
@@ -129,6 +135,7 @@ const App = () => {
       setMcpSearchServiceReady(false);
       setMcpDbServiceReady(false);
       setMcpHubspotServiceReady(false);
+      setMcpYoutubeServiceReady(false);
       setDbConnected(false);
       setOllamaAvailable(false);
       setConversationsError(
@@ -297,6 +304,7 @@ const App = () => {
       use_search: activeTool === "search",
       use_database: activeTool === "database",
       use_hubspot: activeTool === "hubspot",
+      use_youtube: activeTool === "youtube",
       conversation_id: currentConversationId,
       ollama_model_name: modelForThisMsg,
     };
@@ -465,11 +473,19 @@ const App = () => {
         isReady: mcpHubspotServiceReady,
         isAuthenticated: isHubspotAuthenticated,
       },
+      {
+        id: "youtube",
+        name: "YouTube Transcript",
+        description: "Get the transcript from a YouTube video URL.",
+        icon: <Youtube size={24} />,
+        isReady: mcpYoutubeServiceReady,
+      },
     ],
     [
       mcpSearchServiceReady,
       mcpDbServiceReady,
       mcpHubspotServiceReady,
+      mcpYoutubeServiceReady,
       isHubspotAuthenticated,
     ],
   );
@@ -497,6 +513,8 @@ const App = () => {
       return "Enter question for database query...";
     if (activeTool === "hubspot")
       return "Describe the HubSpot email to create...";
+    if (activeTool === "youtube")
+      return "Enter a YouTube video URL to get the transcript...";
     return "Type your message...";
   };
 
@@ -521,6 +539,7 @@ const App = () => {
         mcpSearchServiceReady={mcpSearchServiceReady}
         mcpDbServiceReady={mcpDbServiceReady}
         mcpHubspotServiceReady={mcpHubspotServiceReady}
+        mcpYoutubeServiceReady={mcpYoutubeServiceReady}
       />
 
       {/* Main column */}
