@@ -1,0 +1,25 @@
+from pymongo import MongoClient
+from pymongo.errors import ConnectionFailure
+from backend.core.config import MONGODB_URI, MONGODB_DATABASE_NAME, MONGODB_COLLECTION_NAME, get_logger
+
+logger = get_logger("mongodb_client")
+
+mongo_client = None
+db = None
+conversations_collection = None
+
+try:
+    mongo_client = MongoClient(MONGODB_URI)
+    mongo_client.admin.command('ping')
+    db = mongo_client[MONGODB_DATABASE_NAME]
+    conversations_collection = db[MONGODB_COLLECTION_NAME]
+    logger.info(f"Successfully connected to MongoDB: {MONGODB_URI}")
+except ConnectionFailure:
+    logger.error(f"Failed to connect to MongoDB at {MONGODB_URI}.")
+except Exception as e:
+    logger.error(f"An error occurred during MongoDB setup: {e}")
+
+def get_conversations_collection():
+    if conversations_collection is None:
+        raise RuntimeError("MongoDB is not available.")
+    return conversations_collection
