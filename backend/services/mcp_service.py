@@ -114,7 +114,22 @@ async def run_mcp_service_instance(config: MCPServiceConfig):
                                         result = await session.call_tool(tool_to_call, params)
                                         duration = time.time() - start_time
                                         logger.info(f"MCP_SERVICE ({service_name}): TOOL '{tool_to_call}' completed in {duration:.2f}s (req_id: {request_id})")
-                                        await response_q.put({"id": request_id, "status": "success", "data": result.content})
+
+                                        # Extract content from ToolResult, which is a list of Content objects
+                                        tool_content = None
+                                        if result.content and isinstance(result.content, list) and len(result.content) > 0:
+                                            # The primary content is expected in the 'text' attribute of the first part
+                                            first_content_part = result.content[0]
+                                            if hasattr(first_content_part, 'text') and first_content_part.text:
+                                                tool_content = first_content_part.text
+                                            else:
+                                                # Fallback for non-text content parts
+                                                tool_content = str(first_content_part)
+                                        else:
+                                            # Fallback for empty or non-list content
+                                            tool_content = str(result.content)
+
+                                        await response_q.put({"id": request_id, "status": "success", "data": tool_content})
 
                                     elif request_type == "resource":
                                         uri_to_get = request_data["uri"]
