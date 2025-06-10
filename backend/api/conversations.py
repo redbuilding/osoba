@@ -1,12 +1,13 @@
 from typing import List
 from fastapi import APIRouter, HTTPException, Response, status
 
-from core.models import ConversationListItem, ChatMessage, RenamePayload
-from db import crud
-from services.ollama_service import get_default_ollama_model
+from backend.core.models import ConversationListItem, ChatMessage, RenamePayload
+from backend.db import crud
+from backend.services.ollama_service import get_default_ollama_model
+from backend.core.config import get_logger
 
 router = APIRouter()
-logger = crud.get_logger("api_conversations")
+logger = get_logger("api_conversations")
 
 @router.get("/api/conversations", response_model=List[ConversationListItem], response_model_by_alias=False)
 async def list_conversations():
