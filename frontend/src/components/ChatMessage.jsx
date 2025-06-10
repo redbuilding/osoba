@@ -48,7 +48,7 @@ const ChatMessage = ({ message }) => {
       tempDiv.innerHTML = htmlOrTextContent; // The content might already include indicators + actual message
       
       // Attempt to remove known indicator divs before extracting text
-      const indicators = tempDiv.querySelectorAll('.search-indicator-custom, .db-indicator-custom, .hubspot-indicator-custom');
+      const indicators = tempDiv.querySelectorAll('.search-indicator-custom, .db-indicator-custom, .hubspot-indicator-custom, .youtube-indicator-custom');
       indicators.forEach(indicator => {
         indicator.remove();
       });

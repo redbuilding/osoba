@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Search, Database, Share2, Sparkles } from 'lucide-react';
+import { X, Search, Database, Share2, Sparkles, Youtube } from 'lucide-react';
 
 const ToolSelector = ({
   isOpen,

@@ -27,6 +27,7 @@ def get_logger(name: str):
 WEB_SEARCH_SERVICE_NAME = "web_search_service"
 MYSQL_DB_SERVICE_NAME = "mysql_db_service"
 HUBSPOT_SERVICE_NAME = "hubspot_service"
+YOUTUBE_SERVICE_NAME = "youtube_service"
 MAX_DB_RESULT_CHARS = 5000 # Proxy for token limit (approx 1000-1200 tokens)
 MAX_TABLES_FOR_SCHEMA_CONTEXT = 7 # Max tables to fetch full schema for, to keep prompt size reasonable
 

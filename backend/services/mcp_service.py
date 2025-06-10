@@ -10,7 +10,7 @@ from fastapi import HTTPException
 from fastmcp.client.transports import StdioServerParameters, stdio_client
 from mcp import ClientSession
 
-from core.config import BASE_DIR, WEB_SEARCH_SERVICE_NAME, MYSQL_DB_SERVICE_NAME, HUBSPOT_SERVICE_NAME, get_logger
+from core.config import BASE_DIR, WEB_SEARCH_SERVICE_NAME, MYSQL_DB_SERVICE_NAME, HUBSPOT_SERVICE_NAME, YOUTUBE_SERVICE_NAME, get_logger
 
 logger = get_logger("mcp_service")
 
@@ -46,6 +46,11 @@ class AppState:
                 name=HUBSPOT_SERVICE_NAME,
                 script_name="server_hubspot.py",
                 required_tools=["create_hubspot_marketing_email", "update_hubspot_marketing_email"]
+            ),
+            YOUTUBE_SERVICE_NAME: MCPServiceConfig(
+                name=YOUTUBE_SERVICE_NAME,
+                script_name="server_youtube.py",
+                required_tools=["get_youtube_transcript"]
             ),
         }
 
