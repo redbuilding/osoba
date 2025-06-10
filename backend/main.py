@@ -5,11 +5,11 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend.core.config import get_logger, BASE_DIR
-from backend.services.mcp_service import start_mcp_services, stop_mcp_services
-from backend.db.mongodb import mongo_client
-from backend.api import chat, conversations, status
-from backend.auth_hubspot import router as hubspot_auth_router
+from core.config import get_logger, BASE_DIR
+from services.mcp_service import start_mcp_services, stop_mcp_services
+from db.mongodb import mongo_client
+from api import chat, conversations, status
+from auth_hubspot import router as hubspot_auth_router
 
 logger = get_logger("mcp_backend_main")
 

@@ -1,8 +1,8 @@
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 from bson import ObjectId
-from backend.db.mongodb import get_conversations_collection
-from backend.core.models import ChatMessage
+from db.mongodb import get_conversations_collection
+from core.models import ChatMessage
 
 def get_all_conversations() -> List[Dict[str, Any]]:
     """
@@ -48,12 +48,12 @@ def rename_conversation_by_id(conv_id: str, new_title: str) -> Optional[Dict[str
         return None
     collection = get_conversations_collection()
     obj_id = ObjectId(conv_id)
-    
+
     update_result = collection.update_one(
         {"_id": obj_id},
         {"$set": {"title": new_title, "updated_at": datetime.now(timezone.utc)}}
     )
     if update_result.matched_count == 0:
         return None
-    
+
     return collection.find_one({"_id": obj_id})

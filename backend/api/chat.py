@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import StreamingResponse, Response
 
-from backend.core.models import ChatPayload, ChatResponse
-from backend.services.chat_service import ChatProcessor, get_logger
-from backend.db.mongodb import conversations_collection
+from core.models import ChatPayload, ChatResponse
+from services.chat_service import ChatProcessor, get_logger
+from db.mongodb import conversations_collection
 
 router = APIRouter()
 logger = get_logger("api_chat")

@@ -7,15 +7,15 @@ from typing import Optional, List, Dict, Any, Union, AsyncGenerator
 from bson import ObjectId
 from fastapi import Request
 
-from backend.core.config import (
+from core.config import (
     get_logger, WEB_SEARCH_SERVICE_NAME, MYSQL_DB_SERVICE_NAME, HUBSPOT_SERVICE_NAME,
     MAX_DB_RESULT_CHARS, MAX_TABLES_FOR_SCHEMA_CONTEXT, DEFAULT_REPEAT_PENALTY
 )
-from backend.core.models import ChatPayload, ChatMessage, ChatResponse
-from backend.db.mongodb import get_conversations_collection
-from backend.services.mcp_service import app_state, submit_mcp_request, wait_mcp_response
-from backend.services.ollama_service import get_default_ollama_model, chat_with_ollama, stream_chat_with_ollama
-from backend.auth_hubspot import get_valid_token, SESSION_COOKIE_NAME
+from core.models import ChatPayload, ChatMessage, ChatResponse
+from db.mongodb import get_conversations_collection
+from services.mcp_service import app_state, submit_mcp_request, wait_mcp_response
+from services.ollama_service import get_default_ollama_model, chat_with_ollama, stream_chat_with_ollama
+from auth_hubspot import get_valid_token, SESSION_COOKIE_NAME
 
 logger = get_logger("chat_service")
 
@@ -103,7 +103,7 @@ class ChatProcessor:
                     llm_content = msg.get("raw_content_for_llm", msg["content"])
                     self.llm_history.append({"role": msg["role"], "content": llm_content})
                 self.ui_history.append(ChatMessage(**msg))
-        
+
         if not self.model_name:
             self.model_name = self.payload.ollama_model_name or await get_default_ollama_model()
 
@@ -113,7 +113,7 @@ class ChatProcessor:
             res = self.collection.insert_one(new_doc)
             self.conv_id = str(res.inserted_id)
             self.obj_id = res.inserted_id
-        
+
         user_chat_msg = ChatMessage(role="user", content=self.user_msg_content)
         self.ui_history.append(user_chat_msg)
         user_msg_to_save = user_chat_msg.model_dump(exclude_none=True)
@@ -135,7 +135,7 @@ class ChatProcessor:
             req_id = await submit_mcp_request(WEB_SEARCH_SERVICE_NAME, "tool", {"tool": "web_search", "params": {"query": self.user_msg_content}})
             resp = await wait_mcp_response(WEB_SEARCH_SERVICE_NAME, req_id, timeout=90)
             if resp.get("status") == "error": raise Exception(resp.get("error", "MCP tool error"))
-            
+
             results = extract_json_from_response(resp.get("data"))
             if results.get("status") == "error": raise Exception(results.get("message", "Parse error"))
 
@@ -155,7 +155,7 @@ class ChatProcessor:
             tables_req_id = await submit_mcp_request(MYSQL_DB_SERVICE_NAME, "resource", {"uri": "resource://tables"})
             tables_resp = await wait_mcp_response(MYSQL_DB_SERVICE_NAME, tables_req_id)
             tables_data = extract_json_from_response(tables_resp.get("data"))
-            
+
             schema_parts = []
             if isinstance(tables_data, list) and tables_data:
                 schema_parts.append(f"Available tables: {', '.join(tables_data)}.")
@@ -169,7 +169,7 @@ class ChatProcessor:
                     schema_parts.append(f"\n...and {len(tables_data) - MAX_TABLES_FOR_SCHEMA_CONTEXT} more tables.")
             else:
                 raise Exception(f"Could not retrieve table list. Response: {tables_data}")
-            
+
             full_schema_context = "\n".join(schema_parts)
 
             # Generate and execute SQL with retry
@@ -177,7 +177,7 @@ class ChatProcessor:
             for attempt in range(2):
                 system_prompt = self._get_sql_gen_prompt(attempt, full_schema_context, locals().get("previous_faulty_sql"), locals().get("previous_db_error"))
                 raw_sql_resp = await chat_with_ollama([{"role": "system", "content": system_prompt}, {"role": "user", "content": self.user_msg_content}], self.model_name)
-                
+
                 sql_match = re.search(r"```(?:sql)?\s*([\s\S]+?)\s*```", raw_sql_resp or "", re.I)
                 temp_sql = (sql_match.group(1) if sql_match else (raw_sql_resp or "")).strip()
 
@@ -185,14 +185,14 @@ class ChatProcessor:
                     raise Exception("Could not form a valid SQL query based on the schema.")
                 if not temp_sql.lower().startswith("select"):
                     raise Exception("Generated query was not a SELECT statement.")
-                
+
                 extracted_sql = temp_sql
                 query_req_id = await submit_mcp_request(MYSQL_DB_SERVICE_NAME, "tool", {"tool": "execute_sql_query_tool", "params": {"query": extracted_sql}})
                 query_resp = await wait_mcp_response(MYSQL_DB_SERVICE_NAME, query_req_id)
                 db_results_data = extract_json_from_response(query_resp.get("data"))
 
                 if query_resp.get("status") == "error": raise Exception(f"MCP tool failed: {query_resp.get('error')}")
-                
+
                 db_error = db_results_data.get("error")
                 if db_error:
                     is_recoverable = any(k in str(db_error).lower() for k in ["unknown column", "no such table", "syntax error"])
@@ -203,7 +203,7 @@ class ChatProcessor:
                     else:
                         raise Exception(f"SQL execution failed: {db_error}")
                 break # Success
-            
+
             if db_results_data is None: raise Exception("Failed to get DB results after all attempts.")
 
             formatted_db_results = format_db_results_for_prompt(extracted_sql, db_results_data, MAX_DB_RESULT_CHARS)
@@ -245,15 +245,15 @@ Database Schema Context:
         access_token = await get_valid_token(session_id) if session_id else None
         if not access_token: return self._set_error("⚠️ Not connected to HubSpot. Please connect first.")
         if not app_state.mcp_service_ready.get(HUBSPOT_SERVICE_NAME): return self._set_error("⚠️ The HubSpot service is currently unavailable.")
-        
+
         logger.info(f"[CHAT_SVC] HubSpot interaction for: '{self.user_msg_content}'")
         try:
             system_prompt = self._get_hubspot_json_gen_prompt()
             raw_json_resp = await chat_with_ollama([{"role": "system", "content": system_prompt}, {"role": "user", "content": self.user_msg_content}], self.model_name)
-            
+
             json_match = re.search(r"```json\s*([\s\S]+?)```", raw_json_resp or "", re.I)
             candidate = (json_match.group(1) if json_match else (raw_json_resp or "")).strip()
-            
+
             try:
                 email_payload = json.loads(candidate)
                 if not isinstance(email_payload, dict): raise json.JSONDecodeError
@@ -317,18 +317,18 @@ Database Schema Context:
             self.llm_history.append({"role": "user", "content": self.prompt_for_llm})
             repeat_penalty = self.payload.repeat_penalty or DEFAULT_REPEAT_PENALTY
             model_response = await chat_with_ollama(self.llm_history, self.model_name, repeat_penalty)
-            
+
             if model_response:
                 final_content = f"{self.html_indicator}\n\n{model_response}" if self.is_html_response else model_response
                 self._save_assistant_message(final_content, model_response)
             else:
                 self._save_assistant_message(f"Sorry, I could not get a response from the model ({self.model_name}).", "")
-        
+
         return ChatResponse(conversation_id=self.conv_id, chat_history=self.ui_history, ollama_model_name=self.model_name)
 
     async def process_streaming(self) -> AsyncGenerator[str, None]:
         await self._run_pipeline()
-        
+
         if self.error_message_obj:
             self._save_assistant_message(self.error_message_obj.content, self.error_message_obj.content)
             payload = json.dumps({"type": "error", "content": self.error_message_obj.content})
@@ -344,7 +344,7 @@ Database Schema Context:
         self.llm_history.append({"role": "user", "content": self.prompt_for_llm})
         accumulated_response = ""
         repeat_penalty = self.payload.repeat_penalty or DEFAULT_REPEAT_PENALTY
-        
+
         async for chunk in stream_chat_with_ollama(self.llm_history, self.model_name, repeat_penalty):
             yield chunk
             try:

@@ -6,7 +6,7 @@ from typing import Optional, List, Dict, AsyncGenerator
 import ollama
 from fastapi import HTTPException
 
-from backend.core.config import DEFAULT_OLLAMA_MODEL, DEFAULT_REPEAT_PENALTY, get_logger
+from core.config import DEFAULT_OLLAMA_MODEL, DEFAULT_REPEAT_PENALTY, get_logger
 
 logger = get_logger("ollama_service")
 
@@ -62,8 +62,8 @@ async def get_default_ollama_model() -> str:
     try:
         models_info = await list_ollama_models_info()
         non_embed_models = [
-            m['model'] for m in models_info 
-            if 'embed' not in m.get('details', {}).get('family', '').lower() 
+            m['model'] for m in models_info
+            if 'embed' not in m.get('details', {}).get('family', '').lower()
             and 'embed' not in m['model'].lower()
         ]
         if non_embed_models:

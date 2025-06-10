@@ -10,7 +10,7 @@ from fastapi import HTTPException
 from fastmcp.client.transports import StdioServerParameters, stdio_client
 from mcp import ClientSession
 
-from backend.core.config import BASE_DIR, WEB_SEARCH_SERVICE_NAME, MYSQL_DB_SERVICE_NAME, HUBSPOT_SERVICE_NAME, get_logger
+from core.config import BASE_DIR, WEB_SEARCH_SERVICE_NAME, MYSQL_DB_SERVICE_NAME, HUBSPOT_SERVICE_NAME, get_logger
 
 logger = get_logger("mcp_service")
 
@@ -122,7 +122,7 @@ async def run_mcp_service_instance(config: MCPServiceConfig):
                                         resource_result = await session.read_resource(uri_to_get)
                                         duration = time.time() - start_time
                                         logger.info(f"MCP_SERVICE ({service_name}): RESOURCE '{uri_to_get}' completed in {duration:.2f}s (req_id: {request_id})")
-                                        
+
                                         resource_content = str(resource_result)
                                         if hasattr(resource_result, 'contents') and resource_result.contents:
                                             resource_content = resource_result.contents[0].text if resource_result.contents[0].text else str(resource_result.contents[0])
@@ -150,9 +150,9 @@ async def run_mcp_service_instance(config: MCPServiceConfig):
 async def submit_mcp_request(service_name: str, request_type: str, payload: Dict[str, Any]) -> str:
     if service_name not in app_state.mcp_service_queues:
         raise HTTPException(status_code=503, detail=f"MCP service '{service_name}' is not available.")
-    
+
     request_q, _ = app_state.mcp_service_queues[service_name]
-    
+
     if request_type == "tool":
         tool_name = payload.get("tool")
         request_id = f"tool_req_{service_name}_{tool_name}_{time.time()}"
@@ -164,7 +164,7 @@ async def submit_mcp_request(service_name: str, request_type: str, payload: Dict
         await request_q.put({"id": request_id, "type": "resource", "uri": uri})
     else:
         raise ValueError("Invalid MCP request type")
-        
+
     return request_id
 
 async def wait_mcp_response(service_name: str, request_id: str, timeout: int = 45) -> Dict:

@@ -2,9 +2,9 @@ from typing import List
 from fastapi import APIRouter, HTTPException
 import ollama
 
-from backend.services.mcp_service import app_state
-from backend.db.mongodb import conversations_collection
-from backend.services.ollama_service import get_ollama_model_tags, list_ollama_models_info
+from services.mcp_service import app_state
+from db.mongodb import conversations_collection
+from services.ollama_service import get_ollama_model_tags, list_ollama_models_info
 
 router = APIRouter()
 

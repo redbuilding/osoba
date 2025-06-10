@@ -1,9 +1,9 @@
 from typing import List
 from fastapi import APIRouter, HTTPException, Response, status
 
-from backend.core.models import ConversationListItem, ChatMessage, RenamePayload
-from backend.db import crud
-from backend.services.ollama_service import get_default_ollama_model
+from core.models import ConversationListItem, ChatMessage, RenamePayload
+from db import crud
+from services.ollama_service import get_default_ollama_model
 
 router = APIRouter()
 logger = crud.get_logger("api_conversations")
@@ -60,11 +60,11 @@ async def rename_conversation_title_endpoint(conversation_id: str, payload: Rena
         updated_doc = crud.rename_conversation_by_id(conversation_id, payload.new_title)
         if not updated_doc:
             raise HTTPException(status_code=404, detail="Conversation not found for renaming.")
-        
+
         updated_doc["message_count"] = crud.count_messages_in_conversation(updated_doc["_id"])
         if not updated_doc.get("ollama_model_name"):
             updated_doc["ollama_model_name"] = await get_default_ollama_model()
-        
+
         logger.info(f"Renamed conversation ID {conversation_id} to '{payload.new_title}'")
         return ConversationListItem.model_validate(updated_doc)
     except HTTPException:

@@ -1,6 +1,6 @@
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure
-from backend.core.config import MONGODB_URI, MONGODB_DATABASE_NAME, MONGODB_COLLECTION_NAME, get_logger
+from core.config import MONGODB_URI, MONGODB_DATABASE_NAME, MONGODB_COLLECTION_NAME, get_logger
 
 logger = get_logger("mongodb_client")
 
