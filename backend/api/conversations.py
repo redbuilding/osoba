@@ -22,6 +22,10 @@ async def list_conversations():
                 if default_model_cache is None:
                     default_model_cache = await get_default_ollama_model()
                 doc["ollama_model_name"] = default_model_cache
+            
+            # Convert ObjectId to string for Pydantic validation
+            doc["_id"] = str(doc["_id"])
+            
             conv_list_items.append(ConversationListItem.model_validate(doc))
         return conv_list_items
     except Exception as e:
@@ -67,6 +71,10 @@ async def rename_conversation_title_endpoint(conversation_id: str, payload: Rena
             updated_doc["ollama_model_name"] = await get_default_ollama_model()
 
         logger.info(f"Renamed conversation ID {conversation_id} to '{payload.new_title}'")
+        
+        # Convert ObjectId to string for Pydantic validation
+        updated_doc["_id"] = str(updated_doc["_id"])
+        
         return ConversationListItem.model_validate(updated_doc)
     except HTTPException:
         raise
