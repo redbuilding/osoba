@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Request, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, Response
 
 from backend.core.models import ChatPayload, ChatResponse
 from backend.services.chat_service import ChatProcessor, get_logger
@@ -28,11 +28,9 @@ async def stream_chat_endpoint(request: Request, payload: ChatPayload):
     try:
         processor = ChatProcessor(request, payload)
         return StreamingResponse(processor.process_streaming(), media_type="text/event-stream")
-    except ValueError as e: # Handles invalid conv_id or not found
-        # Cannot return HTTPException for a stream, so we log and close.
-        # The frontend will need to handle a prematurely closed connection.
-        logger.error(f"Error starting stream: {e}")
-        return Response(status_code=404, content=str(e))
     except Exception as e:
-        logger.error(f"Error in /api/chat/stream endpoint: {e}", exc_info=True)
+        # This will catch synchronous errors during ChatProcessor initialization.
+        # Errors within the stream itself (like ValueError for an invalid conv_id)
+        # are handled inside the generator or will terminate the connection.
+        logger.error(f"Error setting up chat stream: {e}", exc_info=True)
         return Response(status_code=500, content="Internal server error.")
