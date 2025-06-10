@@ -15,6 +15,7 @@ class ChatPayload(BaseModel):
     use_search: bool
     use_database: bool = False
     use_hubspot: bool = False
+    use_youtube: bool = False
     conversation_id: Optional[str] = None
     ollama_model_name: Optional[str] = None
     repeat_penalty: Optional[float] = None
