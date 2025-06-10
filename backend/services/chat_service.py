@@ -8,7 +8,7 @@ from bson import ObjectId
 from fastapi import Request
 
 from core.config import (
-    get_logger, WEB_SEARCH_SERVICE_NAME, MYSQL_DB_SERVICE_NAME, HUBSPOT_SERVICE_NAME,
+    get_logger, WEB_SEARCH_SERVICE_NAME, MYSQL_DB_SERVICE_NAME, HUBSPOT_SERVICE_NAME, YOUTUBE_SERVICE_NAME,
     MAX_DB_RESULT_CHARS, MAX_TABLES_FOR_SCHEMA_CONTEXT, DEFAULT_REPEAT_PENALTY
 )
 from core.models import ChatPayload, ChatMessage, ChatResponse
@@ -296,11 +296,36 @@ Database Schema Context:
 3. If *any* required piece is missing (e.g. list IDs, templatePath), *do not* output JSON; instead respond with a natural‐language clarification question.
 4. Do *not* wrap JSON in markdown or add any extra text—output *only* the JSON object."""
 
+    async def _handle_youtube(self):
+        if not app_state.mcp_service_ready.get(YOUTUBE_SERVICE_NAME):
+            return self._set_error("⚠️ YouTube transcript service is currently unavailable.")
+        logger.info(f"[CHAT_SVC] YouTube transcript for: '{self.user_msg_content}'")
+        try:
+            req_id = await submit_mcp_request(YOUTUBE_SERVICE_NAME, "tool", {"tool": "get_youtube_transcript", "params": {"youtube_url": self.user_msg_content}})
+            # Transcripts can take a while
+            resp = await wait_mcp_response(YOUTUBE_SERVICE_NAME, req_id, timeout=120)
+            if resp.get("status") == "error":
+                raise Exception(resp.get("error", "MCP tool error"))
+
+            transcript = resp.get("data", "")
+            if transcript.startswith("Error:"):
+                # Pass tool-specific errors directly to the user
+                self._set_error(f"⚠️ {transcript}")
+                return
+
+            self._add_indicator(f"<div class='youtube-indicator-custom'><b>📺 YouTube:</b> Transcript from \"{self.user_msg_content}\" was used.</div>")
+            self.prompt_for_llm = f"Based on the transcript from the YouTube video '{self.user_msg_content}', please answer the user's follow-up question. The user's question is implicitly 'summarize this' or whatever they asked. If they just provided a URL, summarize the content. Transcript:\n\n{transcript}\n\nUser's original request: '{self.user_msg_content}'"
+
+        except Exception as e:
+            logger.error(f"[CHAT_SVC] YouTube transcript failed: {e}", exc_info=True)
+            self._set_error(f"⚠️ YouTube transcript failed: {str(e)}")
+
     async def _run_pipeline(self):
         await self._initialize_conversation()
         if self.payload.use_search: await self._handle_search()
         if not self.error_message_obj and self.payload.use_database: await self._handle_database()
         if not self.error_message_obj and self.payload.use_hubspot: await self._handle_hubspot()
+        if not self.error_message_obj and self.payload.use_youtube: await self._handle_youtube()
 
     def _save_assistant_message(self, content: str, raw_content: str):
         assistant_msg = ChatMessage(role="assistant", content=content, is_html=self.is_html_response)

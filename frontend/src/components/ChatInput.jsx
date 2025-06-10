@@ -1,6 +1,6 @@
 // frontend/src/components/ChatInput.jsx
 import React, { useState } from "react";
-import { Send, Sparkles, Search, Database, Share2 } from "lucide-react";
+import { Send, Sparkles, Search, Database, Share2, Youtube } from "lucide-react";
 
 const ChatInput = ({
   onSendMessage,
@@ -50,6 +50,13 @@ const ChatInput = ({
           text: "HubSpot actions are active. Describe the email you want to create.",
           colorClass: "text-orange-400",
           buttonColorClass: "bg-orange-500 text-white hover:bg-orange-600",
+        };
+      case "youtube":
+        return {
+          Icon: Youtube,
+          text: "YouTube transcript is active. Paste a video URL to get its transcript.",
+          colorClass: "text-red-500",
+          buttonColorClass: "bg-red-600 text-white hover:bg-red-700",
         };
       default:
         return null;
