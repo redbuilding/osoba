@@ -90,6 +90,7 @@ class ChatProcessor:
         self.html_indicator = ""
         self.is_html_response = False
         self.error_message_obj: Optional[ChatMessage] = None
+        self.youtube_transcript: Optional[str] = None
 
     async def _initialize_conversation(self):
         if self.conv_id:
@@ -98,6 +99,7 @@ class ChatProcessor:
             conv = self.collection.find_one({"_id": self.obj_id})
             if not conv: raise ValueError(f"Conv ID '{self.conv_id}' not found.")
             self.model_name = conv.get("ollama_model_name")
+            self.youtube_transcript = conv.get("youtube_transcript")
             for msg in conv.get("messages", []):
                 if 'role' in msg and 'content' in msg:
                     llm_content = msg.get("raw_content_for_llm", msg["content"])
@@ -313,12 +315,51 @@ Database Schema Context:
                 self._set_error(f"⚠️ {transcript}")
                 return
 
+            # Save transcript to DB for future use in this conversation
+            logger.info(f"Saving YouTube transcript to conv_id {self.conv_id}")
+            self.collection.update_one(
+                {"_id": self.obj_id},
+                {"$set": {"youtube_transcript": transcript, "updated_at": datetime.now(timezone.utc)}}
+            )
+            self.youtube_transcript = transcript # Also set it on the current instance
+
             self._add_indicator(f"<div class='youtube-indicator-custom'><b>📺 YouTube:</b> Transcript from \"{self.user_msg_content}\" was used.</div>")
             self.prompt_for_llm = f"Based on the transcript from the YouTube video '{self.user_msg_content}', please answer the user's follow-up question. The user's question is implicitly 'summarize this' or whatever they asked. If they just provided a URL, summarize the content. Transcript:\n\n{transcript}\n\nUser's original request: '{self.user_msg_content}'"
 
         except Exception as e:
             logger.error(f"[CHAT_SVC] YouTube transcript failed: {e}", exc_info=True)
             self._set_error(f"⚠️ YouTube transcript failed: {str(e)}")
+
+    def _inject_persistent_context(self):
+        """
+        If a transcript is attached to the convo, and we are NOT in the process
+        of fetching a new one, inject the transcript as context for the LLM.
+        """
+        if self.youtube_transcript and not self.payload.use_youtube:
+            logger.debug(f"Injecting persistent YouTube transcript context for conv {self.conv_id}.")
+
+            indicator_html = "<div class='youtube-indicator-custom'><b>📺 YouTube:</b> Using transcript for context.</div>"
+            if indicator_html not in self.html_indicator:
+                self._add_indicator(indicator_html)
+
+            # Use a rough character limit to prevent oversized prompts.
+            # ~12k chars is roughly 3k tokens.
+            MAX_TRANSCRIPT_CHARS_FOR_CONTEXT = 12000
+            truncated_transcript = self.youtube_transcript[:MAX_TRANSCRIPT_CHARS_FOR_CONTEXT]
+
+            transcript_context = (
+                "You are having a conversation about a YouTube video. "
+                "Use the following transcript as the primary source to answer the user's question.\n\n"
+                "--- BEGIN YOUTUBE TRANSCRIPT ---\n"
+                f"{truncated_transcript}"
+                "\n--- END YOUTUBE TRANSCRIPT ---\n"
+            )
+            if len(self.youtube_transcript) > MAX_TRANSCRIPT_CHARS_FOR_CONTEXT:
+                transcript_context += "\n(The transcript was truncated to fit the context window)\n"
+
+            # self.prompt_for_llm contains the user's message, or a modified prompt from another tool.
+            # We wrap it with our transcript context.
+            self.prompt_for_llm = f"{transcript_context}\nBased on the transcript, please answer the user's request: '{self.prompt_for_llm}'"
 
     async def _run_pipeline(self):
         await self._initialize_conversation()
@@ -336,6 +377,7 @@ Database Schema Context:
 
     async def process_non_streaming(self) -> ChatResponse:
         await self._run_pipeline()
+        self._inject_persistent_context()
         if self.error_message_obj:
             self._save_assistant_message(self.error_message_obj.content, self.error_message_obj.content)
         else:
@@ -353,6 +395,7 @@ Database Schema Context:
 
     async def process_streaming(self) -> AsyncGenerator[str, None]:
         await self._run_pipeline()
+        self._inject_persistent_context()
 
         if self.error_message_obj:
             self._save_assistant_message(self.error_message_obj.content, self.error_message_obj.content)

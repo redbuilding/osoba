@@ -6,11 +6,11 @@ from core.models import ChatMessage
 
 def get_all_conversations() -> List[Dict[str, Any]]:
     """
-    Fetches all conversations, sorted by update time, without messages.
+    Fetches all conversations, sorted by update time, without messages or transcripts.
     Returns a list of raw documents from the database.
     """
     collection = get_conversations_collection()
-    cursor = collection.find({}, {"messages": 0}).sort("updated_at", -1).limit(50)
+    cursor = collection.find({}, {"messages": 0, "youtube_transcript": 0}).sort("updated_at", -1).limit(50)
     return list(cursor)
 
 def count_messages_in_conversation(conv_id: ObjectId) -> int:
