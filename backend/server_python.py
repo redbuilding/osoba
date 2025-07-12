@@ -35,7 +35,7 @@ server = Server("EnhancedDataAnalysisServer")
 # Data Loading Tool
 # --------------------------------------------------------------------------
 
-@server.call_tool()
+@server.call_tool("load_csv")
 async def load_csv(arguments: dict) -> list[TextContent]:
     """
     Loads a CSV from a base64 encoded string into a new dataframe.
@@ -62,7 +62,7 @@ async def load_csv(arguments: dict) -> list[TextContent]:
 # Data Cleaning and Inspection Tools 🧹
 # --------------------------------------------------------------------------
 
-@server.call_tool()
+@server.call_tool("check_missing_values")
 async def check_missing_values(arguments: dict) -> list[TextContent]:
     """
     Checks for and returns the count of missing (NaN) values in each column.
@@ -79,7 +79,7 @@ async def check_missing_values(arguments: dict) -> list[TextContent]:
     result = f"Missing value counts:\n{missing_values[missing_values > 0].to_string()}"
     return [TextContent(type="text", text=result)]
 
-@server.call_tool()
+@server.call_tool("handle_missing_values")
 async def handle_missing_values(arguments: dict) -> list[TextContent]:
     """
     Handles missing values in specified columns of a dataframe.
@@ -123,7 +123,7 @@ async def handle_missing_values(arguments: dict) -> list[TextContent]:
 # Data Transformation Tools 🔄
 # --------------------------------------------------------------------------
 
-@server.call_tool()
+@server.call_tool("rename_columns")
 async def rename_columns(arguments: dict) -> list[TextContent]:
     """
     Renames one or more columns in a dataframe.
@@ -146,7 +146,7 @@ async def rename_columns(arguments: dict) -> list[TextContent]:
     except Exception as e:
         return [TextContent(type="text", text=f"Error renaming columns: {e}")]
 
-@server.call_tool()
+@server.call_tool("drop_columns")
 async def drop_columns(arguments: dict) -> list[TextContent]:
     """
     Drops one or more specified columns from a dataframe.
@@ -171,7 +171,7 @@ async def drop_columns(arguments: dict) -> list[TextContent]:
 # Deeper Analysis and Querying Tools 🔎
 # --------------------------------------------------------------------------
 
-@server.call_tool()
+@server.call_tool("get_head")
 async def get_head(arguments: dict) -> list[TextContent]:
     """
     Returns the first n rows of the dataframe.
@@ -188,7 +188,7 @@ async def get_head(arguments: dict) -> list[TextContent]:
     result = data_store[df_id].head(n).to_string()
     return [TextContent(type="text", text=result)]
 
-@server.call_tool()
+@server.call_tool("get_descriptive_statistics")
 async def get_descriptive_statistics(arguments: dict) -> list[TextContent]:
     """
     Returns descriptive statistics for the numerical columns of a loaded dataframe.
@@ -204,7 +204,7 @@ async def get_descriptive_statistics(arguments: dict) -> list[TextContent]:
     result = data_store[df_id].describe().to_string()
     return [TextContent(type="text", text=result)]
 
-@server.call_tool()
+@server.call_tool("get_value_counts")
 async def get_value_counts(arguments: dict) -> list[TextContent]:
     """
     Returns the unique values and their frequencies for a specified categorical column.
@@ -224,7 +224,7 @@ async def get_value_counts(arguments: dict) -> list[TextContent]:
     result = data_store[df_id][column_name].value_counts().to_string()
     return [TextContent(type="text", text=result)]
 
-@server.call_tool()
+@server.call_tool("get_correlation_matrix")
 async def get_correlation_matrix(arguments: dict) -> list[TextContent]:
     """
     Computes and returns the correlation matrix for numerical columns.
@@ -240,7 +240,7 @@ async def get_correlation_matrix(arguments: dict) -> list[TextContent]:
     result = data_store[df_id].corr(numeric_only=True).to_string()
     return [TextContent(type="text", text=result)]
 
-@server.call_tool()
+@server.call_tool("query_dataframe")
 async def query_dataframe(arguments: dict) -> list[TextContent]:
     """
     Filters a dataframe using a query string, stores it as a new dataframe, and returns its ID.
@@ -268,7 +268,7 @@ async def query_dataframe(arguments: dict) -> list[TextContent]:
 # Enhanced Data Visualization Tool 📈
 # --------------------------------------------------------------------------
 
-@server.call_tool()
+@server.call_tool("create_plot")
 async def create_plot(arguments: dict) -> list[TextContent | ImageContent]:
     """
     Generates a plot from the dataframe and returns it as a base64 encoded image.
