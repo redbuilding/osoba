@@ -18,13 +18,16 @@ logger = get_logger("mcp_service")
 class MCPServiceConfig:
     name: str
     script_name: str
+    executable: str = "fastmcp"
     command_verb: str = "run"
     required_tools: List[str] = field(default_factory=list)
     enabled: bool = True
 
     @property
     def full_command(self) -> List[str]:
-        return ["fastmcp", self.command_verb, os.path.join(BASE_DIR, self.script_name)]
+        if self.executable == "python":
+            return ["python", os.path.join(BASE_DIR, self.script_name)]
+        return [self.executable, self.command_verb, os.path.join(BASE_DIR, self.script_name)]
 
 class AppState:
     def __init__(self):
@@ -55,6 +58,7 @@ class AppState:
             PYTHON_SERVICE_NAME: MCPServiceConfig(
                 name=PYTHON_SERVICE_NAME,
                 script_name="server_python.py",
+                executable="python",
                 required_tools=["load_csv", "get_head", "create_plot", "get_descriptive_statistics"]
             ),
         }
