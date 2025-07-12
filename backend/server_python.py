@@ -1,4 +1,3 @@
-import asyncio
 import base64
 import io
 import json
@@ -6,20 +5,10 @@ import uuid
 from typing import Dict, List, Optional, Any
 
 import matplotlib
-import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-from mcp.server import Server
-from mcp.server.models import InitializationOptions
-from mcp.server.lowlevel import NotificationOptions  # Add this line
-from mcp.types import (
-    Resource,
-    Tool,
-    TextContent,
-    ImageContent,
-    EmbeddedResource,
-)
+from fastmcp import FastMCP
 from pandas import DataFrame
 
 # Set a non-interactive backend for Matplotlib to prevent it from trying to open a GUI
@@ -28,22 +17,26 @@ matplotlib.use('Agg')
 # In-memory "database" to store dataframes between tool calls
 data_store: Dict[str, DataFrame] = {}
 
-# Initialize the MCP server
-server = Server("EnhancedDataAnalysisServer")
+# Initialize the MCP server using FastMCP
+mcp = FastMCP(
+    name="EnhancedDataAnalysisServer",
+    version="1.0.0",
+    display_name="Enhanced Data Analysis Server",
+    description="Provides tools for CSV data loading, analysis, and visualization."
+)
 
 # --------------------------------------------------------------------------
 # Data Loading Tool
 # --------------------------------------------------------------------------
 
-@server.call_tool("load_csv")
-async def load_csv(arguments: dict) -> list[TextContent]:
+@mcp.tool()
+async def load_csv(csv_b64: str) -> str:
     """
     Loads a CSV from a base64 encoded string into a new dataframe.
     Returns a unique ID for the loaded dataframe.
     """
-    csv_b64 = arguments.get("csv_b64")
     if not csv_b64:
-        return [TextContent(type="text", text="Error: csv_b64 parameter is required")]
+        return "Error: csv_b64 parameter is required"
 
     try:
         csv_bytes = base64.b64decode(csv_b64)
@@ -53,49 +46,39 @@ async def load_csv(arguments: dict) -> list[TextContent]:
         df_id = str(uuid.uuid4())
         data_store[df_id] = df
 
-        result = f"Successfully loaded dataframe with ID: {df_id}. Columns: {df.columns.tolist()}, Shape: {df.shape}"
-        return [TextContent(type="text", text=result)]
+        return f"Successfully loaded dataframe with ID: {df_id}. Columns: {df.columns.tolist()}, Shape: {df.shape}"
     except Exception as e:
-        return [TextContent(type="text", text=f"Error loading CSV: {e}")]
+        return f"Error loading CSV: {e}"
 
 # --------------------------------------------------------------------------
 # Data Cleaning and Inspection Tools 🧹
 # --------------------------------------------------------------------------
 
-@server.call_tool("check_missing_values")
-async def check_missing_values(arguments: dict) -> list[TextContent]:
+@mcp.tool()
+async def check_missing_values(df_id: str) -> str:
     """
     Checks for and returns the count of missing (NaN) values in each column.
     """
-    df_id = arguments.get("df_id")
     if not df_id:
-        return [TextContent(type="text", text="Error: df_id parameter is required")]
-
+        return "Error: df_id parameter is required"
     if df_id not in data_store:
-        return [TextContent(type="text", text=f"Error: Dataframe with ID {df_id} not found.")]
+        return f"Error: Dataframe with ID {df_id} not found."
 
     df = data_store[df_id]
     missing_values = df.isnull().sum()
-    result = f"Missing value counts:\n{missing_values[missing_values > 0].to_string()}"
-    return [TextContent(type="text", text=result)]
+    return f"Missing value counts:\n{missing_values[missing_values > 0].to_string()}"
 
-@server.call_tool("handle_missing_values")
-async def handle_missing_values(arguments: dict) -> list[TextContent]:
+@mcp.tool()
+async def handle_missing_values(df_id: str, strategy: str, columns: Optional[List[str]] = None, value: Optional[Any] = None) -> str:
     """
     Handles missing values in specified columns of a dataframe.
     Strategy can be 'drop', 'fill', or 'interpolate'.
     For 'fill', a 'value' must be provided.
     """
-    df_id = arguments.get("df_id")
-    strategy = arguments.get("strategy")
-    columns = arguments.get("columns")
-    value = arguments.get("value")
-
     if not df_id or not strategy:
-        return [TextContent(type="text", text="Error: df_id and strategy parameters are required")]
-
+        return "Error: df_id and strategy parameters are required"
     if df_id not in data_store:
-        return [TextContent(type="text", text=f"Error: Dataframe with ID {df_id} not found.")]
+        return f"Error: Dataframe with ID {df_id} not found."
 
     df = data_store[df_id]
     target_cols = columns if columns else df.columns
@@ -103,187 +86,145 @@ async def handle_missing_values(arguments: dict) -> list[TextContent]:
     try:
         if strategy == 'drop':
             df.dropna(subset=target_cols, inplace=True)
-            result = f"Dropped rows with missing values in columns: {target_cols}."
+            return f"Dropped rows with missing values in columns: {target_cols}."
         elif strategy == 'fill':
             if value is None:
-                return [TextContent(type="text", text="Error: A 'value' must be provided for the 'fill' strategy.")]
+                return "Error: A 'value' must be provided for the 'fill' strategy."
             df[target_cols] = df[target_cols].fillna(value)
-            result = f"Filled missing values with '{value}' in columns: {target_cols}."
+            return f"Filled missing values with '{value}' in columns: {target_cols}."
         elif strategy == 'interpolate':
             df[target_cols] = df[target_cols].interpolate()
-            result = f"Interpolated missing values in columns: {target_cols}."
+            return f"Interpolated missing values in columns: {target_cols}."
         else:
-            return [TextContent(type="text", text="Error: Invalid strategy. Choose from 'drop', 'fill', or 'interpolate'.")]
-
-        return [TextContent(type="text", text=result)]
+            return "Error: Invalid strategy. Choose from 'drop', 'fill', or 'interpolate'."
     except Exception as e:
-        return [TextContent(type="text", text=f"Error handling missing values: {e}")]
+        return f"Error handling missing values: {e}"
 
 # --------------------------------------------------------------------------
 # Data Transformation Tools 🔄
 # --------------------------------------------------------------------------
 
-@server.call_tool("rename_columns")
-async def rename_columns(arguments: dict) -> list[TextContent]:
+@mcp.tool()
+async def rename_columns(df_id: str, rename_map_json: str) -> str:
     """
     Renames one or more columns in a dataframe.
     Expects a JSON string for the rename map, e.g., '{"old_name": "new_name"}'.
     """
-    df_id = arguments.get("df_id")
-    rename_map_json = arguments.get("rename_map_json")
-
     if not df_id or not rename_map_json:
-        return [TextContent(type="text", text="Error: df_id and rename_map_json parameters are required")]
-
+        return "Error: df_id and rename_map_json parameters are required"
     if df_id not in data_store:
-        return [TextContent(type="text", text=f"Error: Dataframe with ID {df_id} not found.")]
+        return f"Error: Dataframe with ID {df_id} not found."
 
     try:
         rename_map = json.loads(rename_map_json)
         data_store[df_id].rename(columns=rename_map, inplace=True)
-        result = f"Columns renamed. New columns: {data_store[df_id].columns.tolist()}"
-        return [TextContent(type="text", text=result)]
+        return f"Columns renamed. New columns: {data_store[df_id].columns.tolist()}"
     except Exception as e:
-        return [TextContent(type="text", text=f"Error renaming columns: {e}")]
+        return f"Error renaming columns: {e}"
 
-@server.call_tool("drop_columns")
-async def drop_columns(arguments: dict) -> list[TextContent]:
+@mcp.tool()
+async def drop_columns(df_id: str, columns_to_drop: List[str]) -> str:
     """
     Drops one or more specified columns from a dataframe.
     """
-    df_id = arguments.get("df_id")
-    columns_to_drop = arguments.get("columns_to_drop")
-
     if not df_id or not columns_to_drop:
-        return [TextContent(type="text", text="Error: df_id and columns_to_drop parameters are required")]
-
+        return "Error: df_id and columns_to_drop parameters are required"
     if df_id not in data_store:
-        return [TextContent(type="text", text=f"Error: Dataframe with ID {df_id} not found.")]
+        return f"Error: Dataframe with ID {df_id} not found."
 
     try:
         data_store[df_id].drop(columns=columns_to_drop, inplace=True)
-        result = f"Dropped columns: {columns_to_drop}. Remaining columns: {data_store[df_id].columns.tolist()}"
-        return [TextContent(type="text", text=result)]
+        return f"Dropped columns: {columns_to_drop}. Remaining columns: {data_store[df_id].columns.tolist()}"
     except Exception as e:
-        return [TextContent(type="text", text=f"Error dropping columns: {e}")]
+        return f"Error dropping columns: {e}"
 
 # --------------------------------------------------------------------------
 # Deeper Analysis and Querying Tools 🔎
 # --------------------------------------------------------------------------
 
-@server.call_tool("get_head")
-async def get_head(arguments: dict) -> list[TextContent]:
+@mcp.tool()
+async def get_head(df_id: str, n: int = 5) -> str:
     """
     Returns the first n rows of the dataframe.
     """
-    df_id = arguments.get("df_id")
-    n = arguments.get("n", 5)
-
     if not df_id:
-        return [TextContent(type="text", text="Error: df_id parameter is required")]
-
+        return "Error: df_id parameter is required"
     if df_id not in data_store:
-        return [TextContent(type="text", text=f"Error: Dataframe with ID {df_id} not found.")]
+        return f"Error: Dataframe with ID {df_id} not found."
 
-    result = data_store[df_id].head(n).to_string()
-    return [TextContent(type="text", text=result)]
+    return data_store[df_id].head(n).to_string()
 
-@server.call_tool("get_descriptive_statistics")
-async def get_descriptive_statistics(arguments: dict) -> list[TextContent]:
+@mcp.tool()
+async def get_descriptive_statistics(df_id: str) -> str:
     """
     Returns descriptive statistics for the numerical columns of a loaded dataframe.
     """
-    df_id = arguments.get("df_id")
-
     if not df_id:
-        return [TextContent(type="text", text="Error: df_id parameter is required")]
-
+        return "Error: df_id parameter is required"
     if df_id not in data_store:
-        return [TextContent(type="text", text=f"Error: Dataframe with ID {df_id} not found.")]
+        return f"Error: Dataframe with ID {df_id} not found."
 
-    result = data_store[df_id].describe().to_string()
-    return [TextContent(type="text", text=result)]
+    return data_store[df_id].describe().to_string()
 
-@server.call_tool("get_value_counts")
-async def get_value_counts(arguments: dict) -> list[TextContent]:
+@mcp.tool()
+async def get_value_counts(df_id: str, column_name: str) -> str:
     """
     Returns the unique values and their frequencies for a specified categorical column.
     """
-    df_id = arguments.get("df_id")
-    column_name = arguments.get("column_name")
-
     if not df_id or not column_name:
-        return [TextContent(type="text", text="Error: df_id and column_name parameters are required")]
-
+        return "Error: df_id and column_name parameters are required"
     if df_id not in data_store:
-        return [TextContent(type="text", text=f"Error: Dataframe with ID {df_id} not found.")]
-
+        return f"Error: Dataframe with ID {df_id} not found."
     if column_name not in data_store[df_id].columns:
-        return [TextContent(type="text", text=f"Error: Column '{column_name}' not found.")]
+        return f"Error: Column '{column_name}' not found."
 
-    result = data_store[df_id][column_name].value_counts().to_string()
-    return [TextContent(type="text", text=result)]
+    return data_store[df_id][column_name].value_counts().to_string()
 
-@server.call_tool("get_correlation_matrix")
-async def get_correlation_matrix(arguments: dict) -> list[TextContent]:
+@mcp.tool()
+async def get_correlation_matrix(df_id: str) -> str:
     """
     Computes and returns the correlation matrix for numerical columns.
     """
-    df_id = arguments.get("df_id")
-
     if not df_id:
-        return [TextContent(type="text", text="Error: df_id parameter is required")]
-
+        return "Error: df_id parameter is required"
     if df_id not in data_store:
-        return [TextContent(type="text", text=f"Error: Dataframe with ID {df_id} not found.")]
+        return f"Error: Dataframe with ID {df_id} not found."
 
-    result = data_store[df_id].corr(numeric_only=True).to_string()
-    return [TextContent(type="text", text=result)]
+    return data_store[df_id].corr(numeric_only=True).to_string()
 
-@server.call_tool("query_dataframe")
-async def query_dataframe(arguments: dict) -> list[TextContent]:
+@mcp.tool()
+async def query_dataframe(df_id: str, query_string: str) -> str:
     """
     Filters a dataframe using a query string, stores it as a new dataframe, and returns its ID.
     Example query_string: "age > 30 and city == 'New York'"
     """
-    df_id = arguments.get("df_id")
-    query_string = arguments.get("query_string")
-
     if not df_id or not query_string:
-        return [TextContent(type="text", text="Error: df_id and query_string parameters are required")]
-
+        return "Error: df_id and query_string parameters are required"
     if df_id not in data_store:
-        return [TextContent(type="text", text=f"Error: Dataframe with ID {df_id} not found.")]
+        return f"Error: Dataframe with ID {df_id} not found."
 
     try:
         filtered_df = data_store[df_id].query(query_string)
         new_df_id = str(uuid.uuid4())
         data_store[new_df_id] = filtered_df
-        result = f"Query successful. Created new dataframe with ID {new_df_id}. Shape: {filtered_df.shape}"
-        return [TextContent(type="text", text=result)]
+        return f"Query successful. Created new dataframe with ID {new_df_id}. Shape: {filtered_df.shape}"
     except Exception as e:
-        return [TextContent(type="text", text=f"Error executing query: {e}")]
+        return f"Error executing query: {e}"
 
 # --------------------------------------------------------------------------
 # Enhanced Data Visualization Tool 📈
 # --------------------------------------------------------------------------
 
-@server.call_tool("create_plot")
-async def create_plot(arguments: dict) -> list[TextContent | ImageContent]:
+@mcp.tool()
+async def create_plot(df_id: str, plot_type: str, x_col: str, y_col: Optional[str] = None) -> List[Dict[str, str]]:
     """
     Generates a plot from the dataframe and returns it as a base64 encoded image.
     Supported plot_types: 'histogram', 'scatterplot', 'barplot', 'boxplot', 'heatmap'
     """
-    df_id = arguments.get("df_id")
-    plot_type = arguments.get("plot_type")
-    x_col = arguments.get("x_col")
-    y_col = arguments.get("y_col")
-
     if not df_id or not plot_type or not x_col:
-        return [TextContent(type="text", text="Error: df_id, plot_type, and x_col parameters are required")]
-
+        return [{"type": "text", "content": "Error: df_id, plot_type, and x_col parameters are required"}]
     if df_id not in data_store:
-        return [TextContent(type="text", text=f"Error: Dataframe with ID {df_id} not found.")]
+        return [{"type": "text", "content": f"Error: Dataframe with ID {df_id} not found."}]
 
     df = data_store[df_id]
     fig, ax = plt.subplots(figsize=(10, 6))
@@ -294,12 +235,12 @@ async def create_plot(arguments: dict) -> list[TextContent | ImageContent]:
             ax.set_title(f'Histogram of {x_col}')
         elif plot_type == 'scatterplot':
             if y_col is None:
-                return [TextContent(type="text", text="Error: y_col is required for scatterplot.")]
+                return [{"type": "text", "content": "Error: y_col is required for scatterplot."}]
             sns.scatterplot(data=df, x=x_col, y=y_col, ax=ax)
             ax.set_title(f'Scatterplot of {x_col} vs {y_col}')
         elif plot_type == 'barplot':
             if y_col is None:
-                return [TextContent(type="text", text="Error: y_col is required for barplot.")]
+                return [{"type": "text", "content": "Error: y_col is required for barplot."}]
             sns.barplot(data=df, x=x_col, y=y_col, ax=ax)
             ax.set_title(f'Bar Plot of {y_col} by {x_col}')
         elif plot_type == 'boxplot':
@@ -310,7 +251,7 @@ async def create_plot(arguments: dict) -> list[TextContent | ImageContent]:
             sns.heatmap(df.corr(numeric_only=True), annot=True, cmap='viridis', ax=ax)
             ax.set_title('Correlation Heatmap')
         else:
-            return [TextContent(type="text", text=f"Error: Plot type '{plot_type}' is not supported.")]
+            return [{"type": "text", "content": f"Error: Plot type '{plot_type}' is not supported."}]
 
         buf = io.BytesIO()
         fig.savefig(buf, format='png', bbox_inches='tight')
@@ -318,178 +259,11 @@ async def create_plot(arguments: dict) -> list[TextContent | ImageContent]:
         img_b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
 
         return [
-            TextContent(type="text", text=f"Generated {plot_type} successfully."),
-            ImageContent(type="image", data=img_b64, mimeType="image/png")
+            {"type": "text", "content": f"Generated {plot_type} successfully."},
+            {"type": "image", "data": img_b64, "mimeType": "image/png"}
         ]
 
     except Exception as e:
-        return [TextContent(type="text", text=f"An error occurred while creating the plot: {e}")]
+        return [{"type": "text", "content": f"An error occurred while creating the plot: {e}"}]
     finally:
         plt.close(fig)
-
-# --------------------------------------------------------------------------
-# Tool Definitions
-# --------------------------------------------------------------------------
-
-@server.list_tools()
-async def handle_list_tools() -> list[Tool]:
-    """List available tools."""
-    return [
-        Tool(
-            name="load_csv",
-            description="Loads a CSV from a base64 encoded string into a new dataframe",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "csv_b64": {"type": "string", "description": "Base64 encoded CSV data"}
-                },
-                "required": ["csv_b64"]
-            }
-        ),
-        Tool(
-            name="check_missing_values",
-            description="Checks for and returns the count of missing (NaN) values in each column",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "df_id": {"type": "string", "description": "Dataframe ID"}
-                },
-                "required": ["df_id"]
-            }
-        ),
-        Tool(
-            name="handle_missing_values",
-            description="Handles missing values in specified columns of a dataframe",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "df_id": {"type": "string", "description": "Dataframe ID"},
-                    "strategy": {"type": "string", "enum": ["drop", "fill", "interpolate"], "description": "Strategy for handling missing values"},
-                    "columns": {"type": "array", "items": {"type": "string"}, "description": "Columns to process (optional)"},
-                    "value": {"description": "Value to fill with (required for 'fill' strategy)"}
-                },
-                "required": ["df_id", "strategy"]
-            }
-        ),
-        Tool(
-            name="rename_columns",
-            description="Renames one or more columns in a dataframe",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "df_id": {"type": "string", "description": "Dataframe ID"},
-                    "rename_map_json": {"type": "string", "description": "JSON string mapping old names to new names"}
-                },
-                "required": ["df_id", "rename_map_json"]
-            }
-        ),
-        Tool(
-            name="drop_columns",
-            description="Drops one or more specified columns from a dataframe",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "df_id": {"type": "string", "description": "Dataframe ID"},
-                    "columns_to_drop": {"type": "array", "items": {"type": "string"}, "description": "List of column names to drop"}
-                },
-                "required": ["df_id", "columns_to_drop"]
-            }
-        ),
-        Tool(
-            name="get_head",
-            description="Returns the first n rows of the dataframe",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "df_id": {"type": "string", "description": "Dataframe ID"},
-                    "n": {"type": "integer", "default": 5, "description": "Number of rows to return"}
-                },
-                "required": ["df_id"]
-            }
-        ),
-        Tool(
-            name="get_descriptive_statistics",
-            description="Returns descriptive statistics for the numerical columns of a loaded dataframe",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "df_id": {"type": "string", "description": "Dataframe ID"}
-                },
-                "required": ["df_id"]
-            }
-        ),
-        Tool(
-             name="get_value_counts",
-             description="Returns the unique values and their frequencies for a specified categorical column",
-             inputSchema={
-                 "type": "object",
-                 "properties": {
-                     "df_id": {"type": "string", "description": "Dataframe ID"},
-                     "column_name": {"type": "string", "description": "Name of the column to analyze"}
-                 },
-                 "required": ["df_id", "column_name"]
-             }
-         ),
-         Tool(
-             name="get_correlation_matrix",
-             description="Computes and returns the correlation matrix for numerical columns",
-             inputSchema={
-                 "type": "object",
-                 "properties": {
-                     "df_id": {"type": "string", "description": "Dataframe ID"}
-                 },
-                 "required": ["df_id"]
-             }
-         ),
-         Tool(
-             name="query_dataframe",
-             description="Filters a dataframe using a query string, stores it as a new dataframe, and returns its ID",
-             inputSchema={
-                 "type": "object",
-                 "properties": {
-                     "df_id": {"type": "string", "description": "Dataframe ID"},
-                     "query_string": {"type": "string", "description": "Query string for filtering (e.g., 'age > 30 and city == \"New York\"')"}
-                 },
-                 "required": ["df_id", "query_string"]
-             }
-         ),
-         Tool(
-             name="create_plot",
-             description="Generates a plot from the dataframe and returns it as a base64 encoded image",
-             inputSchema={
-                 "type": "object",
-                 "properties": {
-                     "df_id": {"type": "string", "description": "Dataframe ID"},
-                     "plot_type": {"type": "string", "enum": ["histogram", "scatterplot", "barplot", "boxplot", "heatmap"], "description": "Type of plot to create"},
-                     "x_col": {"type": "string", "description": "Column name for x-axis"},
-                     "y_col": {"type": "string", "description": "Column name for y-axis (optional for some plot types)"}
-                 },
-                 "required": ["df_id", "plot_type", "x_col"]
-             }
-         )
-     ]
-
- # --------------------------------------------------------------------------
- # Server Entry Point
- # --------------------------------------------------------------------------
-
-async def main():
-    """Main entry point for the MCP server."""
-    from mcp.server.stdio import stdio_server
-
-    async with stdio_server() as (read_stream, write_stream):
-        await server.run(
-            read_stream,
-            write_stream,
-            InitializationOptions(
-                server_name="EnhancedDataAnalysisServer",
-                server_version="1.0.0",
-                capabilities=server.get_capabilities(
-                    notification_options=NotificationOptions(tools_changed=False),
-                    experimental_capabilities=None,
-                ),
-            ),
-        )
-
-if __name__ == "__main__":
-    asyncio.run(main())

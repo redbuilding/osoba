@@ -58,7 +58,8 @@ class AppState:
             PYTHON_SERVICE_NAME: MCPServiceConfig(
                 name=PYTHON_SERVICE_NAME,
                 script_name="server_python.py",
-                executable="python",
+                executable="fastmcp",
+                command_verb="run",
                 required_tools=["load_csv", "get_head", "create_plot", "get_descriptive_statistics"]
             ),
         }
@@ -131,16 +132,23 @@ async def run_mcp_service_instance(config: MCPServiceConfig):
 
                                         # Handle complex content (text and images)
                                         response_data = []
-                                        if result.content and isinstance(result.content, list):
-                                            for part in result.content:
-                                                if part.type == 'text' and hasattr(part, 'text'):
+                                        content = result.content
+
+                                        # Handle new-style list of dicts from refactored python server
+                                        if isinstance(content, list) and content and all(isinstance(item, dict) and 'type' in item for item in content):
+                                            response_data = content
+                                        # Handle old-style list of mcp.types objects for compatibility
+                                        elif content and isinstance(content, list):
+                                            for part in content:
+                                                if hasattr(part, 'type') and part.type == 'text' and hasattr(part, 'text'):
                                                     response_data.append({"type": "text", "content": part.text})
-                                                elif part.type == 'image' and hasattr(part, 'data'):
+                                                elif hasattr(part, 'type') and part.type == 'image' and hasattr(part, 'data'):
                                                     response_data.append({"type": "image", "mimeType": part.mimeType, "data": part.data})
                                                 else:
                                                     response_data.append({"type": "unknown", "content": str(part)})
+                                        # Handle simple string/dict returns from other fastmcp tools
                                         else:
-                                            response_data.append({"type": "text", "content": str(result.content)})
+                                            response_data.append({"type": "text", "content": str(content)})
 
                                         await response_q.put({"id": request_id, "status": "success", "data": response_data})
 
