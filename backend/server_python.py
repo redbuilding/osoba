@@ -11,7 +11,7 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 from mcp.server import Server
-from mcp.server.models import InitializationOptions
+from mcp.server.models import InitializationOptions, NotificationOptions
 from mcp.types import (
     Resource,
     Tool,
@@ -484,7 +484,7 @@ async def main():
                 server_name="EnhancedDataAnalysisServer",
                 server_version="1.0.0",
                 capabilities=server.get_capabilities(
-                    notification_options=None,
+                    notification_options=NotificationOptions(tools_changed=False),
                     experimental_capabilities=None,
                 ),
             ),
