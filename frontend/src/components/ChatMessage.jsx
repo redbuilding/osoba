@@ -48,10 +48,14 @@ const ChatMessage = ({ message }) => {
       tempDiv.innerHTML = htmlOrTextContent; // The content might already include indicators + actual message
       
       // Attempt to remove known indicator divs before extracting text
-      const indicators = tempDiv.querySelectorAll('.search-indicator-custom, .db-indicator-custom, .hubspot-indicator-custom, .youtube-indicator-custom');
+      const indicators = tempDiv.querySelectorAll('.search-indicator-custom, .db-indicator-custom, .hubspot-indicator-custom, .youtube-indicator-custom, .python-indicator-custom');
       indicators.forEach(indicator => {
         indicator.remove();
       });
+
+      // Don't copy the alt text of generated images
+      const images = tempDiv.querySelectorAll('img');
+      images.forEach(img => img.remove());
 
       // Extract text from the remaining content
       let text = "";

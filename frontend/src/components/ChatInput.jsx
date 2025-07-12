@@ -1,17 +1,21 @@
 // frontend/src/components/ChatInput.jsx
-import React, { useState } from "react";
-import { Send, Sparkles, Search, Database, Share2, Youtube } from "lucide-react";
+import React, { useState, useRef } from "react";
+import { Send, Sparkles, Search, Database, Share2, Youtube, FileCode, Paperclip, X } from "lucide-react";
 
 const ChatInput = ({
   onSendMessage,
-  onStopGenerating, // ✨ NEW – stop handler
+  onStopGenerating,
   isLoading,
   activeTool,
   onToggleToolSelector,
   disabled,
   placeholder,
+  onFileChange,
+  uploadedFile,
+  onClearFile,
 }) => {
   const [inputValue, setInputValue] = useState("");
+  const fileInputRef = useRef(null);
 
   /* ------------------------------------------------------------------- */
   /*  Handlers                                                           */
@@ -24,6 +28,19 @@ const ChatInput = ({
     }
   };
 
+  const handleFileButtonClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileSelected = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      onFileChange(file);
+    }
+    // Reset file input value to allow re-uploading the same file
+    e.target.value = null;
+  };
+
   /* ------------------------------------------------------------------- */
   /*  Tool info helpers                                                  */
   /* ------------------------------------------------------------------- */
@@ -34,8 +51,7 @@ const ChatInput = ({
           Icon: Search,
           text: "Web search is active. Your message will be used as a search query.",
           colorClass: "text-brand-accent",
-          buttonColorClass:
-            "bg-brand-accent text-brand-main-bg hover:bg-yellow-400",
+          buttonColorClass: "bg-brand-accent text-brand-main-bg hover:bg-yellow-400",
         };
       case "database":
         return {
@@ -57,6 +73,13 @@ const ChatInput = ({
           text: "YouTube transcript is active. Paste a video URL to get its transcript.",
           colorClass: "text-red-500",
           buttonColorClass: "bg-red-600 text-white hover:bg-red-700",
+        };
+      case "python":
+        return {
+          Icon: FileCode,
+          text: "Python analysis is active. Upload a CSV and ask a question.",
+          colorClass: "text-green-400",
+          buttonColorClass: "bg-green-600 text-white hover:bg-green-700",
         };
       default:
         return null;
@@ -92,6 +115,29 @@ const ChatInput = ({
             <Sparkles size={20} />
           )}
         </button>
+
+        {/* File Upload Button for Python Tool */}
+        {activeTool === 'python' && (
+          <>
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileSelected}
+              className="hidden"
+              accept=".csv"
+              disabled={disabled}
+            />
+            <button
+              type="button"
+              onClick={handleFileButtonClick}
+              title="Upload CSV file"
+              disabled={disabled}
+              className="p-2 rounded-md mr-2 bg-gray-700 text-brand-text-secondary hover:bg-gray-600 disabled:opacity-50"
+            >
+              <Paperclip size={20} />
+            </button>
+          </>
+        )}
 
         {/* Text input */}
         <input
@@ -133,10 +179,23 @@ const ChatInput = ({
         )}
       </div>
 
-      {/* Active tool hint */}
-      <div className="h-4 mt-2 text-xs ml-4">
+      {/* Active tool hint & file info */}
+      <div className="h-4 mt-2 text-xs ml-4 flex items-center">
         {activeToolInfo && (
           <p className={activeToolInfo.colorClass}>⚡ {activeToolInfo.text}</p>
+        )}
+        {activeTool === 'python' && uploadedFile && (
+          <div className="ml-auto flex items-center bg-gray-700 text-brand-text-secondary px-2 py-1 rounded-full">
+            <span>{uploadedFile.filename}</span>
+            <button
+              type="button"
+              onClick={onClearFile}
+              className="ml-2 text-gray-400 hover:text-white"
+              title="Clear file"
+            >
+              <X size={14} />
+            </button>
+          </div>
         )}
       </div>
     </form>

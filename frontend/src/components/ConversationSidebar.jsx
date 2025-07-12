@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { PlusSquare, MessageSquare, Loader2, AlertTriangle, Trash2, Pencil, Check, X, Wifi, Server, Share2, Youtube } from 'lucide-react';
+import { PlusSquare, MessageSquare, Loader2, AlertTriangle, Trash2, Pencil, Check, X, Wifi, Server, Share2, Youtube, FileCode } from 'lucide-react';
 
 const MCPStatusIndicator = ({ isReady, name }) => (
   <div className="flex items-center justify-between text-xs text-brand-text-secondary">
@@ -8,6 +8,7 @@ const MCPStatusIndicator = ({ isReady, name }) => (
       {name === 'DB Query' && <Server size={14} className="mr-2" />}
       {name === 'HubSpot' && <Share2 size={14} className="mr-2" />}
       {name === 'YouTube' && <Youtube size={14} className="mr-2" />}
+      {name === 'Python' && <FileCode size={14} className="mr-2" />}
       {name}
     </span>
     <div className="flex items-center">
@@ -33,6 +34,7 @@ const ConversationSidebar = ({
   mcpDbServiceReady,
   mcpHubspotServiceReady,
   mcpYoutubeServiceReady,
+  mcpPythonServiceReady,
 }) => {
   const [editingConversationId, setEditingConversationId] = useState(null);
   const [currentEditingTitle, setCurrentEditingTitle] = useState('');
@@ -211,6 +213,7 @@ const ConversationSidebar = ({
           <div className="space-y-2 px-2">
             <MCPStatusIndicator isReady={mcpSearchServiceReady} name="Web Search" />
             <MCPStatusIndicator isReady={mcpDbServiceReady} name="DB Query" />
+            <MCPStatusIndicator isReady={mcpPythonServiceReady} name="Python" />
             <MCPStatusIndicator isReady={mcpHubspotServiceReady} name="HubSpot" />
             <MCPStatusIndicator isReady={mcpYoutubeServiceReady} name="YouTube" />
           </div>

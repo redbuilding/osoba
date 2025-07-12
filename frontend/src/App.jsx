@@ -34,6 +34,7 @@ import {
   Share2,
   Search,
   Youtube,
+  FileCode,
 } from "lucide-react";
 
 // MCP service names
@@ -41,6 +42,7 @@ const WEB_SEARCH_SERVICE_NAME = "web_search_service";
 const MYSQL_DB_SERVICE_NAME = "mysql_db_service";
 const HUBSPOT_SERVICE_NAME = "hubspot_service";
 const YOUTUBE_SERVICE_NAME = "youtube_service";
+const PYTHON_SERVICE_NAME = "python_service";
 
 const App = () => {
   // Chat & loading state
@@ -51,12 +53,14 @@ const App = () => {
   // Tool selector state
   const [activeTool, setActiveTool] = useState(null);
   const [isToolSelectorOpen, setIsToolSelectorOpen] = useState(false);
+  const [uploadedCsv, setUploadedCsv] = useState(null); // { filename, data_b64 }
 
   // Service status state
   const [mcpSearchServiceReady, setMcpSearchServiceReady] = useState(false);
   const [mcpDbServiceReady, setMcpDbServiceReady] = useState(false);
   const [mcpHubspotServiceReady, setMcpHubspotServiceReady] = useState(false);
   const [mcpYoutubeServiceReady, setMcpYoutubeServiceReady] = useState(false);
+  const [mcpPythonServiceReady, setMcpPythonServiceReady] = useState(false);
   const [isHubspotAuthenticated, setIsHubspotAuthenticated] = useState(false);
   const [dbConnected, setDbConnected] = useState(false);
   const [ollamaAvailable, setOllamaAvailable] = useState(false);
@@ -119,6 +123,9 @@ const App = () => {
       setMcpYoutubeServiceReady(
         status.mcp_services?.[YOUTUBE_SERVICE_NAME]?.ready || false,
       );
+      setMcpPythonServiceReady(
+        status.mcp_services?.[PYTHON_SERVICE_NAME]?.ready || false,
+      );
       setOllamaAvailable(status.ollama_available);
       const newDbConnected = status.db_connected;
       setDbConnected(newDbConnected);
@@ -136,6 +143,7 @@ const App = () => {
       setMcpDbServiceReady(false);
       setMcpHubspotServiceReady(false);
       setMcpYoutubeServiceReady(false);
+      setMcpPythonServiceReady(false);
       setDbConnected(false);
       setOllamaAvailable(false);
       setConversationsError(
@@ -289,6 +297,13 @@ const App = () => {
       setError("Ollama server is not available. Cannot start chat.");
       return;
     }
+    if (activeTool === "python" && !uploadedCsv) {
+      const convHasDf = conversations.find(c => c.id === currentConversationId)?.python_df_id;
+      if (!convHasDf) {
+        setError("Please upload a CSV file to use the Python Analysis tool.");
+        return;
+      }
+    }
 
     /* --- begin streaming ---------------------------------------------- */
     setIsLoading(true);
@@ -305,6 +320,8 @@ const App = () => {
       use_database: activeTool === "database",
       use_hubspot: activeTool === "hubspot",
       use_youtube: activeTool === "youtube",
+      use_python: activeTool === "python",
+      csv_data_b64: activeTool === "python" && uploadedCsv ? uploadedCsv.data_b64 : null,
       conversation_id: currentConversationId,
       ollama_model_name: modelForThisMsg,
     };
@@ -322,6 +339,11 @@ const App = () => {
       timestamp: new Date().toISOString(),
     };
     setChatHistory((prev) => [...prev, newUserMsg, assistantPlaceholder]);
+
+    // Clear one-time-use data after preparing payload
+    if (activeTool === "python" && uploadedCsv) {
+      setUploadedCsv(null);
+    }
 
     await streamMessage(
       payload,
@@ -388,6 +410,7 @@ const App = () => {
       if (abortControllerRef.current) abortControllerRef.current.abort();
       setCurrentConversationId(id);
       setActiveTool(null);
+      setUploadedCsv(null);
     }
   };
 
@@ -396,6 +419,7 @@ const App = () => {
     setCurrentConversationId(null);
     setChatHistory([initialWelcomeMessage]);
     setActiveTool(null);
+    setUploadedCsv(null);
     setError(null);
     if (availableOllamaModels.length && !selectedOllamaModel) {
       const preferred =
@@ -449,6 +473,19 @@ const App = () => {
     window.location.href = `${BACKEND_URL}/auth/hubspot/connect`;
   };
 
+  const handleFileChange = (file) => {
+    if (!file) {
+      setUploadedCsv(null);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const b64 = e.target.result.split(",")[1];
+      setUploadedCsv({ filename: file.name, data_b64: b64 });
+    };
+    reader.readAsDataURL(file);
+  };
+
   const tools = useMemo(
     () => [
       {
@@ -464,6 +501,13 @@ const App = () => {
         description: "Ask questions about the connected SQL database.",
         icon: <Database size={24} />,
         isReady: mcpDbServiceReady,
+      },
+      {
+        id: "python",
+        name: "Python Analysis",
+        description: "Upload a CSV and ask questions about the data.",
+        icon: <FileCode size={24} />,
+        isReady: mcpPythonServiceReady,
       },
       {
         id: "hubspot",
@@ -486,6 +530,7 @@ const App = () => {
       mcpDbServiceReady,
       mcpHubspotServiceReady,
       mcpYoutubeServiceReady,
+      mcpPythonServiceReady,
       isHubspotAuthenticated,
     ],
   );
@@ -515,6 +560,8 @@ const App = () => {
       return "Describe the HubSpot email to create...";
     if (activeTool === "youtube")
       return "Enter a YouTube video URL to get the transcript...";
+    if (activeTool === "python")
+      return "Upload a CSV and ask a question about it...";
     return "Type your message...";
   };
 
@@ -540,6 +587,7 @@ const App = () => {
         mcpDbServiceReady={mcpDbServiceReady}
         mcpHubspotServiceReady={mcpHubspotServiceReady}
         mcpYoutubeServiceReady={mcpYoutubeServiceReady}
+        mcpPythonServiceReady={mcpPythonServiceReady}
       />
 
       {/* Main column */}
@@ -682,6 +730,9 @@ const App = () => {
             !ollamaAvailable
           }
           placeholder={getChatInputPlaceholder()}
+          onFileChange={handleFileChange}
+          uploadedFile={uploadedCsv}
+          onClearFile={() => setUploadedCsv(null)}
         />
       </div>
 

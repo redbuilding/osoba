@@ -10,7 +10,7 @@ from fastapi import HTTPException
 from fastmcp.client.transports import StdioServerParameters, stdio_client
 from mcp import ClientSession
 
-from core.config import BASE_DIR, WEB_SEARCH_SERVICE_NAME, MYSQL_DB_SERVICE_NAME, HUBSPOT_SERVICE_NAME, YOUTUBE_SERVICE_NAME, get_logger
+from core.config import BASE_DIR, WEB_SEARCH_SERVICE_NAME, MYSQL_DB_SERVICE_NAME, HUBSPOT_SERVICE_NAME, YOUTUBE_SERVICE_NAME, PYTHON_SERVICE_NAME, get_logger
 
 logger = get_logger("mcp_service")
 
@@ -51,6 +51,11 @@ class AppState:
                 name=YOUTUBE_SERVICE_NAME,
                 script_name="server_youtube.py",
                 required_tools=["get_youtube_transcript"]
+            ),
+            PYTHON_SERVICE_NAME: MCPServiceConfig(
+                name=PYTHON_SERVICE_NAME,
+                script_name="server_python.py",
+                required_tools=["load_csv", "get_head", "create_plot", "get_descriptive_statistics"]
             ),
         }
 
@@ -120,21 +125,20 @@ async def run_mcp_service_instance(config: MCPServiceConfig):
                                         duration = time.time() - start_time
                                         logger.info(f"MCP_SERVICE ({service_name}): TOOL '{tool_to_call}' completed in {duration:.2f}s (req_id: {request_id})")
 
-                                        # Extract content from ToolResult, which is a list of Content objects
-                                        tool_content = None
-                                        if result.content and isinstance(result.content, list) and len(result.content) > 0:
-                                            # The primary content is expected in the 'text' attribute of the first part
-                                            first_content_part = result.content[0]
-                                            if hasattr(first_content_part, 'text') and first_content_part.text:
-                                                tool_content = first_content_part.text
-                                            else:
-                                                # Fallback for non-text content parts
-                                                tool_content = str(first_content_part)
+                                        # Handle complex content (text and images)
+                                        response_data = []
+                                        if result.content and isinstance(result.content, list):
+                                            for part in result.content:
+                                                if part.type == 'text' and hasattr(part, 'text'):
+                                                    response_data.append({"type": "text", "content": part.text})
+                                                elif part.type == 'image' and hasattr(part, 'data'):
+                                                    response_data.append({"type": "image", "mimeType": part.mimeType, "data": part.data})
+                                                else:
+                                                    response_data.append({"type": "unknown", "content": str(part)})
                                         else:
-                                            # Fallback for empty or non-list content
-                                            tool_content = str(result.content)
+                                            response_data.append({"type": "text", "content": str(result.content)})
 
-                                        await response_q.put({"id": request_id, "status": "success", "data": tool_content})
+                                        await response_q.put({"id": request_id, "status": "success", "data": response_data})
 
                                     elif request_type == "resource":
                                         uri_to_get = request_data["uri"]

@@ -9,7 +9,7 @@ from fastapi import Request
 
 from core.config import (
     get_logger, WEB_SEARCH_SERVICE_NAME, MYSQL_DB_SERVICE_NAME, HUBSPOT_SERVICE_NAME, YOUTUBE_SERVICE_NAME,
-    MAX_DB_RESULT_CHARS, MAX_TABLES_FOR_SCHEMA_CONTEXT, DEFAULT_REPEAT_PENALTY
+    PYTHON_SERVICE_NAME, MAX_DB_RESULT_CHARS, MAX_TABLES_FOR_SCHEMA_CONTEXT, DEFAULT_REPEAT_PENALTY
 )
 from core.models import ChatPayload, ChatMessage, ChatResponse
 from db.mongodb import get_conversations_collection
@@ -91,6 +91,7 @@ class ChatProcessor:
         self.is_html_response = False
         self.error_message_obj: Optional[ChatMessage] = None
         self.youtube_transcript: Optional[str] = None
+        self.python_df_id: Optional[str] = None
 
     async def _initialize_conversation(self):
         if self.conv_id:
@@ -100,6 +101,7 @@ class ChatProcessor:
             if not conv: raise ValueError(f"Conv ID '{self.conv_id}' not found.")
             self.model_name = conv.get("ollama_model_name")
             self.youtube_transcript = conv.get("youtube_transcript")
+            self.python_df_id = conv.get("python_df_id")
             for msg in conv.get("messages", []):
                 if 'role' in msg and 'content' in msg:
                     llm_content = msg.get("raw_content_for_llm", msg["content"])
@@ -138,7 +140,7 @@ class ChatProcessor:
             resp = await wait_mcp_response(WEB_SEARCH_SERVICE_NAME, req_id, timeout=90)
             if resp.get("status") == "error": raise Exception(resp.get("error", "MCP tool error"))
 
-            results = extract_json_from_response(resp.get("data"))
+            results = extract_json_from_response(resp.get("data")[0].get("content") if resp.get("data") else {})
             if results.get("status") == "error": raise Exception(results.get("message", "Parse error"))
 
             summary = format_search_results_for_prompt(results, self.user_msg_content)
@@ -270,7 +272,7 @@ Database Schema Context:
             resp = await wait_mcp_response(HUBSPOT_SERVICE_NAME, req_id, timeout=60)
             if resp.get("status") == "error": raise Exception(f"HubSpot tool failed: {resp.get('error')}")
 
-            hubspot_api_resp = extract_json_from_response(resp.get("data"))
+            hubspot_api_resp = extract_json_from_response(resp.get("data")[0].get("content") if resp.get("data") else {})
             if "error" in hubspot_api_resp: raise Exception(f"HubSpot API Error: {hubspot_api_resp.get('body', 'Details unavailable.')}")
 
             email_name, email_id = hubspot_api_resp.get("name"), hubspot_api_resp.get("id")
@@ -309,7 +311,7 @@ Database Schema Context:
             if resp.get("status") == "error":
                 raise Exception(resp.get("error", "MCP tool error"))
 
-            transcript = resp.get("data", "")
+            transcript = resp.get("data")[0].get("content") if resp.get("data") else ""
             if transcript.startswith("Error:"):
                 # Pass tool-specific errors directly to the user
                 self._set_error(f"⚠️ {transcript}")
@@ -330,23 +332,136 @@ Database Schema Context:
             logger.error(f"[CHAT_SVC] YouTube transcript failed: {e}", exc_info=True)
             self._set_error(f"⚠️ YouTube transcript failed: {str(e)}")
 
+    async def _handle_python(self):
+        if not app_state.mcp_service_ready.get(PYTHON_SERVICE_NAME):
+            return self._set_error("⚠️ Python analysis service is currently unavailable.")
+        logger.info(f"[CHAT_SVC] Python analysis for: '{self.user_msg_content}'")
+
+        try:
+            # Step 1: Load CSV if provided, and get a df_id
+            if self.payload.csv_data_b64:
+                logger.info(f"[CHAT_SVC] Loading new CSV for conv {self.conv_id}")
+                req_id = await submit_mcp_request(PYTHON_SERVICE_NAME, "tool", {"tool": "load_csv", "params": {"csv_b64": self.payload.csv_data_b64}})
+                resp = await wait_mcp_response(PYTHON_SERVICE_NAME, req_id)
+                if resp.get("status") == "error": raise Exception(f"Failed to load CSV: {resp.get('error')}")
+
+                # Expected response: "Successfully loaded dataframe with ID: <uuid>. ..."
+                load_resp_text = resp.get("data")[0].get("content", "")
+                match = re.search(r"ID: ([\w-]+)", load_resp_text)
+                if not match: raise Exception(f"Could not extract dataframe ID from response: {load_resp_text}")
+                self.python_df_id = match.group(1)
+                self.collection.update_one({"_id": self.obj_id}, {"$set": {"python_df_id": self.python_df_id}})
+                self._add_indicator(f"<div class='python-indicator-custom'><b>🐍 Python:</b> CSV loaded. Columns: {load_resp_text.split('Columns: ')[-1]}</div>")
+
+            if not self.python_df_id:
+                return self._set_error("⚠️ Please upload a CSV file to use the Python analysis tool.")
+
+            # Step 2: Use LLM to select a tool and parameters
+            tool_selection_prompt = self._get_python_tool_selection_prompt(self.python_df_id)
+            raw_tool_resp = await chat_with_ollama([{"role": "system", "content": tool_selection_prompt}, {"role": "user", "content": self.user_msg_content}], self.model_name)
+            logger.debug(f"LLM tool selection response: {raw_tool_resp}")
+
+            tool_json_match = re.search(r"```json\s*([\s\S]+?)\s*```", raw_tool_resp or "", re.I)
+            tool_candidate = (tool_json_match.group(1) if tool_json_match else (raw_tool_resp or "")).strip()
+            try:
+                tool_call = json.loads(tool_candidate)
+                tool_name = tool_call.get("tool_name")
+                tool_params = tool_call.get("parameters", {})
+                if not tool_name: raise ValueError("Missing 'tool_name'")
+            except (json.JSONDecodeError, ValueError) as e:
+                raise Exception(f"Could not decide which tool to use. Please clarify your request. (LLM response: {tool_candidate})")
+
+            # Step 3: Execute the selected tool
+            logger.info(f"[CHAT_SVC] Calling Python tool '{tool_name}' with params: {tool_params}")
+            tool_req_id = await submit_mcp_request(PYTHON_SERVICE_NAME, "tool", {"tool": tool_name, "params": tool_params})
+            tool_resp = await wait_mcp_response(PYTHON_SERVICE_NAME, tool_req_id, timeout=120) # Plotting can be slow
+            if tool_resp.get("status") == "error": raise Exception(f"Python tool '{tool_name}' failed: {tool_resp.get('error')}")
+
+            # Step 4: Format tool output for the final prompt
+            tool_results_data = tool_resp.get("data", [])
+            tool_output_for_prompt = ""
+            for part in tool_results_data:
+                if part.get("type") == "text":
+                    tool_output_for_prompt += part.get("content", "") + "\n"
+                elif part.get("type") == "image":
+                    img_b64 = part.get("data")
+                    mime_type = part.get("mimeType", "image/png")
+                    self._add_indicator(f"<img src='data:{mime_type};base64,{img_b64}' alt='Generated plot' class='my-2 rounded-md border border-gray-600' />")
+
+            self._add_indicator(f"<div class='python-indicator-custom'><b>🐍 Python:</b> Used tool <code>{tool_name}</code>.</div>")
+            self.prompt_for_llm = f"Based on the result from the Python tool '{tool_name}', answer the user's original question.\n\nTool Output:\n---\n{tool_output_for_prompt.strip()}\n---\n\nUser's question: '{self.user_msg_content}'"
+
+        except Exception as e:
+            logger.error(f"[CHAT_SVC] Python analysis failed: {e}", exc_info=True)
+            self._set_error(f"⚠️ Python analysis failed: {str(e)}")
+
+    def _get_python_tool_selection_prompt(self, df_id: str) -> str:
+        # In a real app, this could be dynamically generated from the tool server's list_tools response
+        return f"""You are an expert data analyst agent. Your task is to select the correct Python tool and parameters to answer the user's request.
+The data is already loaded in a dataframe with ID: "{df_id}". You MUST include this `df_id` in your tool parameters.
+
+Respond with a single JSON object containing "tool_name" and "parameters". Do not add explanations.
+
+Available Tools:
+- `get_head`: Returns the first n rows of the dataframe. Params: `df_id` (str), `n` (int, optional, default 5).
+- `get_descriptive_statistics`: Returns summary statistics for numerical columns. Params: `df_id` (str).
+- `check_missing_values`: Counts missing values in each column. Params: `df_id` (str).
+- `get_value_counts`: Gets frequency of unique values in a categorical column. Params: `df_id` (str), `column_name` (str).
+- `get_correlation_matrix`: Computes correlation between numerical columns. Params: `df_id` (str).
+- `query_dataframe`: Filters the dataframe with a query string. Returns a *new* dataframe ID. Use this for filtering questions. Params: `df_id` (str), `query_string` (str).
+- `create_plot`: Generates a plot. Params: `df_id` (str), `plot_type` (enum: 'histogram', 'scatterplot', 'barplot', 'boxplot', 'heatmap'), `x_col` (str), `y_col` (str, optional).
+
+Example user request: "show me the first 3 rows"
+Your JSON response:
+```json
+{{
+  "tool_name": "get_head",
+  "parameters": {{
+    "df_id": "{df_id}",
+    "n": 3
+  }}
+}}
+```
+
+Example user request: "what's the average salary?"
+Your JSON response:
+```json
+{{
+  "tool_name": "get_descriptive_statistics",
+  "parameters": {{
+    "df_id": "{df_id}"
+  }}
+}}
+```
+
+Example user request: "make a scatterplot of age vs salary"
+Your JSON response:
+```json
+{{
+  "tool_name": "create_plot",
+  "parameters": {{
+    "df_id": "{df_id}",
+    "plot_type": "scatterplot",
+    "x_col": "age",
+    "y_col": "salary"
+  }}
+}}
+```
+"""
+
     def _inject_persistent_context(self):
         """
-        If a transcript is attached to the convo, and we are NOT in the process
-        of fetching a new one, inject the transcript as context for the LLM.
+        If a transcript or dataframe is attached to the convo, and we are NOT in the process
+        of fetching a new one, inject the context for the LLM.
         """
+        # YouTube Transcript Context
         if self.youtube_transcript and not self.payload.use_youtube:
             logger.debug(f"Injecting persistent YouTube transcript context for conv {self.conv_id}.")
-
             indicator_html = "<div class='youtube-indicator-custom'><b>📺 YouTube:</b> Using transcript for context.</div>"
-            if indicator_html not in self.html_indicator:
-                self._add_indicator(indicator_html)
+            if indicator_html not in self.html_indicator: self._add_indicator(indicator_html)
 
-            # Use a rough character limit to prevent oversized prompts.
-            # ~12k chars is roughly 3k tokens.
             MAX_TRANSCRIPT_CHARS_FOR_CONTEXT = 12000
             truncated_transcript = self.youtube_transcript[:MAX_TRANSCRIPT_CHARS_FOR_CONTEXT]
-
             transcript_context = (
                 "You are having a conversation about a YouTube video. "
                 "Use the following transcript as the primary source to answer the user's question.\n\n"
@@ -356,17 +471,32 @@ Database Schema Context:
             )
             if len(self.youtube_transcript) > MAX_TRANSCRIPT_CHARS_FOR_CONTEXT:
                 transcript_context += "\n(The transcript was truncated to fit the context window)\n"
-
-            # self.prompt_for_llm contains the user's message, or a modified prompt from another tool.
-            # We wrap it with our transcript context.
             self.prompt_for_llm = f"{transcript_context}\nBased on the transcript, please answer the user's request: '{self.prompt_for_llm}'"
+
+        # Python Dataframe Context
+        if self.python_df_id and not self.payload.use_python:
+            logger.debug(f"Injecting persistent Python df_id context for conv {self.conv_id}.")
+            indicator_html = f"<div class='python-indicator-custom'><b>🐍 Python:</b> Using loaded CSV data (ID: <code>{self.python_df_id[:8]}...</code>) for context.</div>"
+            if indicator_html not in self.html_indicator: self._add_indicator(indicator_html)
+            # This is a lighter touch, we re-run the tool selection if the user asks a follow-up
+            # So we just prepend a note to the prompt.
+            self.prompt_for_llm = f"The user is asking a follow-up question about a previously loaded CSV file. You will need to call a Python tool to answer it. The user's question is: '{self.prompt_for_llm}'"
+            # Re-enable python handling for follow-up questions
+            self.payload.use_python = True
+
 
     async def _run_pipeline(self):
         await self._initialize_conversation()
+        # Persistent context must be injected BEFORE tool handling,
+        # as it might re-enable a tool flag (e.g. for Python follow-ups)
+        self._inject_persistent_context()
+
         if self.payload.use_search: await self._handle_search()
         if not self.error_message_obj and self.payload.use_database: await self._handle_database()
         if not self.error_message_obj and self.payload.use_hubspot: await self._handle_hubspot()
         if not self.error_message_obj and self.payload.use_youtube: await self._handle_youtube()
+        if not self.error_message_obj and self.payload.use_python: await self._handle_python()
+
 
     def _save_assistant_message(self, content: str, raw_content: str):
         assistant_msg = ChatMessage(role="assistant", content=content, is_html=self.is_html_response)
@@ -377,7 +507,6 @@ Database Schema Context:
 
     async def process_non_streaming(self) -> ChatResponse:
         await self._run_pipeline()
-        self._inject_persistent_context()
         if self.error_message_obj:
             self._save_assistant_message(self.error_message_obj.content, self.error_message_obj.content)
         else:
@@ -395,7 +524,6 @@ Database Schema Context:
 
     async def process_streaming(self) -> AsyncGenerator[str, None]:
         await self._run_pipeline()
-        self._inject_persistent_context()
 
         if self.error_message_obj:
             self._save_assistant_message(self.error_message_obj.content, self.error_message_obj.content)

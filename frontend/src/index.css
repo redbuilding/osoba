@@ -26,12 +26,14 @@
     /* Ensure prose styles don't add excessive margins to our custom indicators if they are the first child */
     .prose > div:first-child.search-indicator-custom,
     .prose > div:first-child.db-indicator-custom,
-    .prose > div:first-child.hubspot-indicator-custom {
+    .prose > div:first-child.hubspot-indicator-custom,
+    .prose > div:first-child.python-indicator-custom {
         @apply mt-0; /* Remove top margin if indicator is the very first thing */
     }
     .prose > .search-indicator-custom + *,
     .prose > .db-indicator-custom + *,
-    .prose > .hubspot-indicator-custom + * {
+    .prose > .hubspot-indicator-custom + *,
+    .prose > .python-indicator-custom + * {
         @apply mt-2; /* Add some space after an indicator before the main content */
     }
 
@@ -60,6 +62,17 @@
     }
     .hubspot-indicator-custom b {
         @apply text-brand-text-primary font-semibold;
+    }
+
+    /* Custom class for the Python indicator HTML */
+    .python-indicator-custom {
+        @apply bg-brand-surface-bg border-l-4 border-green-500 p-3 my-2 text-sm text-brand-text-secondary rounded-r-md;
+    }
+    .python-indicator-custom b {
+        @apply text-brand-text-primary font-semibold;
+    }
+    .python-indicator-custom code {
+        @apply bg-gray-700 text-green-300 px-1 py-0.5 rounded text-xs;
     }
 
 
