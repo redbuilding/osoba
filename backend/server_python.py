@@ -12,13 +12,13 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from mcp.server import Server
 from mcp.server.models import InitializationOptions
+from mcp.server.lowlevel import NotificationOptions  # Add this line
 from mcp.types import (
     Resource,
     Tool,
     TextContent,
     ImageContent,
     EmbeddedResource,
-    NotificationOptions,
 )
 from pandas import DataFrame
 
