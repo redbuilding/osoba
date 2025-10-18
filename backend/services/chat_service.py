@@ -23,17 +23,47 @@ logger = get_logger("chat_service")
 
 def extract_json_from_response(response_content: Any) -> Dict:
     logger.debug(f"extract_json: Input type: {type(response_content)}, content preview: {str(response_content)[:200]}")
-    if isinstance(response_content, dict): return response_content
+    # Already a dict
+    if isinstance(response_content, dict):
+        return response_content
+
+    # Common case: JSON string
     if isinstance(response_content, str):
-        try: return json.loads(response_content)
+        try:
+            return json.loads(response_content)
         except json.JSONDecodeError:
             logger.error(f"extract_json: Failed to decode JSON string: {response_content[:200]}")
             return {"status": "error", "message": "Result was a string but not valid JSON."}
-    if hasattr(response_content, 'text') and isinstance(response_content.text, str):
-        try: return json.loads(response_content.text)
+
+    # Newer MCP tool responses often come back as a list of content blocks
+    # e.g., [{"type": "text", "content": "{...json...}"}]
+    if isinstance(response_content, list):
+        # Try to find a text block and parse its content as JSON
+        for item in response_content:
+            if isinstance(item, dict) and item.get("type") == "text" and isinstance(item.get("content"), str):
+                try:
+                    return json.loads(item["content"])
+                except json.JSONDecodeError:
+                    logger.error(f"extract_json: List item text not valid JSON: {item.get('content', '')[:200]}")
+                    return {"status": "error", "message": "List contained text content but it was not valid JSON."}
+        # Fallback: if first element is a plain JSON string
+        if response_content and isinstance(response_content[0], str):
+            try:
+                return json.loads(response_content[0])
+            except json.JSONDecodeError:
+                logger.error(f"extract_json: First list element is a string but not valid JSON: {response_content[0][:200]}")
+                return {"status": "error", "message": "First list element was a string but not valid JSON."}
+        logger.error(f"extract_json: List response did not contain parsable JSON text. Preview: {str(response_content)[:200]}")
+        return {"status": "error", "message": "List response did not contain a recognizable JSON text block."}
+
+    # Some HTTP client objects expose .text
+    if hasattr(response_content, 'text') and isinstance(getattr(response_content, 'text', None), str):
+        try:
+            return json.loads(response_content.text)
         except json.JSONDecodeError:
             logger.error(f"extract_json: Failed to decode JSON from .text attribute: {response_content.text[:200]}")
             return {"status": "error", "message": "Result had .text attribute but it was not valid JSON."}
+
     logger.error(f"extract_json: Unhandled type or content: {type(response_content)}. Preview: {str(response_content)[:200]}")
     return {"status": "error", "message": f"Result was not a recognized JSON format. Type: {type(response_content)}"}
 
