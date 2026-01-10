@@ -201,10 +201,6 @@ The original `chat_client.py` (terminal) and `chat_frontend.py` (Gradio) are sti
 -   **Prompt Engineering**: Modify the system prompts sent to Ollama in `backend/main.py` to tailor responses and SQL generation.
 -   **Styling**: Customize the frontend appearance by modifying CSS files or styles within the React components in `frontend/src/`.
 
-## Optional Utilities
-
--   `dataloader.py`: A standalone CSV → MySQL loader tailored for a `shipments` table. Useful for seeding a demo database; not required for app runtime.
-
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
