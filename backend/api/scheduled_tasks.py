@@ -37,11 +37,17 @@ async def create_scheduled_task(payload: ScheduledTaskPayload):
         logger.error(f"Error creating scheduled task: {e}")
         raise HTTPException(status_code=500, detail="Error creating scheduled task")
 
-@router.get("/api/scheduled-tasks", response_model=List[ScheduledTaskSummary])
+@router.get("/api/scheduled-tasks")
 async def list_scheduled_tasks():
     try:
         tasks = scheduled_tasks_crud.list_scheduled_tasks()
-        return [ScheduledTaskSummary.model_validate({**task, "_id": str(task["_id"])}) for task in tasks]
+        result = []
+        for task in tasks:
+            # Manually set id field from _id
+            task_dict = dict(task)
+            task_dict['id'] = str(task_dict.pop('_id'))  # Remove _id and set id
+            result.append(task_dict)
+        return result
     except Exception as e:
         logger.error(f"Error listing scheduled tasks: {e}")
         raise HTTPException(status_code=500, detail="Error listing scheduled tasks")

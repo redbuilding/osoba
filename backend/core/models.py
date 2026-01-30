@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
-from pydantic import BaseModel, Field, constr
+from pydantic import BaseModel, Field, constr, field_validator
 from bson import ObjectId
 from typing import Any
 
@@ -139,9 +139,18 @@ class ScheduledTaskSummary(BaseModel):
     next_run: Optional[datetime] = None
     run_count: int = 0
 
-    class Config:
-        populate_by_name = True
-        json_encoders = {ObjectId: str, datetime: lambda dt: dt.isoformat()}
+    @field_validator('id', mode='before')
+    @classmethod
+    def convert_objectid_to_str(cls, v):
+        if hasattr(v, '__str__'):
+            return str(v)
+        return v
+
+    model_config = {
+        "populate_by_name": True,
+        "json_encoders": {ObjectId: str, datetime: lambda dt: dt.isoformat()},
+        "by_alias": True
+    }
 
 ############################
 # Task Templates models

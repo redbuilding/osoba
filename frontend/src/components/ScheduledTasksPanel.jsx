@@ -17,7 +17,16 @@ const ScheduledTasksPanel = ({ isOpen, onClose }) => {
     goal: '',
     cron_expression: '0 9 * * 1', // Default: Every Monday at 9 AM
     timezone: 'UTC',
-    enabled: true
+    enabled: true,
+    // New fields for user-friendly scheduling
+    scheduleType: 'simple', // 'simple' or 'advanced'
+    simpleSchedule: {
+      type: 'weekly', // 'once', 'daily', 'weekly', 'monthly'
+      date: '', // For 'once' type
+      time: '09:00',
+      weekday: '1', // Monday
+      monthDay: '1' // 1st of month
+    }
   });
 
   useEffect(() => {
@@ -35,17 +44,64 @@ const ScheduledTasksPanel = ({ isOpen, onClose }) => {
     }
   };
 
+  // Convert 24h time to 12h format for display
+  const formatTime12h = (time24) => {
+    const [hours, minutes] = time24.split(':');
+    const hour12 = hours % 12 || 12;
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    return `${hour12}:${minutes} ${ampm}`;
+  };
+
+  // Convert 12h time to 24h format for storage
+  const formatTime24h = (hour12, minute, ampm) => {
+    let hour24 = parseInt(hour12);
+    if (ampm === 'PM' && hour24 !== 12) hour24 += 12;
+    if (ampm === 'AM' && hour24 === 12) hour24 = 0;
+    return `${hour24.toString().padStart(2, '0')}:${minute}`;
+  };
+
+  // Parse current time for 12h display
+  const parseTime12h = (time24) => {
+    const [hours, minutes] = time24.split(':');
+    const hour12 = (hours % 12 || 12).toString();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    return { hour: hour12, minute: minutes, ampm };
+  };
+
+  // Convert simple schedule to cron expression
+  const generateCronFromSimple = (simple) => {
+    const [hour, minute] = simple.time.split(':');
+    
+    switch (simple.type) {
+      case 'once':
+        // For one-time tasks, we'll use the current cron but this should be handled differently in backend
+        return `${parseInt(minute)} ${parseInt(hour)} * * *`; // Daily for now, backend should handle one-time
+      case 'daily':
+        return `${parseInt(minute)} ${parseInt(hour)} * * *`;
+      case 'weekly':
+        return `${parseInt(minute)} ${parseInt(hour)} * * ${simple.weekday}`;
+      case 'monthly':
+        return `${parseInt(minute)} ${parseInt(hour)} ${simple.monthDay} * *`;
+      default:
+        return `${parseInt(minute)} ${parseInt(hour)} * * *`;
+    }
+  };
+
   const handleCreateTask = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
     try {
+      const cronExpression = formData.scheduleType === 'simple' 
+        ? generateCronFromSimple(formData.simpleSchedule)
+        : formData.cron_expression;
+
       await createScheduledTask({
         name: formData.name,
         goal: formData.goal,
         schedule: {
-          cron_expression: formData.cron_expression,
+          cron_expression: cronExpression,
           timezone: formData.timezone,
           enabled: formData.enabled
         }
@@ -56,7 +112,15 @@ const ScheduledTasksPanel = ({ isOpen, onClose }) => {
         goal: '',
         cron_expression: '0 9 * * 1',
         timezone: 'UTC',
-        enabled: true
+        enabled: true,
+        scheduleType: 'simple',
+        simpleSchedule: {
+          type: 'weekly',
+          date: '',
+          time: '09:00',
+          weekday: '1',
+          monthDay: '1'
+        }
       });
       setShowCreateForm(false);
       fetchScheduledTasks();
@@ -148,20 +212,201 @@ const ScheduledTasksPanel = ({ isOpen, onClose }) => {
                       required
                     />
                   </div>
+                  
                   <div>
-                    <label className="block text-sm font-medium mb-1 text-brand-text-primary">Cron Expression</label>
-                    <input
-                      type="text"
-                      value={formData.cron_expression}
-                      onChange={(e) => setFormData(prev => ({ ...prev, cron_expression: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-700 rounded-md text-sm font-mono bg-brand-surface-bg text-brand-text-primary placeholder-brand-text-secondary focus:outline-none focus:ring-2 focus:ring-brand-purple"
-                      placeholder="0 9 * * 1"
-                      required
-                    />
-                    <div className="text-xs text-brand-text-secondary mt-1">
-                      Preview: {formatCronExpression(formData.cron_expression)}
-                    </div>
+                    <label className="block text-sm font-medium mb-1 text-brand-text-primary">Timezone</label>
+                    <select
+                      value={formData.timezone}
+                      onChange={(e) => setFormData(prev => ({ ...prev, timezone: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-700 rounded-md text-sm bg-brand-surface-bg text-brand-text-primary focus:outline-none focus:ring-2 focus:ring-brand-purple"
+                    >
+                      <option value="UTC">UTC</option>
+                      <option value="America/New_York">Eastern Time</option>
+                      <option value="America/Chicago">Central Time</option>
+                      <option value="America/Denver">Mountain Time</option>
+                      <option value="America/Los_Angeles">Pacific Time</option>
+                    </select>
                   </div>
+                </div>
+
+                {/* Schedule Type Toggle */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium mb-2 text-brand-text-primary">Schedule</label>
+                  <div className="flex gap-2 mb-3">
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, scheduleType: 'simple' }))}
+                      className={`px-3 py-1 text-sm rounded ${
+                        formData.scheduleType === 'simple'
+                          ? 'bg-brand-purple text-white'
+                          : 'bg-gray-700 text-brand-text-secondary hover:bg-gray-600'
+                      }`}
+                    >
+                      Simple
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, scheduleType: 'advanced' }))}
+                      className={`px-3 py-1 text-sm rounded ${
+                        formData.scheduleType === 'advanced'
+                          ? 'bg-brand-purple text-white'
+                          : 'bg-gray-700 text-brand-text-secondary hover:bg-gray-600'
+                      }`}
+                    >
+                      Advanced (Cron)
+                    </button>
+                  </div>
+
+                  {formData.scheduleType === 'simple' ? (
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-medium mb-1 text-brand-text-secondary">Frequency</label>
+                          <select
+                            value={formData.simpleSchedule.type}
+                            onChange={(e) => setFormData(prev => ({
+                              ...prev,
+                              simpleSchedule: { ...prev.simpleSchedule, type: e.target.value }
+                            }))}
+                            className="w-full px-3 py-2 border border-gray-700 rounded-md text-sm bg-brand-surface-bg text-brand-text-primary focus:outline-none focus:ring-2 focus:ring-brand-purple"
+                          >
+                            <option value="once">Once</option>
+                            <option value="daily">Daily</option>
+                            <option value="weekly">Weekly</option>
+                            <option value="monthly">Monthly</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1 text-brand-text-secondary">Time</label>
+                          <div className="flex gap-1">
+                            <select
+                              value={parseTime12h(formData.simpleSchedule.time).hour}
+                              onChange={(e) => {
+                                const { minute, ampm } = parseTime12h(formData.simpleSchedule.time);
+                                const newTime = formatTime24h(e.target.value, minute, ampm);
+                                setFormData(prev => ({
+                                  ...prev,
+                                  simpleSchedule: { ...prev.simpleSchedule, time: newTime }
+                                }));
+                              }}
+                              className="flex-1 px-2 py-2 border border-gray-700 rounded-md text-sm bg-brand-surface-bg text-brand-text-primary focus:outline-none focus:ring-2 focus:ring-brand-purple"
+                            >
+                              {Array.from({ length: 12 }, (_, i) => i + 1).map(hour => (
+                                <option key={hour} value={hour}>{hour}</option>
+                              ))}
+                            </select>
+                            <span className="flex items-center px-1 text-brand-text-secondary">:</span>
+                            <select
+                              value={parseTime12h(formData.simpleSchedule.time).minute}
+                              onChange={(e) => {
+                                const { hour, ampm } = parseTime12h(formData.simpleSchedule.time);
+                                const newTime = formatTime24h(hour, e.target.value, ampm);
+                                setFormData(prev => ({
+                                  ...prev,
+                                  simpleSchedule: { ...prev.simpleSchedule, time: newTime }
+                                }));
+                              }}
+                              className="flex-1 px-2 py-2 border border-gray-700 rounded-md text-sm bg-brand-surface-bg text-brand-text-primary focus:outline-none focus:ring-2 focus:ring-brand-purple"
+                            >
+                              {['00', '15', '30', '45'].map(minute => (
+                                <option key={minute} value={minute}>{minute}</option>
+                              ))}
+                            </select>
+                            <select
+                              value={parseTime12h(formData.simpleSchedule.time).ampm}
+                              onChange={(e) => {
+                                const { hour, minute } = parseTime12h(formData.simpleSchedule.time);
+                                const newTime = formatTime24h(hour, minute, e.target.value);
+                                setFormData(prev => ({
+                                  ...prev,
+                                  simpleSchedule: { ...prev.simpleSchedule, time: newTime }
+                                }));
+                              }}
+                              className="px-2 py-2 border border-gray-700 rounded-md text-sm bg-brand-surface-bg text-brand-text-primary focus:outline-none focus:ring-2 focus:ring-brand-purple"
+                            >
+                              <option value="AM">AM</option>
+                              <option value="PM">PM</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+
+                      {formData.simpleSchedule.type === 'once' && (
+                        <div>
+                          <label className="block text-xs font-medium mb-1 text-brand-text-secondary">Date</label>
+                          <input
+                            type="date"
+                            value={formData.simpleSchedule.date}
+                            onChange={(e) => setFormData(prev => ({
+                              ...prev,
+                              simpleSchedule: { ...prev.simpleSchedule, date: e.target.value }
+                            }))}
+                            className="w-full px-3 py-2 border border-gray-700 rounded-md text-sm bg-brand-surface-bg text-brand-text-primary focus:outline-none focus:ring-2 focus:ring-brand-purple"
+                            min={new Date().toISOString().split('T')[0]}
+                          />
+                        </div>
+                      )}
+
+                      {formData.simpleSchedule.type === 'weekly' && (
+                        <div>
+                          <label className="block text-xs font-medium mb-1 text-brand-text-secondary">Day of Week</label>
+                          <select
+                            value={formData.simpleSchedule.weekday}
+                            onChange={(e) => setFormData(prev => ({
+                              ...prev,
+                              simpleSchedule: { ...prev.simpleSchedule, weekday: e.target.value }
+                            }))}
+                            className="w-full px-3 py-2 border border-gray-700 rounded-md text-sm bg-brand-surface-bg text-brand-text-primary focus:outline-none focus:ring-2 focus:ring-brand-purple"
+                          >
+                            <option value="0">Sunday</option>
+                            <option value="1">Monday</option>
+                            <option value="2">Tuesday</option>
+                            <option value="3">Wednesday</option>
+                            <option value="4">Thursday</option>
+                            <option value="5">Friday</option>
+                            <option value="6">Saturday</option>
+                          </select>
+                        </div>
+                      )}
+
+                      {formData.simpleSchedule.type === 'monthly' && (
+                        <div>
+                          <label className="block text-xs font-medium mb-1 text-brand-text-secondary">Day of Month</label>
+                          <select
+                            value={formData.simpleSchedule.monthDay}
+                            onChange={(e) => setFormData(prev => ({
+                              ...prev,
+                              simpleSchedule: { ...prev.simpleSchedule, monthDay: e.target.value }
+                            }))}
+                            className="w-full px-3 py-2 border border-gray-700 rounded-md text-sm bg-brand-surface-bg text-brand-text-primary focus:outline-none focus:ring-2 focus:ring-brand-purple"
+                          >
+                            {Array.from({ length: 28 }, (_, i) => i + 1).map(day => (
+                              <option key={day} value={day}>{day}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+
+                      <div className="text-xs text-brand-text-secondary">
+                        Preview: {formatCronExpression(generateCronFromSimple(formData.simpleSchedule))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-xs font-medium mb-1 text-brand-text-secondary">Cron Expression</label>
+                      <input
+                        type="text"
+                        value={formData.cron_expression}
+                        onChange={(e) => setFormData(prev => ({ ...prev, cron_expression: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-700 rounded-md text-sm font-mono bg-brand-surface-bg text-brand-text-primary placeholder-brand-text-secondary focus:outline-none focus:ring-2 focus:ring-brand-purple"
+                        placeholder="0 9 * * 1"
+                        required
+                      />
+                      <div className="text-xs text-brand-text-secondary mt-1">
+                        Preview: {formatCronExpression(formData.cron_expression)}
+                      </div>
+                    </div>
+                  )}
                 </div>
                 
                 <div className="mb-4">
