@@ -1,4 +1,4 @@
-# test_server_direct.py
+# test_server_python.py
 import asyncio
 import base64
 import json
@@ -8,24 +8,15 @@ import os
 
 # Clear data store before importing to avoid conflicts
 import importlib.util
+from fastmcp import Client
 
 # Import the server module directly
 spec = importlib.util.spec_from_file_location("server", "server_python.py")
 server_module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(server_module)
 
-# Import functions and data store
-load_csv = server_module.load_csv
-get_head = server_module.get_head
-get_descriptive_statistics = server_module.get_descriptive_statistics
-check_missing_values = server_module.check_missing_values
-handle_missing_values = server_module.handle_missing_values
-rename_columns = server_module.rename_columns
-drop_columns = server_module.drop_columns
-get_value_counts = server_module.get_value_counts
-get_correlation_matrix = server_module.get_correlation_matrix
-query_dataframe = server_module.query_dataframe
-create_plot = server_module.create_plot
+# Import MCP server and data store
+mcp_server = server_module.mcp
 data_store = server_module.data_store
 
 SAMPLE_CSV_DATA = """name,age,city,salary,department
@@ -52,7 +43,7 @@ Frank Garcia,27,New York,53000,Sales
 
 @pytest.mark.asyncio
 class TestServerFunctionsDirect:
-    """Direct testing of server functions without MCP client overhead."""
+    """Direct testing of server functions using FastMCP Client."""
 
     def setup_method(self):
         """Clear data store before each test."""
@@ -65,15 +56,17 @@ class TestServerFunctionsDirect:
     async def load_test_data(self):
         """Helper to load test data and return df_id."""
         csv_b64 = self.create_csv_b64(SAMPLE_CSV_DATA)
-        result = await load_csv({"csv_b64": csv_b64})
-        df_id = result[0].text.split("ID: ")[1].split(".")[0]
-        return df_id
+        async with Client(mcp_server) as client:
+            result = await client.call_tool("load_csv", {"csv_b64": csv_b64})
+            df_id = result[0].text.split("ID: ")[1].split(".")[0]
+            return df_id
 
     async def test_load_csv(self):
         """Test loading CSV data."""
         csv_b64 = self.create_csv_b64(SAMPLE_CSV_DATA)
 
-        result = await load_csv({"csv_b64": csv_b64})
+        async with Client(mcp_server) as client:
+            result = await client.call_tool("load_csv", {"csv_b64": csv_b64})
 
         assert len(result) == 1
         assert "Successfully loaded dataframe with ID:" in result[0].text
@@ -89,7 +82,8 @@ class TestServerFunctionsDirect:
         """Test getting first n rows of dataframe."""
         df_id = await self.load_test_data()
 
-        result = await get_head({"df_id": df_id, "n": 3})
+        async with Client(mcp_server) as client:
+            result = await client.call_tool("get_head", {"df_id": df_id, "n": 3})
 
         assert len(result) == 1
         assert "John Doe" in result[0].text
@@ -100,7 +94,8 @@ class TestServerFunctionsDirect:
         """Test getting descriptive statistics."""
         df_id = await self.load_test_data()
 
-        result = await get_descriptive_statistics({"df_id": df_id})
+        async with Client(mcp_server) as client:
+            result = await client.call_tool("get_descriptive_statistics", {"df_id": df_id})
 
         assert len(result) == 1
         assert "count" in result[0].text
@@ -111,7 +106,8 @@ class TestServerFunctionsDirect:
         """Test getting value counts for a column."""
         df_id = await self.load_test_data()
 
-        result = await get_value_counts({"df_id": df_id, "column_name": "department"})
+        async with Client(mcp_server) as client:
+            result = await client.call_tool("get_value_counts", {"df_id": df_id, "column_name": "department"})
 
         assert len(result) == 1
         assert "Engineering" in result[0].text
@@ -122,11 +118,12 @@ class TestServerFunctionsDirect:
         csv_b64 = self.create_csv_b64(SAMPLE_CSV_WITH_MISSING)
 
         # Load CSV with missing values
-        result = await load_csv({"csv_b64": csv_b64})
-        df_id = result[0].text.split("ID: ")[1].split(".")[0]
+        async with Client(mcp_server) as client:
+            result = await client.call_tool("load_csv", {"csv_b64": csv_b64})
+            df_id = result[0].text.split("ID: ")[1].split(".")[0]
 
-        # Check missing values
-        result = await check_missing_values({"df_id": df_id})
+            # Check missing values
+            result = await client.call_tool("check_missing_values", {"df_id": df_id})
 
         assert len(result) == 1
         assert "Missing value counts:" in result[0].text
@@ -136,16 +133,17 @@ class TestServerFunctionsDirect:
         csv_b64 = self.create_csv_b64(SAMPLE_CSV_WITH_MISSING)
 
         # Load CSV with missing values
-        result = await load_csv({"csv_b64": csv_b64})
-        df_id = result[0].text.split("ID: ")[1].split(".")[0]
+        async with Client(mcp_server) as client:
+            result = await client.call_tool("load_csv", {"csv_b64": csv_b64})
+            df_id = result[0].text.split("ID: ")[1].split(".")[0]
 
-        # Handle missing values by filling
-        result = await handle_missing_values({
-            "df_id": df_id,
-            "strategy": "fill",
-            "columns": ["age"],
-            "value": 30
-        })
+            # Handle missing values by filling
+            result = await client.call_tool("handle_missing_values", {
+                "df_id": df_id,
+                "strategy": "fill",
+                "columns": ["age"],
+                "value": 30
+            })
 
         assert len(result) == 1
         assert "Filled missing values with '30'" in result[0].text
@@ -155,10 +153,11 @@ class TestServerFunctionsDirect:
         df_id = await self.load_test_data()
 
         rename_map = {"name": "employee_name", "age": "employee_age"}
-        result = await rename_columns({
-            "df_id": df_id,
-            "rename_map_json": json.dumps(rename_map)
-        })
+        async with Client(mcp_server) as client:
+            result = await client.call_tool("rename_columns", {
+                "df_id": df_id,
+                "rename_map_json": json.dumps(rename_map)
+            })
 
         assert len(result) == 1
         assert "Columns renamed" in result[0].text
@@ -169,10 +168,11 @@ class TestServerFunctionsDirect:
         """Test dropping columns."""
         df_id = await self.load_test_data()
 
-        result = await drop_columns({
-            "df_id": df_id,
-            "columns_to_drop": ["salary"]
-        })
+        async with Client(mcp_server) as client:
+            result = await client.call_tool("drop_columns", {
+                "df_id": df_id,
+                "columns_to_drop": ["salary"]
+            })
 
         assert len(result) == 1
         assert "Dropped columns: ['salary']" in result[0].text
@@ -181,10 +181,11 @@ class TestServerFunctionsDirect:
         """Test querying dataframe."""
         df_id = await self.load_test_data()
 
-        result = await query_dataframe({
-            "df_id": df_id,
-            "query_string": "age > 30"
-        })
+        async with Client(mcp_server) as client:
+            result = await client.call_tool("query_dataframe", {
+                "df_id": df_id,
+                "query_string": "age > 30"
+            })
 
         assert len(result) == 1
         assert "Query successful" in result[0].text
@@ -194,39 +195,50 @@ class TestServerFunctionsDirect:
         """Test creating a histogram plot."""
         df_id = await self.load_test_data()
 
-        result = await create_plot({
-            "df_id": df_id,
-            "plot_type": "histogram",
-            "x_col": "age"
-        })
+        async with Client(mcp_server) as client:
+            result = await client.call_tool("create_plot", {
+                "df_id": df_id,
+                "plot_type": "histogram",
+                "x_col": "age"
+            })
 
-        assert len(result) == 2
-        assert "Generated histogram successfully" in result[0].text
-        assert result[1].type == "image"
-        assert result[1].mimeType == "image/png"
+        # The result is a JSON string containing the plot data
+        assert len(result) == 1
+        result_text = result[0].text
+        assert "Generated histogram successfully" in result_text
+        assert "image/png" in result_text
+        assert "iVBORw0KGgoAAAANSUhEUgAA" in result_text  # Base64 PNG header
 
     async def test_error_handling_invalid_df_id(self):
         """Test error handling with invalid dataframe ID."""
-        result = await get_head({"df_id": "invalid_id"})
+        async with Client(mcp_server) as client:
+            result = await client.call_tool("get_head", {"df_id": "invalid_id"})
 
         assert len(result) == 1
         assert "Error: Dataframe with ID invalid_id not found" in result[0].text
 
     async def test_error_handling_missing_parameters(self):
         """Test error handling with missing parameters."""
-        result = await get_head({})
-
-        assert len(result) == 1
-        assert "Error: df_id parameter is required" in result[0].text
+        async with Client(mcp_server) as client:
+            try:
+                result = await client.call_tool("get_head", {})
+                # If no exception, check the error message in result
+                assert len(result) == 1
+                assert "Error: df_id parameter is required" in result[0].text
+            except Exception as e:
+                # FastMCP may raise validation errors for missing required parameters
+                assert "df_id" in str(e)
+                assert "Missing required argument" in str(e)
 
     async def test_error_handling_invalid_column(self):
         """Test error handling with invalid column name."""
         df_id = await self.load_test_data()
 
-        result = await get_value_counts({
-            "df_id": df_id,
-            "column_name": "invalid_column"
-        })
+        async with Client(mcp_server) as client:
+            result = await client.call_tool("get_value_counts", {
+                "df_id": df_id,
+                "column_name": "invalid_column"
+            })
 
         assert len(result) == 1
         assert "Error: Column 'invalid_column' not found" in result[0].text

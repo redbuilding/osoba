@@ -38,8 +38,8 @@ async def stream_chat_with_ollama(messages: List[Dict[str, str]], model_name: st
     streamed from Ollama.
     """
     try:
-        stream_iter = await asyncio.to_thread(
-            ollama.chat,
+        # Use sync client directly - the streaming is already async-friendly
+        stream_iter = ollama.chat(
             model=model_name,
             messages=messages,
             stream=True,
@@ -49,8 +49,15 @@ async def stream_chat_with_ollama(messages: List[Dict[str, str]], model_name: st
         for chunk in stream_iter:
             if chunk and "message" in chunk and "content" in chunk["message"]:
                 token = chunk["message"]["content"]
+                logger.debug(f"[OllamaStream] Raw token: {repr(token)}")
                 payload = json.dumps({"type": "token", "content": token})
                 yield f"data: {payload}\n\n"
+    except Exception as e:
+        logger.error(f"[OllamaStream] Error with model '{model_name}': {e}", exc_info=True)
+        err_payload = json.dumps(
+            {'type': 'error', 'content': f"Ollama stream error: {str(e)}"}
+        )
+        yield f"data: {err_payload}\n\n"
     except Exception as e:
         logger.error(f"[OllamaStream] Error with model '{model_name}': {e}", exc_info=True)
         err_payload = json.dumps(

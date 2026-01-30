@@ -9,7 +9,9 @@ import React, {
 import ChatMessage from "./components/ChatMessage";
 import ChatInput from "./components/ChatInput";
 import ConversationSidebar from "./components/ConversationSidebar";
+import ConversationSearch from "./components/ConversationSearch";
 import ToolSelector from "./components/ToolSelector";
+import TasksPanel from "./components/TasksPanel";
 import {
   sendMessage, // still used for legacy / fall‑back
   streamMessage, // ✨ NEW – SSE streaming
@@ -21,6 +23,13 @@ import {
   renameConversation,
   getHubspotAuthStatus,
   BACKEND_URL,
+  createTask,
+  listTasks,
+  getTaskDetail,
+  streamTask,
+  pauseTask,
+  resumeTask,
+  cancelTask,
 } from "./services/api";
 import {
   AlertTriangle,
@@ -35,6 +44,7 @@ import {
   Search,
   Youtube,
   FileCode,
+  ListTodo,
 } from "lucide-react";
 
 // MCP service names
@@ -64,6 +74,7 @@ const App = () => {
   const [isHubspotAuthenticated, setIsHubspotAuthenticated] = useState(false);
   const [dbConnected, setDbConnected] = useState(false);
   const [ollamaAvailable, setOllamaAvailable] = useState(false);
+  const [activeTasksCount, setActiveTasksCount] = useState(0);
 
   // Conversation list / sidebar
   const [currentConversationId, setCurrentConversationId] = useState(null);
@@ -79,11 +90,16 @@ const App = () => {
 
   // Layout
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isTasksOpen, setIsTasksOpen] = useState(false);
+  const [promotedGoal, setPromotedGoal] = useState("");
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   // Refs
   const chatContainerRef = useRef(null);
   const abortControllerRef = useRef(null); // ✨ NEW – for cancelling streams
-
+  const processedTokens = useRef(new Set()); // For deduplicating tokens
+  const tokenSequence = useRef(0); // Sequence counter for tokens
+  const isProcessing = useRef(false); // Flag to prevent double processing
   // Initial assistant message
   const initialWelcomeMessage = useMemo(
     () => ({
@@ -126,6 +142,7 @@ const App = () => {
       setMcpPythonServiceReady(
         status.mcp_services?.[PYTHON_SERVICE_NAME]?.ready || false,
       );
+      setActiveTasksCount(status.tasks?.active || 0);
       setOllamaAvailable(status.ollama_available);
       const newDbConnected = status.db_connected;
       setDbConnected(newDbConnected);
@@ -281,6 +298,21 @@ const App = () => {
   }, [currentConversationId, initialWelcomeMessage]);
 
   /* --------------------------------------------------------------------- */
+  /*  Keyboard shortcuts                                                   */
+  /* --------------------------------------------------------------------- */
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        setIsSearchOpen(true);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  /* --------------------------------------------------------------------- */
   /*  Send / Stream message                                                */
   /* --------------------------------------------------------------------- */
   const handleSendMessage = async (userInput) => {
@@ -349,36 +381,47 @@ const App = () => {
       payload,
       {
         onData: (data) => {
+          console.log("Frontend received SSE data:", data);
+          
+          // Prevent double processing with a simple flag
+          if (isProcessing.current) {
+            console.log("Already processing, skipping:", data);
+            return;
+          }
+          
+          isProcessing.current = true;
+          
           setChatHistory((prev) => {
             const historyCopy = [...prev];
             const last = historyCopy[historyCopy.length - 1];
 
-            if (data.type === "token") {
-              last.content += data.content;
-            } else if (data.type === "indicator") {
+            if (data.type === "indicator") {
+              // Set indicator separately, don't concatenate with content
+              last.indicator = data.content;
               last.is_html = data.is_html;
-              last.content = data.content + last.content;
+            } else if (data.type === "token") {
+              // Only append tokens to content
+              console.log("Appending token:", JSON.stringify(data.content), "to existing:", JSON.stringify(last.content));
+              last.content += data.content;
+              console.log("New content:", JSON.stringify(last.content));
             } else if (data.type === "done") {
-              setChatHistory((prev) => {
-                const newHist = [...prev];
-                const last = newHist[newHist.length - 1];
-
-                // Overwrite the streamed (possibly duplicated) text with the final version
-                if (data.content) {
-                  last.content = data.content;
-                  last.is_html = data.is_html;
-                }
-
-                // If a new conversation was created, reflect its ID
-                if (
-                  data.conversation_id &&
-                  data.conversation_id !== currentConversationId
-                ) {
-                  setCurrentConversationId(data.conversation_id);
-                }
-                return newHist;
-              });
+              // Don't overwrite accumulated content, just set metadata
+              last.is_html = data.is_html;
+              
+              // If a new conversation was created, reflect its ID
+              if (
+                data.conversation_id &&
+                data.conversation_id !== currentConversationId
+              ) {
+                setCurrentConversationId(data.conversation_id);
+              }
             }
+            
+            // Reset processing flag after state update
+            setTimeout(() => {
+              isProcessing.current = false;
+            }, 0);
+            
             return historyCopy;
           });
         },
@@ -672,6 +715,23 @@ const App = () => {
             </span>
           </div>
         </header>
+        {/* Header actions: Search and Tasks buttons */}
+        <div className="absolute right-3 top-2 flex gap-2">
+          <button
+            onClick={() => setIsSearchOpen(true)}
+            title="Search conversations (Ctrl+K)"
+            className="flex items-center gap-1 px-2 py-1 text-xs rounded bg-gray-700 hover:bg-gray-600 text-white"
+          >
+            <Search size={14} /> Search
+          </button>
+          <button
+            onClick={() => setIsTasksOpen(true)}
+            title="Open Tasks"
+            className="flex items-center gap-1 px-2 py-1 text-xs rounded bg-gray-700 hover:bg-gray-600 text-white"
+          >
+            <ListTodo size={14} /> Tasks{activeTasksCount ? ` (${activeTasksCount})` : ""}
+          </button>
+        </div>
 
         {/* Chat area */}
         <div
@@ -689,6 +749,11 @@ const App = () => {
               <ChatMessage
                 key={msg.timestamp ? `${msg.timestamp}-${idx}` : idx}
                 message={msg}
+                isStreaming={isLoading && idx === chatHistory.length - 1 && msg.role === 'assistant'}
+                onPromoteToTask={(goalText) => {
+                  setPromotedGoal(goalText || "");
+                  setIsTasksOpen(true);
+                }}
               />
             ))}
 
@@ -744,6 +809,21 @@ const App = () => {
         activeTool={activeTool}
         onSelectTool={setActiveTool}
         onHubspotConnect={handleHubspotConnect}
+      />
+
+      {/* Tasks panel */}
+      <TasksPanel
+        isOpen={isTasksOpen}
+        onClose={() => setIsTasksOpen(false)}
+        initialGoal={promotedGoal}
+        conversationId={currentConversationId}
+      />
+
+      {/* Conversation Search Modal */}
+      <ConversationSearch
+        isOpen={isSearchOpen}
+        onClose={() => setIsSearchOpen(false)}
+        onSelectConversation={handleSelectConversation}
       />
     </div>
   );

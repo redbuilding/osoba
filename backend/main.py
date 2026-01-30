@@ -7,8 +7,11 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from core.config import get_logger, BASE_DIR
 from services.mcp_service import start_mcp_services, stop_mcp_services
+from services.task_runner import start_task_dispatcher
+from services.task_scheduler import scheduler
+from services.template_initializer import initialize_default_templates
 from db.mongodb import mongo_client
-from api import chat, conversations, status
+from api import chat, conversations, status, tasks, scheduled_tasks
 from auth_hubspot import router as hubspot_auth_router
 
 logger = get_logger("mcp_backend_main")
@@ -17,7 +20,11 @@ logger = get_logger("mcp_backend_main")
 async def lifespan(app: FastAPI):
     """Handles application startup and shutdown events."""
     start_mcp_services()
+    await start_task_dispatcher()
+    await scheduler.start()
+    await initialize_default_templates()
     yield
+    await scheduler.stop()
     await stop_mcp_services()
     if mongo_client:
         mongo_client.close()
@@ -40,6 +47,8 @@ app.include_router(hubspot_auth_router)
 app.include_router(chat.router)
 app.include_router(conversations.router)
 app.include_router(status.router)
+app.include_router(tasks.router)
+app.include_router(scheduled_tasks.router)
 
 # --- Static Files Hosting ---
 frontend_dist_path = os.path.join(BASE_DIR, '..', 'frontend', 'dist')

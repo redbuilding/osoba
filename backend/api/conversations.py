@@ -1,5 +1,5 @@
 from typing import List
-from fastapi import APIRouter, HTTPException, Response, status
+from fastapi import APIRouter, HTTPException, Response, status, Query
 
 from core.models import ConversationListItem, ChatMessage, RenamePayload
 from db import crud
@@ -8,6 +8,32 @@ from core.config import get_logger
 
 router = APIRouter()
 logger = get_logger("api_conversations")
+
+@router.get("/api/conversations/search", response_model=List[ConversationListItem], response_model_by_alias=False)
+async def search_conversations_endpoint(
+    q: str = Query(..., min_length=1, description="Search query"),
+    limit: int = Query(20, le=100, description="Maximum results")
+):
+    try:
+        db_convs = crud.search_conversations(q, limit=limit)
+        conv_list_items = []
+        default_model_cache = None
+
+        for doc in db_convs:
+            doc["message_count"] = crud.count_messages_in_conversation(doc["_id"])
+            if not doc.get("ollama_model_name"):
+                if default_model_cache is None:
+                    default_model_cache = await get_default_ollama_model()
+                doc["ollama_model_name"] = default_model_cache
+            
+            # Convert ObjectId to string for Pydantic validation
+            doc["_id"] = str(doc["_id"])
+            
+            conv_list_items.append(ConversationListItem.model_validate(doc))
+        return conv_list_items
+    except Exception as e:
+        logger.error(f"Error searching conversations: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Error searching conversations.")
 
 @router.get("/api/conversations", response_model=List[ConversationListItem], response_model_by_alias=False)
 async def list_conversations():

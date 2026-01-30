@@ -1,7 +1,8 @@
 import React from 'react';
-import { User, Bot, Clipboard, Check } from 'lucide-react';
+import { User, Bot, Clipboard, Check, ListTodo } from 'lucide-react';
 import { useCopyToClipboard } from '../hooks/useCopyToClipboard';
-import CodeBlock from './CodeBlock'; // Assuming CodeBlock component exists
+import CodeBlock from './CodeBlock';
+import MarkdownRenderer from './MarkdownRenderer';
 
 // Function to parse message content for code blocks
 const parseMessageContent = (content) => {
@@ -35,46 +36,31 @@ const parseMessageContent = (content) => {
 };
 
 
-const ChatMessage = ({ message }) => {
-  const { role, content, is_html } = message;
+const ChatMessage = ({ message, onPromoteToTask, isStreaming = false }) => {
+  const { role, content, is_html, indicator } = message;
   const isUser = role === 'user';
   const [copied, copy] = useCopyToClipboard();
 
   // Extract text content for copying, stripping HTML if necessary
   const getTextContentForCopy = (htmlOrTextContent) => {
     if (!htmlOrTextContent) return '';
-    if (is_html) { // Check if the message itself is marked as HTML
+    if (is_html) {
       const tempDiv = document.createElement('div');
-      tempDiv.innerHTML = htmlOrTextContent; // The content might already include indicators + actual message
+      tempDiv.innerHTML = htmlOrTextContent;
       
-      // Attempt to remove known indicator divs before extracting text
+      // Remove indicator divs and images
       const indicators = tempDiv.querySelectorAll('.search-indicator-custom, .db-indicator-custom, .hubspot-indicator-custom, .youtube-indicator-custom, .python-indicator-custom');
-      indicators.forEach(indicator => {
-        indicator.remove();
-      });
-
-      // Don't copy the alt text of generated images
+      indicators.forEach(indicator => indicator.remove());
       const images = tempDiv.querySelectorAll('img');
       images.forEach(img => img.remove());
 
-      // Extract text from the remaining content
-      let text = "";
-      const nodesToProcess = tempDiv.childNodes.length > 0 ? tempDiv.childNodes : [tempDiv];
-
-      nodesToProcess.forEach(node => {
-        if (node.textContent) {
-          text += node.textContent.trim() + "\n"; // Trim each part and add newline
-        }
-      });
-      return text.trim(); // Final trim
+      return tempDiv.textContent?.trim() || '';
     }
-    // If not HTML, or if it's plain text after parsing, return as is
     return htmlOrTextContent;
   };
   
   const contentToCopy = getTextContentForCopy(content);
   const messageParts = is_html ? [] : parseMessageContent(content);
-
 
   return (
     <div className={`flex animate-slide-up ${isUser ? 'justify-end' : 'justify-start'} mb-2 group`}>
@@ -92,36 +78,63 @@ const ChatMessage = ({ message }) => {
           <span className="font-semibold text-sm">{isUser ? 'You' : 'Assistant'}</span>
         </div>
 
-        {is_html ? (
-          // Ensure prose styles apply correctly to the indicators and the main content
-          <div className="prose prose-sm prose-invert max-w-none [&>div:first-child]:mb-2" dangerouslySetInnerHTML={{ __html: content }} />
-        ) : (
-          messageParts.map((part, index) =>
-            part.type === 'code' ? (
-              <CodeBlock key={index} language={part.language} code={part.code} />
-            ) : (
-              // Using <pre> for text parts to preserve whitespace and newlines from typical LLM text responses
-              <pre key={index} className="whitespace-pre-wrap text-sm leading-relaxed font-sans p-0 bg-transparent border-none my-0">
-                {part.content}
-              </pre>
-            )
-          )
+        {/* Show indicator separately if present */}
+        {indicator && (
+          <div className="mb-2" dangerouslySetInnerHTML={{ __html: indicator }} />
         )}
 
-        <button
-          onClick={() => copy(contentToCopy)}
-          className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 mt-2 flex items-center text-xs p-1 rounded hover:bg-opacity-20 hover:bg-gray-500"
-          aria-label="Copy message"
-        >
-          {copied ? (
-            <Check size={14} className={isUser ? "text-green-300" : "text-brand-success-green"} />
-          ) : (
-            <Clipboard size={14} className={isUser ? "text-gray-300" : "text-brand-text-secondary"} />
+        {is_html ? (
+          <div className="prose prose-sm prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: content }} />
+        ) : (
+          <div className="markdown-content">
+            {messageParts.length > 0 ? (
+              messageParts.map((part, index) =>
+                part.type === 'code' ? (
+                  <CodeBlock key={index} language={part.language} code={part.code} />
+                ) : (
+                  <MarkdownRenderer 
+                    key={index} 
+                    content={part.content} 
+                    isStreaming={isStreaming && !isUser}
+                  />
+                )
+              )
+            ) : (
+              <MarkdownRenderer 
+                content={content} 
+                isStreaming={isStreaming && !isUser}
+              />
+            )}
+          </div>
+        )}
+
+        <div className="flex gap-2 mt-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+          <button
+            onClick={() => copy(contentToCopy)}
+            className="flex items-center text-xs p-1 rounded hover:bg-opacity-20 hover:bg-gray-500"
+            aria-label="Copy message"
+          >
+            {copied ? (
+              <Check size={14} className={isUser ? "text-green-300" : "text-brand-success-green"} />
+            ) : (
+              <Clipboard size={14} className={isUser ? "text-gray-300" : "text-brand-text-secondary"} />
+            )}
+            <span className={`ml-1 text-xs ${isUser ? "text-gray-300" : "text-brand-text-secondary"}`}>
+              {copied ? 'Copied!' : 'Copy'}
+            </span>
+          </button>
+          {isUser && typeof onPromoteToTask === 'function' && (
+            <button
+              onClick={() => onPromoteToTask(contentToCopy)}
+              className="flex items-center text-xs p-1 rounded hover:bg-opacity-20 hover:bg-gray-500"
+              aria-label="Promote to task"
+              title="Promote to long-running task"
+            >
+              <ListTodo size={14} className={isUser ? "text-gray-300" : "text-brand-text-secondary"} />
+              <span className={`ml-1 text-xs ${isUser ? "text-gray-300" : "text-brand-text-secondary"}`}>Task</span>
+            </button>
           )}
-          <span className={`ml-1 text-xs ${isUser ? "text-gray-300" : "text-brand-text-secondary"}`}>
-            {copied ? 'Copied!' : 'Copy'}
-          </span>
-        </button>
+        </div>
       </div>
     </div>
   );

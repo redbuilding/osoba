@@ -563,6 +563,7 @@ Your JSON response:
             yield f"data: {done_payload}\n\n"
             return
 
+        # Send indicator separately, don't mix with content
         if self.html_indicator:
             ind_payload = json.dumps({"type": "indicator", "is_html": True, "content": self.html_indicator})
             yield f"data: {ind_payload}\n\n"
@@ -579,13 +580,16 @@ Your JSON response:
                     accumulated_response += data.get("content", "")
             except (IndexError, json.JSONDecodeError): pass
 
+        # Save clean content without indicator duplication
         if accumulated_response:
             final_content = f"{self.html_indicator}\n\n{accumulated_response}" if self.is_html_response else accumulated_response
             self._save_assistant_message(final_content, accumulated_response)
 
+        # Send clean content in done payload
         done_payload = json.dumps({
-            "type": "done", "conversation_id": self.conv_id,
-            "content": f"{self.html_indicator}\n\n{accumulated_response}" if self.is_html_response else accumulated_response,
+            "type": "done", 
+            "conversation_id": self.conv_id,
+            "content": accumulated_response,  # Clean content only
             "is_html": self.is_html_response
         })
         yield f"data: {done_payload}\n\n"

@@ -1,0 +1,319 @@
+import asyncio
+import re
+import time
+from datetime import datetime, timezone
+from typing import Dict, Any, Tuple
+
+from core.config import (
+    get_logger,
+    ENABLE_TASKS,
+    TASK_DISPATCH_INTERVAL_MS,
+    TASK_MAX_SECONDS_DEFAULT,
+    TASK_MAX_TOOL_CALLS_DEFAULT,
+    TASK_STEP_TIMEOUT_DEFAULT,
+)
+from core.models import Plan, PlanStep
+from db.tasks_crud import (
+    list_tasks,
+    update_task,
+    set_step_status,
+    get_task,
+    increment_usage,
+)
+from services.progress_bus import progress_bus
+from services.task_planner import plan_task
+from services.mcp_service import submit_mcp_request, wait_mcp_response
+from core.config import WEB_SEARCH_SERVICE_NAME, MYSQL_DB_SERVICE_NAME, YOUTUBE_SERVICE_NAME, PYTHON_SERVICE_NAME
+from services.ollama_service import chat_with_ollama
+from db.mongodb import conversations_collection
+
+
+logger = get_logger("task_runner")
+
+
+class RunnerState:
+    def __init__(self) -> None:
+        self._workers: Dict[str, asyncio.Task] = {}
+        self._stop = asyncio.Event()
+
+    def is_running(self) -> bool:
+        return not self._stop.is_set()
+
+    def stop(self) -> None:
+        self._stop.set()
+
+    def worker_for(self, task_id: str) -> asyncio.Task | None:
+        t = self._workers.get(task_id)
+        if t and t.done():
+            self._workers.pop(task_id, None)
+            return None
+        return t
+
+    def set_worker(self, task_id: str, task: asyncio.Task) -> None:
+        self._workers[task_id] = task
+
+
+runner_state = RunnerState()
+
+
+def _resolve_tool(tool: str) -> Tuple[str, str]:
+    # returns service_name, tool_name
+    if tool == "web_search":
+        return WEB_SEARCH_SERVICE_NAME, "web_search"
+    if tool == "execute_sql_query_tool":
+        return MYSQL_DB_SERVICE_NAME, "execute_sql_query_tool"
+    if tool == "get_youtube_transcript":
+        return YOUTUBE_SERVICE_NAME, "get_youtube_transcript"
+    if tool.startswith("python."):
+        return PYTHON_SERVICE_NAME, tool.split(".", 1)[1]
+    raise ValueError(f"Unknown tool: {tool}")
+
+
+async def start_task_dispatcher():
+    if not ENABLE_TASKS:
+        logger.info("Task dispatcher disabled by config.")
+        return
+    logger.info("Starting task dispatcher loop.")
+    asyncio.create_task(_dispatch_loop())
+
+
+async def _dispatch_loop():
+    while not runner_state._stop.is_set():
+        try:
+            await _scan_and_schedule()
+        except Exception as e:
+            logger.error(f"Dispatcher error: {e}", exc_info=True)
+        await asyncio.sleep(TASK_DISPATCH_INTERVAL_MS / 1000.0)
+
+
+async def _scan_and_schedule():
+    # Pick up tasks to run; naive approach
+    for t in list_tasks(limit=100):
+        task_id = str(t.get("_id"))
+        status = t.get("status")
+
+        if status in ("PENDING", "RUNNING") and not runner_state.worker_for(task_id):
+            # Start/continue running
+            logger.info(f"Scheduling task {task_id} with status {status}")
+            worker = asyncio.create_task(_run_task(task_id))
+            runner_state.set_worker(task_id, worker)
+
+
+async def _run_task(task_id: str):
+    # Load task
+    doc = get_task(task_id)
+    if not doc:
+        return
+    task_start = datetime.now(timezone.utc)
+    if doc.get("status") == "PLANNING":
+        # Produce plan
+        plan = await plan_task(doc.get("goal", ""), doc.get("ollama_model_name"), doc.get("budget"))
+        update_task(task_id, {"plan": plan.model_dump(), "status": "PENDING", "current_step_index": -1})
+        await progress_bus.publish(task_id, {"type": "TASK_STATUS", "task_id": task_id, "status": "PENDING"})
+        doc = get_task(task_id)
+
+    if doc.get("status") == "PENDING":
+        update_task(task_id, {"status": "RUNNING", "current_step_index": 0})
+        await progress_bus.publish(task_id, {"type": "TASK_STATUS", "task_id": task_id, "status": "RUNNING"})
+
+    # Execute steps
+    plan_dict = doc.get("plan") or {}
+    steps: list[Dict[str, Any]] = plan_dict.get("steps", [])
+    idx = int(doc.get("current_step_index", 0))
+
+    for i in range(idx, len(steps)):
+        # reload may have pause/cancel status
+        cur = get_task(task_id) or {}
+        cur_status = cur.get("status")
+        if cur_status in ("PAUSED", "CANCELED"):
+            await progress_bus.publish(task_id, {"type": "TASK_STATUS", "task_id": task_id, "status": cur_status})
+            return
+
+        # Budget checks before executing step
+        if not _check_budgets(cur, task_start):
+            update_task(task_id, {"status": "FAILED", "error": "Budget exceeded"})
+            await progress_bus.publish(task_id, {"type": "TASK_STATUS", "task_id": task_id, "status": "FAILED", "error": "Budget exceeded"})
+            await _post_conversation_update(cur, success=False)
+            return
+
+        ok = await _execute_step_with_retry(task_id, i, steps[i])
+        if not ok:
+            await _post_conversation_update(get_task(task_id) or {}, success=False)
+            return
+        update_task(task_id, {"current_step_index": i + 1})
+
+    # Done
+    update_task(task_id, {"status": "COMPLETED"})
+    await progress_bus.publish(task_id, {"type": "TASK_STATUS", "task_id": task_id, "status": "COMPLETED"})
+    # Post summary to conversation
+    await _post_conversation_update(get_task(task_id) or {}, success=True)
+
+
+def _get_budget(doc: Dict[str, Any]) -> Dict[str, int]:
+    b = (doc.get("budget") or {}).copy()
+    if "max_seconds" not in b:
+        b["max_seconds"] = TASK_MAX_SECONDS_DEFAULT
+    if "max_tool_calls" not in b:
+        b["max_tool_calls"] = TASK_MAX_TOOL_CALLS_DEFAULT
+    return b
+
+
+def _get_usage(doc: Dict[str, Any]) -> Dict[str, int]:
+    u = (doc.get("usage") or {}).copy()
+    u.setdefault("tool_calls", 0)
+    u.setdefault("seconds_elapsed", 0)
+    return u
+
+
+def _check_budgets(doc: Dict[str, Any], task_start: datetime) -> bool:
+    b = _get_budget(doc)
+    u = _get_usage(doc)
+    # Simple wall clock elapsed
+    elapsed = int((datetime.now(timezone.utc) - task_start).total_seconds())
+    if u.get("seconds_elapsed", 0) + elapsed > b.get("max_seconds", TASK_MAX_SECONDS_DEFAULT):
+        return False
+    if u.get("tool_calls", 0) >= b.get("max_tool_calls", TASK_MAX_TOOL_CALLS_DEFAULT):
+        return False
+    return True
+
+
+async def _execute_step_with_retry(task_id: str, idx: int, step: Dict[str, Any]) -> bool:
+    max_retries = int(step.get("max_retries", 1))
+    attempt = 0
+    backoff = 1
+    while True:
+        try:
+            return await _execute_step(task_id, idx, step)
+        except Exception as e:
+            attempt += 1
+            if attempt > max_retries:
+                return False
+            await progress_bus.publish(task_id, {"type": "STEP_STATUS", "task_id": task_id, "index": idx, "status": "RETRYING", "error": str(e), "attempt": attempt})
+            await asyncio.sleep(backoff)
+            backoff = min(backoff * 2, 15)
+
+
+async def _verify_success(success_criteria: str, normalized_output: Dict[str, Any], model_name: str | None) -> bool:
+    # Fast rule: if criteria missing, accept
+    if not success_criteria:
+        return True
+    content_preview = str(normalized_output)[:800]
+    prompt = (
+        "You are a verifier. Given a success criteria and a step output, "
+        "respond with JSON: {\"success\": true|false, \"reason\": \"short\"}.\n"
+        f"Criteria: {success_criteria}\n"
+        f"Output Preview: {content_preview}\n"
+        "Return JSON only."
+    )
+    res = await chat_with_ollama([
+        {"role": "system", "content": "You output only JSON."},
+        {"role": "user", "content": prompt},
+    ], model_name or "")
+    try:
+        data = res and __import__('json').loads(res)
+        return bool(data and data.get("success") is True)
+    except Exception:
+        return True  # Be permissive if verifier fails
+
+
+async def _execute_step(task_id: str, idx: int, step: Dict[str, Any]):
+    set_step_status(task_id, idx, {"status": "RUNNING", "started_at": datetime.now(timezone.utc)})
+    await progress_bus.publish(task_id, {"type": "STEP_STATUS", "task_id": task_id, "index": idx, "status": "RUNNING"})
+
+    tool = step.get("tool")
+    params = step.get("params") or {}
+    # Step timeout from config
+    step_timeout = int(step.get("timeout", TASK_STEP_TIMEOUT_DEFAULT))
+    try:
+        step_started = time.time()
+        if tool and tool.startswith("llm."):
+            # LLM-only step: use instruction or params.prompt to generate text
+            task_doc = get_task(task_id) or {}
+            model = task_doc.get("ollama_model_name") or ""
+            prompt = None
+            if isinstance(params, dict):
+                prompt = params.get("prompt")
+            if not prompt:
+                prompt = step.get("instruction", "")
+            increment_usage(task_id, "tool_calls", 1)
+            text = await chat_with_ollama([
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": prompt or ""},
+            ], model)
+            norm: Dict[str, Any] = {"text": text or ""}
+        else:
+            service_name, tool_name = _resolve_tool(tool)
+            # Budget: increment tool call usage (optimistic)
+            # We don't read-modify-write usage here to keep it simple; dispatcher checks before each step
+            increment_usage(task_id, "tool_calls", 1)
+            req_id = await submit_mcp_request(service_name, "tool", {"tool": tool_name, "params": params})
+            # Wait with timeout
+            resp = await wait_mcp_response(service_name, req_id, timeout=step_timeout)
+            if resp.get("status") == "error":
+                raise RuntimeError(resp.get("error"))
+
+            data = resp.get("data")
+            norm: Dict[str, Any] = {"raw": data}
+
+        # Special handling for python.load_csv: capture dataframe id
+        if tool == "python.load_csv":
+            text = ""
+            if isinstance(data, list) and data and isinstance(data[0], dict) and data[0].get("type") == "text":
+                text = data[0].get("content", "")
+            elif isinstance(data, str):
+                text = data
+            m = re.search(r"ID:\s*([0-9a-fA-F-]{36})", text)
+            if m:
+                norm["df_id"] = m.group(1)
+        # Verification
+        task_doc = get_task(task_id) or {}
+        verified = await _verify_success(step.get("success_criteria", ""), norm, task_doc.get("ollama_model_name"))
+        if not verified:
+            raise RuntimeError("Verification failed for step output")
+
+        set_step_status(task_id, idx, {"status": "COMPLETED", "outputs": norm, "ended_at": datetime.now(timezone.utc)})
+        await progress_bus.publish(task_id, {"type": "STEP_STATUS", "task_id": task_id, "index": idx, "status": "COMPLETED"})
+        # Record elapsed seconds for this step
+        elapsed = int(time.time() - step_started)
+        increment_usage(task_id, "seconds_elapsed", max(elapsed, 0))
+        return True
+    except Exception as e:
+        set_step_status(task_id, idx, {"status": "FAILED", "error": str(e), "ended_at": datetime.now(timezone.utc)})
+        await progress_bus.publish(task_id, {"type": "STEP_STATUS", "task_id": task_id, "index": idx, "status": "FAILED", "error": str(e)})
+        update_task(task_id, {"status": "FAILED", "error": f"Step {idx} failed: {e}"})
+        return False
+
+
+async def _post_conversation_update(task_doc: Dict[str, Any], success: bool):
+    try:
+        conv_id = task_doc.get("conversation_id")
+        if not conv_id:
+            return
+        model = task_doc.get("ollama_model_name") or ""
+        plan = (task_doc.get("plan") or {}).get("steps", [])
+        status = task_doc.get("status")
+        summary_text = None
+        if success:
+            # Compose a brief summary with LLM
+            titles = "\n".join([f"- {s.get('title','')} ({s.get('tool','')})" for s in plan])
+            prompt = f"Summarize the completed task in 3-5 sentences for the user. Steps were:\n{titles}"
+            res = await chat_with_ollama([
+                {"role": "system", "content": "You write concise summaries."},
+                {"role": "user", "content": prompt},
+            ], model)
+            summary_text = res or "Task completed."
+        else:
+            summary_text = f"Task ended with status: {status}. Error: {task_doc.get('error','')}"
+
+        message = {
+            "role": "assistant",
+            "content": f"[Task Update] {summary_text}",
+            "is_html": False,
+            "timestamp": datetime.now(timezone.utc),
+        }
+        conversations_collection.update_one(
+            {"_id": __import__('bson').ObjectId(conv_id)},
+            {"$push": {"messages": message}, "$set": {"updated_at": datetime.now(timezone.utc)}}
+        )
+    except Exception as e:
+        logger.error(f"Failed to post conversation update: {e}")

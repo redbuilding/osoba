@@ -94,8 +94,10 @@ export const streamMessage = async (payload, callbacks, signal) => {
       for (const evt of events) {
         if (evt.startsWith("data: ")) {
           const jsonData = evt.slice(6);
+          console.log("Raw SSE event:", jsonData);
           try {
             const parsed = JSON.parse(jsonData);
+            console.log("Parsed SSE data:", parsed);
             callbacks.onData && callbacks.onData(parsed);
           } catch (parseErr) {
             console.error("Failed to parse SSE data:", jsonData);
@@ -173,6 +175,23 @@ export const getConversations = async () => {
   }
 };
 
+export const searchConversations = async (query, limit = 20) => {
+  try {
+    const response = await apiClient.get("/conversations/search", {
+      params: { q: query, limit }
+    });
+    return response.data;
+  } catch (error) {
+    console.error(
+      "Error searching conversations:",
+      error.response ? error.response.data : error.message,
+    );
+    throw error.response
+      ? error.response.data
+      : new Error("Network error or server unavailable");
+  }
+};
+
 export const getConversationMessages = async (conversationId) => {
   try {
     const response = await apiClient.get(`/conversations/${conversationId}`);
@@ -218,5 +237,185 @@ export const renameConversation = async (conversationId, newTitle) => {
     throw error.response
       ? error.response.data
       : new Error("Network error or server unavailable");
+  }
+};
+
+// ---------- Long-running Tasks API ----------
+
+export const createTask = async (payload) => {
+  try {
+    const response = await apiClient.post("/tasks", payload);
+    return response.data;
+  } catch (error) {
+    throw error.response ? error.response.data : new Error("Network error");
+  }
+};
+
+export const listTasks = async () => {
+  try {
+    const response = await apiClient.get("/tasks");
+    return response.data;
+  } catch (error) {
+    throw error.response ? error.response.data : new Error("Network error");
+  }
+};
+
+export const getTaskDetail = async (taskId) => {
+  try {
+    const response = await apiClient.get(`/tasks/${taskId}`);
+    return response.data;
+  } catch (error) {
+    throw error.response ? error.response.data : new Error("Network error");
+  }
+};
+
+export const streamTask = async (taskId, callbacks, signal) => {
+  try {
+    const response = await fetch(`${API_URL}/tasks/${taskId}/stream`, {
+      method: "GET",
+      headers: { "Accept": "text/event-stream" },
+      signal,
+      credentials: "include",
+    });
+    if (!response.ok) throw new Error("Task stream error");
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const textChunk = decoder.decode(value, { stream: true });
+      const events = textChunk
+        .split("\n\n")
+        .map((e) => e.trim())
+        .filter(Boolean);
+      for (const evt of events) {
+        if (evt.startsWith("data: ")) {
+          const jsonData = evt.slice(6);
+          try {
+            const parsed = JSON.parse(jsonData);
+            callbacks.onData && callbacks.onData(parsed);
+          } catch (e) {
+            console.error("Bad SSE JSON:", jsonData);
+          }
+        }
+      }
+    }
+  } catch (err) {
+    if (err.name !== "AbortError") callbacks.onError && callbacks.onError(err);
+  } finally {
+    callbacks.onClose && callbacks.onClose();
+  }
+};
+
+export const pauseTask = async (taskId) => {
+  try {
+    const res = await apiClient.post(`/tasks/${taskId}/pause`);
+    return res.data;
+  } catch (error) {
+    throw error.response ? error.response.data : new Error("Network error");
+  }
+};
+
+export const resumeTask = async (taskId) => {
+  try {
+    const res = await apiClient.post(`/tasks/${taskId}/resume`);
+    return res.data;
+  } catch (error) {
+    throw error.response ? error.response.data : new Error("Network error");
+  }
+};
+
+export const cancelTask = async (taskId) => {
+  try {
+    const res = await apiClient.post(`/tasks/${taskId}/cancel`);
+    return res.data;
+  } catch (error) {
+    throw error.response ? error.response.data : new Error("Network error");
+  }
+};
+
+// ---------- Scheduled Tasks API ----------
+
+export const createScheduledTask = async (payload) => {
+  try {
+    const response = await apiClient.post("/scheduled-tasks", payload);
+    return response.data;
+  } catch (error) {
+    console.error("Error creating scheduled task:", error);
+    throw error;
+  }
+};
+
+export const listScheduledTasks = async () => {
+  try {
+    const response = await apiClient.get("/scheduled-tasks");
+    return response.data;
+  } catch (error) {
+    console.error("Error listing scheduled tasks:", error);
+    throw error;
+  }
+};
+
+export const deleteScheduledTask = async (taskId) => {
+  try {
+    const response = await apiClient.delete(`/scheduled-tasks/${taskId}`);
+    return response.data;
+  } catch (error) {
+    console.error("Error deleting scheduled task:", error);
+    throw error;
+  }
+};
+
+// ---------- Templates API ----------
+
+export const listTemplates = async (category = null) => {
+  try {
+    const params = category ? { category } : {};
+    const response = await apiClient.get("/templates", { params });
+    return response.data;
+  } catch (error) {
+    console.error("Error listing templates:", error);
+    throw error;
+  }
+};
+
+export const getDefaultTemplates = async () => {
+  try {
+    const response = await apiClient.get("/templates/default");
+    return response.data;
+  } catch (error) {
+    console.error("Error getting default templates:", error);
+    throw error;
+  }
+};
+
+export const createTemplate = async (template) => {
+  try {
+    const response = await apiClient.post("/templates", template);
+    return response.data;
+  } catch (error) {
+    console.error("Error creating template:", error);
+    throw error;
+  }
+};
+
+export const createTaskFromTemplate = async (templateId, payload) => {
+  try {
+    const response = await apiClient.post(`/templates/${templateId}/create-task`, payload);
+    return response.data;
+  } catch (error) {
+    console.error("Error creating task from template:", error);
+    throw error;
+  }
+};
+
+export const getTemplateParameters = async (templateId) => {
+  try {
+    const response = await apiClient.get(`/templates/${templateId}/parameters`);
+    return response.data;
+  } catch (error) {
+    console.error("Error getting template parameters:", error);
+    throw error;
   }
 };

@@ -45,6 +45,9 @@ This architecture demonstrates how MCP enables local models to access external t
 - 🧰 **HubSpot Tools**: OAuth-connect, then create/update marketing emails via guided JSON prompts.
 - 🐍 **Python Analysis Tool**: Upload a CSV and run analysis, cleaning, stats, and plots — results can stream back with images.
 - ⚡ **Streaming Responses**: Frontend renders model output token-by-token and indicators for tool usage.
+- 🗓️ **Long‑Running Tasks (Plan & Execute)**: Create autonomous tasks that plan and execute multi‑step workflows (overnight runs supported), with budgets, retries, and verification.
+- 📈 **Live Task Progress**: Tasks stream progress via SSE; per‑step outputs (tables/images/text) render in the UI.
+- 🧩 **LLM‑only Steps (No MCP)**: Tasks can include steps that run directly on Ollama (e.g., summaries/reasoning) without using any MCP tool.
 
 ## Requirements
 - Python 3.11+
@@ -175,6 +178,29 @@ Optional (enable additional tools):
 -   For HubSpot: click “Connect HubSpot” to complete OAuth, then describe the email to create/update.
 -   For Python: upload a CSV file when prompted; follow-up questions reuse the loaded DataFrame.
 -   Manage conversations using the sidebar (create new, select, rename, delete).
+
+### Long‑Running Tasks (Plan & Execute)
+
+-   Open the Tasks panel (Tasks button in the header) to:
+    -   Create a new task by entering a high‑level goal.
+    -   Monitor progress (live SSE stream), view step outputs (tables, images, text), and Pause/Resume/Cancel.
+    -   “Promote to Task” from any user chat message to pre‑fill the goal and link the task to the conversation.
+-   The backend plans each task as structured JSON (steps, tool, parameters, success criteria), then executes steps sequentially with:
+    -   Budgets: max wall‑time and max tool calls.
+    -   Per‑step timeouts and capped retries with backoff.
+    -   Output verification against success criteria.
+-   Completion: When the final step finishes, the task status becomes COMPLETED. On failure/timeouts/budgets exceeded, status is FAILED. A concise summary is posted back into the linked conversation.
+
+APIs:
+-   Create task: `POST /api/tasks { goal, conversation_id?, dry_run? }`
+-   List tasks: `GET /api/tasks`
+-   Task detail: `GET /api/tasks/{id}`
+-   Task stream (SSE): `GET /api/tasks/{id}/stream`
+-   Pause/Resume/Cancel: `POST /api/tasks/{id}/pause|resume|cancel`
+-   Status: `GET /api/status` includes `tasks.active` count
+
+LLM‑only steps (no MCP):
+-   The planner supports `llm.generate` steps that run directly via Ollama, without any MCP server. If a `prompt` is omitted, the step’s `instruction` is used. These steps still respect budgets, timeouts, and verification.
 
 ### Legacy Clients (Phasing Out)
 

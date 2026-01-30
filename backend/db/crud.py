@@ -42,6 +42,18 @@ def delete_conversation_by_id(conv_id: str) -> bool:
     result = collection.delete_one({"_id": ObjectId(conv_id)})
     return result.deleted_count > 0
 
+def search_conversations(query: str, limit: int = 20) -> List[Dict[str, Any]]:
+    """Search conversations by title and message content."""
+    collection = get_conversations_collection()
+    search_filter = {
+        "$or": [
+            {"messages.content": {"$regex": query, "$options": "i"}},
+            {"title": {"$regex": query, "$options": "i"}}
+        ]
+    }
+    cursor = collection.find(search_filter, {"messages": 0, "youtube_transcript": 0}).sort("updated_at", -1).limit(limit)
+    return list(cursor)
+
 def rename_conversation_by_id(conv_id: str, new_title: str) -> Optional[Dict[str, Any]]:
     """Renames a conversation and returns the updated document."""
     if not ObjectId.is_valid(conv_id):

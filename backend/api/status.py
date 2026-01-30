@@ -3,7 +3,7 @@ from fastapi import APIRouter, HTTPException
 import ollama
 
 from services.mcp_service import app_state
-from db.mongodb import conversations_collection
+from db.mongodb import conversations_collection, tasks_collection
 from services.ollama_service import get_ollama_model_tags, list_ollama_models_info
 
 router = APIRouter()
@@ -24,8 +24,16 @@ async def get_status():
     status_payload = {
         "db_connected": conversations_collection is not None,
         "ollama_available": ollama_ok,
-        "mcp_services": {}
+        "mcp_services": {},
+        "tasks": {"active": 0}
     }
+    # Count active tasks if tasks collection is available
+    try:
+        if tasks_collection is not None:
+            active = tasks_collection.count_documents({"status": {"$in": ["PLANNING", "PENDING", "RUNNING"]}})
+            status_payload["tasks"]["active"] = int(active)
+    except Exception:
+        pass
     for name, config in app_state.mcp_configs.items():
         status_payload["mcp_services"][name] = {
             "ready": app_state.mcp_service_ready.get(name, False),
