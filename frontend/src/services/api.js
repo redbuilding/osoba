@@ -94,10 +94,8 @@ export const streamMessage = async (payload, callbacks, signal) => {
       for (const evt of events) {
         if (evt.startsWith("data: ")) {
           const jsonData = evt.slice(6);
-          console.log("Raw SSE event:", jsonData);
           try {
             const parsed = JSON.parse(jsonData);
-            console.log("Parsed SSE data:", parsed);
             callbacks.onData && callbacks.onData(parsed);
           } catch (parseErr) {
             console.error("Failed to parse SSE data:", jsonData);

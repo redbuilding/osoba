@@ -100,7 +100,11 @@ const App = () => {
   const processedTokens = useRef(new Set()); // For deduplicating tokens
   const tokenSequence = useRef(0); // Sequence counter for tokens
   const isProcessing = useRef(false); // Flag to prevent double processing
-  // Initial assistant message
+  const currentChatHistory = useRef(chatHistory); // Current chat history ref
+  // Update ref when chatHistory changes
+  useEffect(() => {
+    currentChatHistory.current = chatHistory;
+  }, [chatHistory]);
   const initialWelcomeMessage = useMemo(
     () => ({
       role: "assistant",
@@ -381,32 +385,23 @@ const App = () => {
       payload,
       {
         onData: (data) => {
-          console.log("Frontend received SSE data:", data);
-          
-          // Prevent double processing with a simple flag
-          if (isProcessing.current) {
-            console.log("Already processing, skipping:", data);
-            return;
-          }
-          
-          isProcessing.current = true;
-          
           setChatHistory((prev) => {
+            // Simple deduplication check
+            const last = prev[prev.length - 1];
+            if (data.type === "token" && last && last.content.endsWith(data.content)) {
+              return prev; // No change
+            }
+            
             const historyCopy = [...prev];
-            const last = historyCopy[historyCopy.length - 1];
+            const lastMessage = historyCopy[historyCopy.length - 1];
 
             if (data.type === "indicator") {
-              // Set indicator separately, don't concatenate with content
-              last.indicator = data.content;
-              last.is_html = data.is_html;
+              lastMessage.indicator = data.content;
+              lastMessage.is_html = data.is_html;
             } else if (data.type === "token") {
-              // Only append tokens to content
-              console.log("Appending token:", JSON.stringify(data.content), "to existing:", JSON.stringify(last.content));
-              last.content += data.content;
-              console.log("New content:", JSON.stringify(last.content));
+              lastMessage.content += data.content;
             } else if (data.type === "done") {
-              // Don't overwrite accumulated content, just set metadata
-              last.is_html = data.is_html;
+              lastMessage.is_html = data.is_html;
               
               // If a new conversation was created, reflect its ID
               if (
@@ -416,12 +411,6 @@ const App = () => {
                 setCurrentConversationId(data.conversation_id);
               }
             }
-            
-            // Reset processing flag after state update
-            setTimeout(() => {
-              isProcessing.current = false;
-            }, 0);
-            
             return historyCopy;
           });
         },
