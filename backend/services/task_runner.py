@@ -87,16 +87,21 @@ async def _dispatch_loop():
 
 
 async def _scan_and_schedule():
-    # Pick up tasks to run; naive approach
+    # Only run one task at a time (queue system)
+    if len(runner_state._workers) > 0:
+        return
+    
+    # Pick up tasks to run; priority-based approach
     for t in list_tasks(limit=100):
         task_id = str(t.get("_id"))
         status = t.get("status")
 
         if status in ("PLANNING", "PENDING", "RUNNING") and not runner_state.worker_for(task_id):
-            # Start/continue running
-            logger.info(f"Scheduling task {task_id} with status {status}")
+            # Start/continue running the highest priority task
+            logger.info(f"Scheduling task {task_id} with status {status} and priority {t.get('priority', 2)}")
             worker = asyncio.create_task(_run_task(task_id))
             runner_state.set_worker(task_id, worker)
+            break  # Only start one task
 
 
 async def _run_task(task_id: str):

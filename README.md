@@ -48,6 +48,27 @@ This architecture demonstrates how MCP enables local models to access external t
 - 🗓️ **Long‑Running Tasks (Plan & Execute)**: Create autonomous tasks that plan and execute multi‑step workflows (overnight runs supported), with budgets, retries, and verification.
 - 📈 **Live Task Progress**: Tasks stream progress via SSE; per‑step outputs (tables/images/text) render in the UI.
 - 🧩 **LLM‑only Steps (No MCP)**: Tasks can include steps that run directly on Ollama (e.g., summaries/reasoning) without using any MCP tool.
+- 🚦 **Priority Task Queue**: Memory-safe task execution with priority scheduling - scheduled tasks run first, user tasks queue behind them, only one task executes at a time to prevent system overload.
+
+## Task Execution & Memory Management
+
+### Priority Queue System
+The application uses a **priority-based task queue** to ensure system stability and prevent memory overload from multiple LLM instances:
+
+- **Priority 1 (Highest)**: Scheduled tasks always run first
+- **Priority 2 (Standard)**: User-created tasks queue behind scheduled tasks
+- **One Task at a Time**: Only one task executes simultaneously to prevent memory crashes
+- **Queue Position**: Users receive feedback about their position in the queue
+
+### Memory Safety
+- **Prevents Overload**: Multiple concurrent LLM instances (e.g., 3x Llama3.1 8B = 24GB) could crash systems with limited RAM
+- **Safe Execution**: Single task execution ensures memory usage stays within system limits
+- **Automatic Queuing**: Tasks automatically queue when another task is running
+
+### Task Scheduling
+- **Cron-based Scheduling**: Uses standard cron expressions for flexible scheduling
+- **System Requirements**: Scheduled tasks only run when the system is awake and the application is running
+- **Catch-up Execution**: Overdue tasks execute immediately when the system resumes
 
 ## Requirements
 - Python 3.11+

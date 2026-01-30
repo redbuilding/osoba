@@ -49,6 +49,9 @@ class TaskScheduler:
                 # Calculate next run time
                 cron = croniter.croniter(task_doc["schedule"]["cron_expression"])
                 next_run = cron.get_next(datetime)
+                # Ensure next_run is timezone-aware
+                if next_run.tzinfo is None:
+                    next_run = next_run.replace(tzinfo=timezone.utc)
                 
                 # Update next_run in database
                 collection.update_one(
@@ -68,6 +71,9 @@ class TaskScheduler:
             # Calculate next run time
             cron = croniter.croniter(task_doc["schedule"]["cron_expression"])
             next_run = cron.get_next(datetime)
+            # Ensure next_run is timezone-aware
+            if next_run.tzinfo is None:
+                next_run = next_run.replace(tzinfo=timezone.utc)
             task_doc["schedule"]["next_run"] = next_run
             task_doc["created_at"] = datetime.now(timezone.utc)
             task_doc["run_count"] = 0
@@ -102,7 +108,14 @@ class TaskScheduler:
         for task_id, scheduled_task in list(self.scheduled_tasks.items()):
             try:
                 next_run = scheduled_task["schedule"].get("next_run")
-                if not next_run or next_run > now:
+                if not next_run:
+                    continue
+                
+                # Ensure next_run is timezone-aware for comparison
+                if hasattr(next_run, 'tzinfo') and next_run.tzinfo is None:
+                    next_run = next_run.replace(tzinfo=timezone.utc)
+                
+                if next_run > now:
                     continue
                 
                 # Execute the task
@@ -111,6 +124,9 @@ class TaskScheduler:
                 # Calculate next run time
                 cron = croniter.croniter(scheduled_task["schedule"]["cron_expression"])
                 next_run = cron.get_next(datetime)
+                # Ensure next_run is timezone-aware
+                if next_run.tzinfo is None:
+                    next_run = next_run.replace(tzinfo=timezone.utc)
                 
                 # Update database
                 collection = get_scheduled_tasks_collection()
@@ -143,7 +159,8 @@ class TaskScheduler:
                 "budget": scheduled_task.get("budget"),
                 "status": "PENDING",
                 "created_at": datetime.now(timezone.utc),
-                "updated_at": datetime.now(timezone.utc)
+                "updated_at": datetime.now(timezone.utc),
+                "priority": 1,  # Scheduled tasks get highest priority
             }
             
             new_task_id = create_task(task_data)

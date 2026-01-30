@@ -136,8 +136,8 @@ const TaskTemplateSelector = ({ isOpen, onClose, onTaskCreated }) => {
                       <Settings className="w-4 h-4 mr-1" />
                       Parameters
                     </h4>
-                    {requiredParams.map((param) => (
-                      <div key={param} className="mb-3">
+                    {requiredParams.map((param, index) => (
+                      <div key={`${param}-${index}`} className="mb-3">
                         <label className="block text-sm font-medium mb-1 text-brand-text-primary">
                           {param.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
                         </label>

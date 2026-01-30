@@ -71,11 +71,17 @@ async def delete_scheduled_task(task_id: str):
         raise HTTPException(status_code=500, detail="Error deleting scheduled task")
 
 # Templates endpoints
-@router.get("/api/templates", response_model=List[TaskTemplate])
+@router.get("/api/templates")
 async def list_templates(category: str = None):
     try:
         templates = templates_crud.list_templates(category=category)
-        return [TaskTemplate.model_validate({**tmpl, "_id": str(tmpl["_id"])}) for tmpl in templates]
+        result = []
+        for tmpl in templates:
+            # Manually set id field from _id
+            tmpl_dict = dict(tmpl)
+            tmpl_dict['id'] = str(tmpl_dict.pop('_id'))  # Remove _id and set id
+            result.append(tmpl_dict)
+        return result
     except Exception as e:
         logger.error(f"Error listing templates: {e}")
         raise HTTPException(status_code=500, detail="Error listing templates")

@@ -31,8 +31,17 @@ def get_task(task_id: str) -> Optional[Dict[str, Any]]:
 
 
 def list_tasks(limit: int = 50) -> List[Dict[str, Any]]:
-    cur = get_tasks_collection().find({}, {"plan": 0}).sort("updated_at", -1).limit(limit)
+    cur = get_tasks_collection().find({}, {"plan": 0}).sort([("priority", 1), ("created_at", 1)]).limit(limit)
     return list(cur)
+
+
+def get_queue_position(task_id: str) -> int:
+    """Get the position of a task in the queue (1-based)."""
+    tasks = list_tasks(limit=100)
+    for i, task in enumerate(tasks):
+        if str(task.get("_id")) == task_id and task.get("status") in ("PLANNING", "PENDING"):
+            return i + 1
+    return 0
 
 
 def update_task(task_id: str, patch: Dict[str, Any]) -> None:

@@ -78,6 +78,7 @@ class TaskCreatePayload(BaseModel):
     ollama_model_name: str | None = None
     budget: dict | None = None  # { max_seconds?: int, max_tool_calls?: int }
     dry_run: bool = False
+    priority: int = 2  # 1=scheduled, 2=user, 3=low
 
 class TaskSummary(BaseModel):
     id: str = Field(alias="_id")
@@ -86,6 +87,7 @@ class TaskSummary(BaseModel):
     status: str
     created_at: datetime
     updated_at: datetime
+    priority: int = 2  # 1=scheduled, 2=user, 3=low
 
     class Config:
         populate_by_name = True
@@ -106,6 +108,7 @@ class TaskDetail(BaseModel):
     current_step_index: int = -1
     summary: str | None = None
     error: str | None = None
+    priority: int = 2  # 1=scheduled, 2=user, 3=low
 
     class Config:
         populate_by_name = True

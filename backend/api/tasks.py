@@ -6,7 +6,7 @@ from fastapi.responses import StreamingResponse
 
 from core.models import TaskCreatePayload, TaskSummary, TaskDetail
 from core.config import get_logger
-from db.tasks_crud import create_task, list_tasks, get_task, update_task, create_indexes
+from db.tasks_crud import create_task, list_tasks, get_task, update_task, create_indexes, get_queue_position
 from services.progress_bus import progress_bus
 
 
@@ -38,6 +38,7 @@ async def create_task_endpoint(payload: TaskCreatePayload):
         "budget": payload.budget or {},
         "usage": {"tool_calls": 0, "seconds_elapsed": 0},
         "current_step_index": -1,
+        "priority": payload.priority,
     }
     tid = create_task(doc)
     # If not dry_run, dispatcher will pick and convert to PENDING/RUNNING
@@ -45,6 +46,12 @@ async def create_task_endpoint(payload: TaskCreatePayload):
     if not doc:
         raise HTTPException(status_code=500, detail="Failed to create task")
     doc["_id"] = str(doc["_id"])
+    
+    # Add queue position for user feedback
+    queue_position = get_queue_position(tid)
+    if queue_position > 1:
+        doc["queue_position"] = queue_position
+    
     return TaskDetail.model_validate(doc)
 
 
