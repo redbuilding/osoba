@@ -185,7 +185,8 @@ Optional (enable additional tools):
     -   Create a new task by entering a high‑level goal.
     -   Monitor progress (live SSE stream), view step outputs (tables, images, text), and Pause/Resume/Cancel.
     -   “Promote to Task” from any user chat message to pre‑fill the goal and link the task to the conversation.
--   The backend plans each task as structured JSON (steps, tool, parameters, success criteria), then executes steps sequentially with:
+    -   Copy entire task results or individual step outputs using dedicated copy buttons.
+    -   Delete completed, failed, or canceled tasks to clean up the task list.-   The backend plans each task as structured JSON (steps, tool, parameters, success criteria), then executes steps sequentially with:
     -   Budgets: max wall‑time and max tool calls.
     -   Per‑step timeouts and capped retries with backoff.
     -   Output verification against success criteria.
@@ -197,14 +198,15 @@ APIs:
 -   Task detail: `GET /api/tasks/{id}`
 -   Task stream (SSE): `GET /api/tasks/{id}/stream`
 -   Pause/Resume/Cancel: `POST /api/tasks/{id}/pause|resume|cancel`
+-   Delete task: `DELETE /api/tasks/{id}`
 -   Status: `GET /api/status` includes `tasks.active` count
 
 LLM‑only steps (no MCP):
 -   The planner supports `llm.generate` steps that run directly via Ollama, without any MCP server. If a `prompt` is omitted, the step’s `instruction` is used. These steps still respect budgets, timeouts, and verification.
 
-### Legacy Clients (Phasing Out)
+### Legacy Clients (Removed)
 
-The original `chat_client.py` (terminal) and `chat_frontend.py` (Gradio) are still in the repository but are not part of the main refactored application. They are not maintained and may not work correctly with the new backend, and will be phased out in a future update.
+The original `chat_client.py` (terminal) and `chat_frontend.py` (Gradio) have been removed from the repository as they are no longer compatible with the current FastAPI backend architecture. All functionality is now provided through the modern React frontend.
 
 ## How It Works
 

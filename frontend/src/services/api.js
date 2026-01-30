@@ -333,6 +333,15 @@ export const cancelTask = async (taskId) => {
   }
 };
 
+export const deleteTask = async (taskId) => {
+  try {
+    const res = await apiClient.delete(`/tasks/${taskId}`);
+    return res.data;
+  } catch (error) {
+    throw error.response ? error.response.data : new Error("Network error");
+  }
+};
+
 // ---------- Scheduled Tasks API ----------
 
 export const createScheduledTask = async (payload) => {

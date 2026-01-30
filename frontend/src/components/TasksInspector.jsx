@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
-import { X, Play, Pause, Square, RefreshCcw, Loader2, ChevronDown, ChevronRight, Image as ImageIcon, Table as TableIcon, FileText, Clock, Layers } from "lucide-react";
-import { createTask, listTasks, getTaskDetail, streamTask, pauseTask, resumeTask, cancelTask } from "../services/api";
+import { X, Play, Pause, Square, RefreshCcw, Loader2, ChevronDown, ChevronRight, Image as ImageIcon, Table as TableIcon, FileText, Clock, Layers, Copy, Trash2 } from "lucide-react";
+import { createTask, listTasks, getTaskDetail, streamTask, pauseTask, resumeTask, cancelTask, deleteTask } from "../services/api";
 import TaskTemplateSelector from "./TaskTemplateSelector";
 import ScheduledTasksPanel from "./ScheduledTasksPanel";
 import RightPanel from "./RightPanel";
@@ -19,7 +19,7 @@ const StatusPill = ({ status }) => {
 };
 
 const TaskRow = ({ task, onSelect }) => (
-  <button onClick={() => onSelect(task._id)} className="w-full text-left p-2 rounded hover:bg-gray-700 flex items-center justify-between">
+  <button onClick={() => onSelect(task.id)} className="w-full text-left p-2 rounded hover:bg-gray-700 flex items-center justify-between">
     <div className="min-w-0 flex-1">
       <div className="text-sm text-brand-text-primary truncate">{task.title || task.goal}</div>
       <div className="text-xs text-brand-text-secondary truncate">{task.goal}</div>
@@ -132,10 +132,13 @@ const DataTable = ({ columns, rows }) => {
   );
 };
 
-const TaskDetailInline = ({ taskId, onClose }) => {
+const TaskDetailInline = ({ taskId, onClose, onTaskDeleted }) => {
   const [detail, setDetail] = useState(null);
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState({});
+  
+  const toggle = useCallback((i) => setExpanded((e) => ({ ...e, [i]: !e[i] })), []);
 
   useEffect(() => {
     let aborter;
@@ -157,16 +160,67 @@ const TaskDetailInline = ({ taskId, onClose }) => {
     return () => aborter && aborter.abort();
   }, [taskId]);
 
-  if (loading) return <div className="p-4 text-sm text-brand-text-secondary flex items-center"><Loader2 size={16} className="animate-spin mr-2"/> Loading…</div>;
-  if (!detail) return null;
-
-  const steps = detail.plan?.steps || [];
-  const [expanded, setExpanded] = useState({});
-  const toggle = useCallback((i) => setExpanded((e) => ({ ...e, [i]: !e[i] })), []);
-
   const handlePause = async () => { await pauseTask(taskId); const d = await getTaskDetail(taskId); setDetail(d); };
   const handleResume = async () => { await resumeTask(taskId); const d = await getTaskDetail(taskId); setDetail(d); };
   const handleCancel = async () => { await cancelTask(taskId); const d = await getTaskDetail(taskId); setDetail(d); };
+  const handleDelete = async () => {
+    if (confirm('Are you sure you want to delete this task? This action cannot be undone.')) {
+      await deleteTask(taskId);
+      onTaskDeleted(); // Refresh task list and close detail view
+    }
+  };
+
+  const handleCopyTask = () => {
+    if (!detail) return;
+    
+    let content = `Task: ${detail.title}\nGoal: ${detail.goal}\nStatus: ${detail.status}\n\n`;
+    
+    steps.forEach((step, i) => {
+      content += `${i + 1}. ${step.title}\n`;
+      content += `   Status: ${step.status || 'PENDING'}\n`;
+      content += `   Tool: ${step.tool}\n`;
+      
+      if (step.outputs) {
+        if (step.outputs.text) {
+          content += `   Output: ${step.outputs.text}\n`;
+        } else if (step.outputs.raw) {
+          const rawStr = typeof step.outputs.raw === 'string' ? step.outputs.raw : JSON.stringify(step.outputs.raw, null, 2);
+          content += `   Output: ${rawStr.substring(0, 500)}${rawStr.length > 500 ? '...' : ''}\n`;
+        }
+      }
+      
+      if (step.error) {
+        content += `   Error: ${step.error}\n`;
+      }
+      content += '\n';
+    });
+    
+    navigator.clipboard.writeText(content);
+  };
+
+  const handleCopyStep = (step) => {
+    if (!step.outputs) return;
+    
+    let content = '';
+    if (step.outputs.text) {
+      content = step.outputs.text;
+    } else if (step.outputs.raw) {
+      content = typeof step.outputs.raw === 'string' ? step.outputs.raw : JSON.stringify(step.outputs.raw, null, 2);
+    }
+    
+    if (content) {
+      navigator.clipboard.writeText(content);
+    }
+  };
+
+  if (loading) return <div className="p-4 text-sm text-brand-text-secondary flex items-center"><Loader2 size={16} className="animate-spin mr-2"/> Loading…</div>;
+  if (!detail) return null;
+
+  const isCompleted = detail.status === 'COMPLETED';
+  const isFailed = detail.status === 'FAILED';
+  const isCanceled = detail.status === 'CANCELED';
+
+  const steps = detail.plan?.steps || [];
 
   return (
     <div className="p-3 border-t border-gray-700">
@@ -174,9 +228,17 @@ const TaskDetailInline = ({ taskId, onClose }) => {
         <div className="text-brand-text-primary font-semibold truncate flex-1">{detail.title}</div>
         <div className="flex items-center gap-1 ml-2">
           <StatusPill status={detail.status} />
-          <button onClick={handlePause} className="p-1 bg-gray-700 rounded hover:bg-gray-600" title="Pause"><Pause size={14}/></button>
-          <button onClick={handleResume} className="p-1 bg-gray-700 rounded hover:bg-gray-600" title="Resume"><Play size={14}/></button>
-          <button onClick={handleCancel} className="p-1 bg-gray-700 rounded hover:bg-gray-600" title="Cancel"><Square size={14}/></button>
+          <button onClick={handleCopyTask} className="p-1 bg-gray-700 rounded hover:bg-gray-600" title="Copy Task Results"><Copy size={14}/></button>
+          {!isCompleted && !isFailed && !isCanceled && (
+            <>
+              <button onClick={handlePause} className="p-1 bg-gray-700 rounded hover:bg-gray-600" title="Pause"><Pause size={14}/></button>
+              <button onClick={handleResume} className="p-1 bg-gray-700 rounded hover:bg-gray-600" title="Resume"><Play size={14}/></button>
+              <button onClick={handleCancel} className="p-1 bg-gray-700 rounded hover:bg-gray-600" title="Cancel"><Square size={14}/></button>
+            </>
+          )}
+          {(isCompleted || isFailed || isCanceled) && (
+            <button onClick={handleDelete} className="p-1 bg-red-700 rounded hover:bg-red-600" title="Delete Task"><Trash2 size={14}/></button>
+          )}
           <button onClick={onClose} className="p-1 bg-gray-700 rounded hover:bg-gray-600" title="Close"><X size={14}/></button>
         </div>
       </div>
@@ -202,6 +264,18 @@ const TaskDetailInline = ({ taskId, onClose }) => {
               {s.error && <div className="text-xs text-red-400 mt-1">{s.error}</div>}
               {expanded[i] && (
                 <div className="mt-2">
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="text-xs text-brand-text-secondary">Output:</div>
+                    {s.outputs && (
+                      <button 
+                        onClick={() => handleCopyStep(s)} 
+                        className="p-1 bg-gray-600 rounded hover:bg-gray-500 text-xs" 
+                        title="Copy Step Output"
+                      >
+                        <Copy size={10}/>
+                      </button>
+                    )}
+                  </div>
                   <StepOutput output={s.outputs} />
                 </div>
               )}
@@ -318,14 +392,14 @@ const TasksInspector = ({ isOpen, onClose, initialGoal = "", conversationId = nu
                 <div className="text-sm text-brand-text-secondary">No tasks yet.</div>
               )}
               {tasks.map((t) => (
-                <TaskRow key={t._id} task={t} onSelect={setSelectedId} />
+                <TaskRow key={t.id} task={t} onSelect={setSelectedId} />
               ))}
             </div>
           )}
         </div>
 
         {/* Task Detail */}
-        {selectedId && <TaskDetailInline taskId={selectedId} onClose={() => setSelectedId(null)} />}
+        {selectedId && <TaskDetailInline taskId={selectedId} onClose={() => setSelectedId(null)} onTaskDeleted={() => { fetchTasks(); setSelectedId(null); }} />}
       </div>
       
       {/* Template Selector Modal */}

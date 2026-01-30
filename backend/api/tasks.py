@@ -103,3 +103,12 @@ async def cancel_task(task_id: str):
     update_task(task_id, {"status": "CANCELED"})
     await progress_bus.publish(task_id, {"type": "TASK_STATUS", "task_id": task_id, "status": "CANCELED"})
     return {"status": "CANCELED"}
+
+
+@router.delete("/api/tasks/{task_id}")
+async def delete_task(task_id: str):
+    from db.tasks_crud import delete_task as delete_task_db
+    if not get_task(task_id):
+        raise HTTPException(status_code=404, detail="Task not found")
+    delete_task_db(task_id)
+    return {"deleted": True}

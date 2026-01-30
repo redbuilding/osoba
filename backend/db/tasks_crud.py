@@ -53,3 +53,8 @@ def increment_usage(task_id: str, field: str, delta: int) -> None:
         {"$inc": {f"usage.{field}": delta}, "$set": {"updated_at": datetime.now(timezone.utc)}}
     )
 
+
+def delete_task(task_id: str) -> bool:
+    result = get_tasks_collection().delete_one({"_id": _obj_id(task_id)})
+    return result.deleted_count > 0
+

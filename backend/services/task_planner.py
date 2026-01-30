@@ -76,6 +76,9 @@ def build_planning_prompt(goal: str, allowed_tools: List[str], budget: Dict | No
 
 async def plan_task(goal: str, model: str | None, budget: Dict | None) -> Plan:
     model_name = model or await get_default_ollama_model()
+    if not model_name or model_name.strip() == "":
+        model_name = "llama3.1"  # Hard fallback
+        logger.warning(f"Using hard fallback model: {model_name}")
     prompt = build_planning_prompt(goal, ALLOWED_TASK_TOOLS, budget)
     raw = await chat_with_ollama([
         {"role": "system", "content": "You produce only JSON."},
