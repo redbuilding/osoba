@@ -47,7 +47,8 @@ const SidebarSearch = ({ onSelectConversation, isCollapsed }) => {
   }, [query, handleSearch]);
 
   const handleSelectConversation = (conversation) => {
-    onSelectConversation(conversation._id);
+    // Use 'id' field from search API response, not '_id'
+    onSelectConversation(conversation.id);
     // Delay clearing to allow conversation selection to complete
     setTimeout(() => {
       setQuery('');
@@ -154,7 +155,7 @@ const SidebarSearch = ({ onSelectConversation, isCollapsed }) => {
           
           {results.map((conversation) => (
             <div
-              key={conversation._id}
+              key={conversation.id}
               onClick={() => handleSelectConversation(conversation)}
               className="p-3 hover:bg-gray-700 cursor-pointer border-b border-gray-700 last:border-b-0"
             >
