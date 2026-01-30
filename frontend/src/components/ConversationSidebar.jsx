@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { PlusSquare, MessageSquare, Loader2, AlertTriangle, Trash2, Pencil, Check, X, Wifi, Server, Share2, Youtube, FileCode } from 'lucide-react';
+import SidebarSearch from './SidebarSearch';
 
 const MCPStatusIndicator = ({ isReady, name }) => (
   <div className="flex items-center justify-between text-xs text-brand-text-secondary">
@@ -107,6 +108,12 @@ const ConversationSidebar = ({
           <PlusSquare size={20} className={isCollapsed ? '' : 'mr-2'} />
           {!isCollapsed && <span>New Chat</span>}
         </button>
+        
+        {/* Search Component */}
+        <SidebarSearch 
+          onSelectConversation={onSelectConversation}
+          isCollapsed={isCollapsed}
+        />
         
         {!isCollapsed && (
           <h2 className="text-sm font-semibold text-brand-text-secondary mb-2 px-2">History</h2>

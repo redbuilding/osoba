@@ -101,23 +101,23 @@ const ScheduledTasksPanel = ({ isOpen, onClose }) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl mx-4 max-h-[90vh] overflow-hidden">
-        <div className="flex items-center justify-between p-4 border-b">
-          <h2 className="text-xl font-semibold flex items-center">
+      <div className="bg-brand-surface-bg rounded-lg shadow-xl w-full max-w-4xl mx-4 max-h-[90vh] overflow-hidden border border-gray-700">
+        <div className="flex items-center justify-between p-4 border-b border-gray-700">
+          <h2 className="text-xl font-semibold flex items-center text-brand-text-primary">
             <Clock className="w-5 h-5 mr-2" />
             Scheduled Tasks
           </h2>
           <button
             onClick={onClose}
-            className="p-1 hover:bg-gray-100 rounded"
+            className="p-1 hover:bg-gray-700 rounded focus:outline-none focus:ring-2 focus:ring-brand-purple"
           >
-            <X className="w-5 h-5" />
+            <X className="w-5 h-5 text-brand-text-secondary" />
           </button>
         </div>
 
-        <div className="p-4 max-h-[70vh] overflow-y-auto">
+        <div className="p-4 max-h-[70vh] overflow-y-auto bg-brand-main-bg">
           {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-600">
+            <div className="mb-4 p-3 bg-red-900/30 border border-red-700 rounded text-sm text-red-400">
               {error}
             </div>
           )}
@@ -134,42 +134,42 @@ const ScheduledTasksPanel = ({ isOpen, onClose }) => {
           </div>
 
           {showCreateForm && (
-            <div className="mb-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
-              <h4 className="font-medium mb-3">Create Scheduled Task</h4>
+            <div className="mb-6 p-4 border border-gray-700 rounded-lg bg-brand-surface-bg">
+              <h4 className="font-medium mb-3 text-brand-text-primary">Create Scheduled Task</h4>
               <form onSubmit={handleCreateTask}>
                 <div className="grid grid-cols-2 gap-4 mb-4">
                   <div>
-                    <label className="block text-sm font-medium mb-1">Task Name</label>
+                    <label className="block text-sm font-medium mb-1 text-brand-text-primary">Task Name</label>
                     <input
                       type="text"
                       value={formData.name}
                       onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                      className="w-full px-3 py-2 border border-gray-700 rounded-md text-sm bg-brand-surface-bg text-brand-text-primary placeholder-brand-text-secondary focus:outline-none focus:ring-2 focus:ring-brand-purple"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1">Cron Expression</label>
+                    <label className="block text-sm font-medium mb-1 text-brand-text-primary">Cron Expression</label>
                     <input
                       type="text"
                       value={formData.cron_expression}
                       onChange={(e) => setFormData(prev => ({ ...prev, cron_expression: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-mono"
+                      className="w-full px-3 py-2 border border-gray-700 rounded-md text-sm font-mono bg-brand-surface-bg text-brand-text-primary placeholder-brand-text-secondary focus:outline-none focus:ring-2 focus:ring-brand-purple"
                       placeholder="0 9 * * 1"
                       required
                     />
-                    <div className="text-xs text-gray-500 mt-1">
+                    <div className="text-xs text-brand-text-secondary mt-1">
                       Preview: {formatCronExpression(formData.cron_expression)}
                     </div>
                   </div>
                 </div>
                 
                 <div className="mb-4">
-                  <label className="block text-sm font-medium mb-1">Goal</label>
+                  <label className="block text-sm font-medium mb-1 text-brand-text-primary">Goal</label>
                   <textarea
                     value={formData.goal}
                     onChange={(e) => setFormData(prev => ({ ...prev, goal: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                    className="w-full px-3 py-2 border border-gray-700 rounded-md text-sm bg-brand-surface-bg text-brand-text-primary placeholder-brand-text-secondary focus:outline-none focus:ring-2 focus:ring-brand-purple"
                     rows="3"
                     placeholder="Describe what this scheduled task should accomplish..."
                     required
@@ -180,14 +180,14 @@ const ScheduledTasksPanel = ({ isOpen, onClose }) => {
                   <button
                     type="button"
                     onClick={() => setShowCreateForm(false)}
-                    className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-md"
+                    className="px-4 py-2 text-brand-text-secondary hover:bg-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-purple"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={loading}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                    className="px-4 py-2 bg-brand-purple text-white rounded-md hover:bg-brand-button-grad-to disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-brand-purple"
                   >
                     {loading ? 'Creating...' : 'Create Schedule'}
                   </button>
@@ -198,23 +198,23 @@ const ScheduledTasksPanel = ({ isOpen, onClose }) => {
 
           <div className="space-y-3">
             {scheduledTasks.map((task) => (
-              <div key={task.id} className="p-4 border border-gray-200 rounded-lg">
+              <div key={task.id} className="p-4 border border-gray-700 rounded-lg bg-brand-surface-bg">
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2">
-                      <h4 className="font-medium">{task.name}</h4>
+                      <h4 className="font-medium text-brand-text-primary">{task.name}</h4>
                       <span className={`px-2 py-1 text-xs rounded ${
                         task.schedule.enabled 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-gray-100 text-gray-800'
+                          ? 'bg-green-700 text-green-200' 
+                          : 'bg-gray-700 text-gray-300'
                       }`}>
                         {task.schedule.enabled ? 'Active' : 'Disabled'}
                       </span>
                     </div>
                     
-                    <p className="text-sm text-gray-600 mb-2">{task.goal}</p>
+                    <p className="text-sm text-brand-text-secondary mb-2">{task.goal}</p>
                     
-                    <div className="flex items-center gap-4 text-xs text-gray-500">
+                    <div className="flex items-center gap-4 text-xs text-brand-text-secondary">
                       <span className="flex items-center gap-1">
                         <Calendar className="w-3 h-3" />
                         {formatCronExpression(task.schedule.cron_expression)}
@@ -228,7 +228,7 @@ const ScheduledTasksPanel = ({ isOpen, onClose }) => {
                   
                   <button
                     onClick={() => handleDeleteTask(task.id)}
-                    className="p-2 text-red-600 hover:bg-red-50 rounded"
+                    className="p-2 text-red-400 hover:bg-red-900/30 rounded focus:outline-none focus:ring-2 focus:ring-red-400"
                     title="Delete scheduled task"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -238,8 +238,8 @@ const ScheduledTasksPanel = ({ isOpen, onClose }) => {
             ))}
 
             {scheduledTasks.length === 0 && !showCreateForm && (
-              <div className="text-center py-8 text-gray-500">
-                <Clock className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+              <div className="text-center py-8 text-brand-text-secondary">
+                <Clock className="w-12 h-12 mx-auto mb-3 text-gray-600" />
                 <p>No scheduled tasks yet</p>
                 <p className="text-sm">Create your first scheduled task to automate recurring work</p>
               </div>

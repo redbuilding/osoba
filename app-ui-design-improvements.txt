@@ -1,0 +1,128 @@
+The biggest issues are:
+	1.	Theme + component mismatch
+The new modals are bright white with “default” blue accents, while the core app is a dark, purple-led brand. Your brand guide is explicit about a modern dark theme, surface cards, gray borders, and purple/blue accents.  ￼
+	2.	Information architecture mismatch
+- Search conversations is conceptually about the left sidebar (History), but it appears as a floating top overlay in the main canvas. That breaks the mental model: “conversations live on the left.”
+- Tasks is “contextual productivity” and fits naturally as a right-side utility pane, but right now the controls and pane compete with the existing top-right controls (model selector, etc.) and visually overlay/interrupt the chat canvas.
+	3.	Layout collisions
+The right-side Tasks panel and top-right buttons feel “added on top” rather than “designed in.” This is why it looks misaligned and why the UI feels less intuitive.
+
+⸻
+
+Recommended structure (what I’d do)
+
+1) Put “Search conversations” inside the left sidebar (primary)
+
+Yes — it should be tied to the left sidebar since that’s where History already lives.
+
+Pattern: “Sidebar search + filtered list”
+- Add a search input pinned at the top of the History sidebar, above the conversation list.
+- Searching filters the list in-place (optionally with highlighting + “No results” empty state).
+- Add lightweight filters (optional): date (“Past 7 days”), pinned, tags, model.
+
+Why it works
+- Keeps the user’s mental model intact: conversations = left rail.
+- Eliminates the need for a big modal that interrupts the chat.
+
+Bonus pattern
+- Add Cmd/Ctrl+K as a global command palette for power users, but keep the default discoverability in the sidebar.
+
+⸻
+
+2) Make Tasks a dockable right-side pane (secondary, persistent)
+
+A right-side task pane is appropriate, but it needs to be a first-class layout region, not an overlay that fights the header.
+
+Pattern: “Right drawer / inspector panel”
+- Clicking “Tasks” opens a right panel that either:
+- Pushes the chat canvas left (best for desktop), or
+- Overlays with a scrim (best for smaller widths), but still respects header spacing and doesn’t collide with top-right controls.
+- The pane has tabs: Tasks | Scheduled
+- The pane includes: search/filter, list, empty state, and “New task” CTA.
+
+Why it works
+- Tasks are “adjacent work,” similar to an inspector in design tools.
+- Users can keep chat visible while creating/editing tasks.
+
+⸻
+
+3) Kill the white modals; use branded dark “surface” components everywhere
+
+Your guide calls for:
+- Main background #121212, surface background #1E1E1E, border gray #374151  ￼
+- Purple primary actions and consistent focus/hover states  ￼
+
+So the Templates / Scheduled Tasks UI should become either:
+- A dark modal (if it truly needs to be modal), or
+- Preferably a right-pane flow (recommended), with step-by-step content inside the Tasks pane.
+
+Example: Templates list in-pane
+- Template cards styled like your existing dark cards (border gray, surface bg, subtle hover)
+- Purple accent for selected
+- Avoid bright blue outlines unless that’s explicitly your brand-blue usage.
+
+⸻
+
+Concrete UI changes that will immediately make it feel “OhSee”
+
+Header alignment (top bar)
+
+Right now you have: model selector + Search + Tasks in the top-right.
+
+Make a single, consistent top-right cluster:
+- Model selector (dropdown)
+- Icon button: Tasks (checklist)
+
+Use consistent icon button styling from the guide:
+- p-2 rounded-md hover:bg-gray-700 focus:ring-2 focus:ring-brand-purple  ￼
+
+Also: ensure the right pane opening does not overlap this cluster—either reserve space or shift content.
+
+⸻
+
+Tasks pane layout (right)
+
+Inside the pane:
+- Title row: “Tasks” + close (X)
+- Below: “Describe your long-running goal…” input (but styled as dark input)
+- Tabs: Templates / Scheduled (these are good, just re-skin them)
+- Body: list or empty state
+- Primary CTA: “New task” (purple gradient)
+
+Empty state should match dark theme (no white card). Use surface background and secondary text.  ￼
+
+⸻
+
+Scheduled tasks creation
+
+Instead of the big white modal:
+- Open a “New schedule” sheet inside the right pane, or a dark modal if necessary.
+- Keep the user oriented: show breadcrumbs like Scheduled > New schedule.
+- Use brand purple for primary CTA, brand blue only for secondary accents.  ￼
+
+⸻
+
+Interaction model (make it intuitive)
+
+Conversations search
+- Click in sidebar search → list filters live
+- Enter opens top result
+- Esc clears
+- Cmd/Ctrl+F focuses sidebar search (optional)
+
+Tasks
+- “Tasks” toggles the right pane (open/close)
+- Pane stays open while chatting
+- Creating a task never blocks the chat unless absolutely required
+
+This reduces modality and keeps the app feeling fast.
+
+⸻
+
+Suggested “ideal” layout
+- Left: Conversations (History) + search input at top
+- Center: Chat
+- Right (toggle): Tasks pane (Tasks / Scheduled tabs)
+- Bottom-left MCP tools: either keep as-is, or consider moving into the right pane as another tab later to reduce sidebar clutter
+
+This gives you a clean 3-column mental model and keeps new features coherent with the original app.

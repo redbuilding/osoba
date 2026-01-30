@@ -9,9 +9,9 @@ import React, {
 import ChatMessage from "./components/ChatMessage";
 import ChatInput from "./components/ChatInput";
 import ConversationSidebar from "./components/ConversationSidebar";
-import ConversationSearch from "./components/ConversationSearch";
 import ToolSelector from "./components/ToolSelector";
-import TasksPanel from "./components/TasksPanel";
+import TasksInspector from "./components/TasksInspector";
+import useKeyboardShortcuts from "./hooks/useKeyboardShortcuts";
 import {
   sendMessage, // still used for legacy / fall‑back
   streamMessage, // ✨ NEW – SSE streaming
@@ -92,7 +92,6 @@ const App = () => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isTasksOpen, setIsTasksOpen] = useState(false);
   const [promotedGoal, setPromotedGoal] = useState("");
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   // Refs
   const chatContainerRef = useRef(null);
@@ -304,17 +303,14 @@ const App = () => {
   /* --------------------------------------------------------------------- */
   /*  Keyboard shortcuts                                                   */
   /* --------------------------------------------------------------------- */
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-        e.preventDefault();
-        setIsSearchOpen(true);
+  useKeyboardShortcuts({
+    'ctrl+k': () => {
+      // Focus sidebar search
+      if (window.focusSidebarSearch) {
+        window.focusSidebarSearch();
       }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, []);
+    }
+  });
 
   /* --------------------------------------------------------------------- */
   /*  Send / Stream message                                                */
@@ -601,8 +597,8 @@ const App = () => {
   /*  Render                                                               */
   /* --------------------------------------------------------------------- */
   return (
-    <div className="flex h-screen bg-brand-main-bg text-brand-text-primary overflow-hidden">
-      {/* Sidebar */}
+    <div className="grid grid-cols-[auto_1fr_auto] h-screen bg-brand-main-bg text-brand-text-primary overflow-hidden">
+      {/* Left Column - Sidebar */}
       <ConversationSidebar
         conversations={conversations}
         currentConversationId={currentConversationId}
@@ -622,8 +618,8 @@ const App = () => {
         mcpPythonServiceReady={mcpPythonServiceReady}
       />
 
-      {/* Main column */}
-      <div className="flex flex-col flex-grow h-screen transition-all duration-300 ease-in-out">
+      {/* Center Column - Main chat area */}
+      <div className="flex flex-col h-screen transition-all duration-300 ease-in-out min-w-0">
         {/* Header */}
         <header className="p-4 bg-brand-surface-bg shadow-md border-b border-gray-700 flex items-center justify-between">
           <div className="flex items-center">
@@ -702,26 +698,19 @@ const App = () => {
               <Database size={14} className="mr-1" />
               History DB: {dbConnected ? "Conn." : "Disc."}
             </span>
+
+            {/* Tasks button */}
+            <button
+              onClick={() => setIsTasksOpen(true)}
+              title="Open Tasks"
+              className={`flex items-center gap-1 px-2 py-1 text-xs rounded bg-gray-700 hover:bg-gray-600 text-white transition-opacity duration-300 ${
+                isTasksOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'
+              }`}
+            >
+              <ListTodo size={14} /> Tasks{activeTasksCount ? ` (${activeTasksCount})` : ""}
+            </button>
           </div>
         </header>
-        {/* Header actions: Search and Tasks buttons */}
-        <div className="absolute right-3 top-2 flex gap-2">
-          <button
-            onClick={() => setIsSearchOpen(true)}
-            title="Search conversations (Ctrl+K)"
-            className="flex items-center gap-1 px-2 py-1 text-xs rounded bg-gray-700 hover:bg-gray-600 text-white"
-          >
-            <Search size={14} /> Search
-          </button>
-          <button
-            onClick={() => setIsTasksOpen(true)}
-            title="Open Tasks"
-            className="flex items-center gap-1 px-2 py-1 text-xs rounded bg-gray-700 hover:bg-gray-600 text-white"
-          >
-            <ListTodo size={14} /> Tasks{activeTasksCount ? ` (${activeTasksCount})` : ""}
-          </button>
-        </div>
-
         {/* Chat area */}
         <div
           ref={chatContainerRef}
@@ -790,6 +779,14 @@ const App = () => {
         />
       </div>
 
+      {/* Right Column - Tasks Inspector */}
+      <TasksInspector
+        isOpen={isTasksOpen}
+        onClose={() => setIsTasksOpen(false)}
+        initialGoal={promotedGoal}
+        conversationId={currentConversationId}
+      />
+
       {/* Tool selector panel */}
       <ToolSelector
         isOpen={isToolSelectorOpen}
@@ -798,21 +795,6 @@ const App = () => {
         activeTool={activeTool}
         onSelectTool={setActiveTool}
         onHubspotConnect={handleHubspotConnect}
-      />
-
-      {/* Tasks panel */}
-      <TasksPanel
-        isOpen={isTasksOpen}
-        onClose={() => setIsTasksOpen(false)}
-        initialGoal={promotedGoal}
-        conversationId={currentConversationId}
-      />
-
-      {/* Conversation Search Modal */}
-      <ConversationSearch
-        isOpen={isSearchOpen}
-        onClose={() => setIsSearchOpen(false)}
-        onSelectConversation={handleSelectConversation}
       />
     </div>
   );
