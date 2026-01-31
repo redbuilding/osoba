@@ -114,7 +114,6 @@ const App = () => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isTasksOpen, setIsTasksOpen] = useState(false);
   const [promotedGoal, setPromotedGoal] = useState("");
-  const [codexRuns, setCodexRuns] = useState([]); // [{run, workspaceId}]
   const [fileViewer, setFileViewer] = useState({ open: false, workspaceId: null });
 
   // Refs
@@ -401,23 +400,33 @@ const App = () => {
         const text = typeof userInput === 'string' ? userInput.trim() : String(userInput || '').trim();
         const start = await startCodexRun({ workspace_id: wsId, instruction: text });
         const runId = start.run_id;
-        // Insert a simple assistant placeholder and a run card entry
-        const assistantPlaceholder = {
-          role: "assistant",
-          content: "[Codex] Generating workspace…",
-          is_html: false,
+        // Insert inline Codex run message into chat history
+        const runMsg = {
+          role: 'assistant',
+          type: 'codex_run',
+          run_id: runId,
+          workspace_id: wsId,
+          status: 'queued',
+          summary: '',
           timestamp: new Date().toISOString(),
         };
-        setChatHistory((prev) => [...prev, { role: 'user', content: userInput, timestamp: new Date().toISOString() }, assistantPlaceholder]);
-        // Track run
-        setCodexRuns((prev) => [...prev, { workspaceId: ws.workspace_id, run: { status: 'queued', run_id: runId } }]);
+        setChatHistory((prev) => [...prev, { role: 'user', content: userInput, timestamp: new Date().toISOString() }, runMsg]);
         // Poll for status
         const poll = async () => {
           try {
             const status = await getCodexRun(runId);
             const run = status.run || {};
-            setCodexRuns((prev) => prev.map((r) => (r.run?.run_id === runId ? { ...r, run } : r)));
+            // Update the inline codex_run message
+            setChatHistory((prev) => prev.map(m => (m.type === 'codex_run' && m.run_id === runId) ? { ...m, status: run.status || m.status, summary: run.summary || m.summary } : m));
             if (run.status === 'completed' || run.status === 'failed') {
+              const summary = run.summary || (run.status === 'completed' ? 'Codex run completed.' : (run.error_message || 'Codex run failed.'));
+              setChatHistory((prev) => {
+                const copy = [...prev];
+                for (let i = copy.length - 1; i >= 0; i--) {
+                  if (copy[i].role === 'assistant') { copy[i] = { ...copy[i], content: `[Codex] ${summary}` }; break; }
+                }
+                return copy;
+              });
               setIsLoading(false);
               return;
             }
@@ -728,6 +737,8 @@ const App = () => {
         mcpHubspotServiceReady={mcpHubspotServiceReady}
         mcpYoutubeServiceReady={mcpYoutubeServiceReady}
         mcpPythonServiceReady={mcpPythonServiceReady}
+        mcpCodexServiceReady={mcpCodexServiceReady}
+        openaiConfigured={openaiConfigured}
       />
 
       {/* Center Column - Main chat area */}
@@ -827,15 +838,7 @@ const App = () => {
             </div>
           )}
 
-          {/* Codex Run Cards */}
-          {!isChatHistoryLoading && codexRuns.map((r, i) => (
-            <CodexRunCard
-              key={r.run?.run_id || i}
-              run={r.run}
-              onViewManifest={() => setFileViewer({ open: true, workspaceId: r.workspaceId })}
-              onCancel={() => {/* optional cancel wiring */}}
-            />
-          ))}
+          {/* Inline Codex run messages are rendered as part of chat history above */}
         </div>
 
         {/* Error banner */}
@@ -908,7 +911,7 @@ const App = () => {
         onOpenSettings={() => setIsSettingsOpen(true)}
       />
 
-      {/* File Viewer Modal */}
+      {/* File Viewer Modal (optional future enablement) */}
       <FileViewerModal
         isOpen={fileViewer.open}
         onClose={() => setFileViewer({ open: false, workspaceId: null })}

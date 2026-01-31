@@ -81,6 +81,13 @@ const ChatInput = ({
           colorClass: "text-green-400",
           buttonColorClass: "bg-green-600 text-white hover:bg-green-700",
         };
+      case "codex":
+        return {
+          Icon: Sparkles,
+          text: "Codex workspace is active. Your message will run Codex to generate files.",
+          colorClass: "text-brand-purple",
+          buttonColorClass: "bg-brand-purple text-white hover:bg-brand-button-grad-to",
+        };
       default:
         return null;
     }

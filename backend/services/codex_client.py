@@ -161,7 +161,18 @@ async def get_manifest(workspace_id: str) -> Dict[str, Any]:
     resp = await wait_mcp_response(CODEX_SERVICE_NAME, req_id, timeout=20)
     if resp.get("status") == "error":
         raise RuntimeError(resp.get("error"))
-    return resp.get("data") or {}
+    data = resp.get("data")
+    if isinstance(data, list) and data:
+        try:
+            txt = (data[0] or {}).get('content') if isinstance(data[0], dict) else str(data[0])
+            import json
+            parsed = json.loads(txt)
+            return parsed
+        except Exception:
+            return { 'manifest': {}, 'raw': data }
+    if isinstance(data, dict):
+        return data
+    return { 'manifest': {} }
 
 
 async def read_file(workspace_id: str, relative_path: str) -> Dict[str, Any]:
@@ -172,4 +183,15 @@ async def read_file(workspace_id: str, relative_path: str) -> Dict[str, Any]:
     resp = await wait_mcp_response(CODEX_SERVICE_NAME, req_id, timeout=20)
     if resp.get("status") == "error":
         raise RuntimeError(resp.get("error"))
-    return resp.get("data") or {}
+    data = resp.get("data")
+    if isinstance(data, list) and data:
+        try:
+            txt = (data[0] or {}).get('content') if isinstance(data[0], dict) else str(data[0])
+            import json
+            parsed = json.loads(txt)
+            return parsed
+        except Exception:
+            return { 'status': 'error', 'message': 'Could not parse file content', 'raw': data }
+    if isinstance(data, dict):
+        return data
+    return { 'status': 'error', 'message': 'Invalid file response' }

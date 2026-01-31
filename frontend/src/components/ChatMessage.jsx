@@ -1,5 +1,5 @@
 import React from 'react';
-import { User, Bot, Clipboard, Check, ListTodo } from 'lucide-react';
+import { User, Bot, Clipboard, Check, ListTodo, Loader2, Sparkles } from 'lucide-react';
 import { useCopyToClipboard } from '../hooks/useCopyToClipboard';
 import CodeBlock from './CodeBlock';
 import MarkdownRenderer from './MarkdownRenderer';
@@ -37,7 +37,7 @@ const parseMessageContent = (content) => {
 
 
 const ChatMessage = ({ message, onPromoteToTask, isStreaming = false }) => {
-  const { role, content, is_html, indicator } = message;
+  const { role, content, is_html, indicator, type } = message;
   const isUser = role === 'user';
   const [copied, copy] = useCopyToClipboard();
 
@@ -61,6 +61,32 @@ const ChatMessage = ({ message, onPromoteToTask, isStreaming = false }) => {
   
   const contentToCopy = getTextContentForCopy(content);
   const messageParts = is_html ? [] : parseMessageContent(content);
+
+  // Special renderer for Codex run message
+  if (type === 'codex_run') {
+    const status = message.status || 'running';
+    const isRunning = status === 'queued' || status === 'running';
+    const isFailed = status === 'failed';
+    const isCompleted = status === 'completed';
+    const summary = message.summary || '';
+    return (
+      <div className={`flex animate-slide-up justify-start mb-2 group`}>
+        <div className="max-w-2xl p-3 rounded-lg shadow bg-brand-surface-bg text-brand-text-primary rounded-bl-none">
+          <div className="flex items-start mb-1">
+            <Sparkles size={20} className="mr-2 text-brand-purple flex-shrink-0" />
+            <span className="font-semibold text-sm">Codex Workspace Run</span>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-brand-text-secondary mb-1">
+            {isRunning && <Loader2 className="w-3 h-3 animate-spin text-brand-purple"/>}
+            <span>Status: {status}</span>
+          </div>
+          {summary && (
+            <div className="text-sm text-brand-text-secondary">{summary}</div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`flex animate-slide-up ${isUser ? 'justify-end' : 'justify-start'} mb-2 group`}>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { PlusSquare, MessageSquare, Loader2, AlertTriangle, Trash2, Pencil, Check, X, Wifi, Server, Share2, Youtube, FileCode, Database } from 'lucide-react';
+import { PlusSquare, MessageSquare, Loader2, AlertTriangle, Trash2, Pencil, Check, X, Wifi, Server, Share2, Youtube, FileCode, Database, Sparkles } from 'lucide-react';
 import SidebarSearch from './SidebarSearch';
 
 const MCPStatusIndicator = ({ isReady, name }) => (
@@ -10,6 +10,7 @@ const MCPStatusIndicator = ({ isReady, name }) => (
       {name === 'HubSpot' && <Share2 size={14} className="mr-2" />}
       {name === 'YouTube' && <Youtube size={14} className="mr-2" />}
       {name === 'Python' && <FileCode size={14} className="mr-2" />}
+      {name === 'Codex' && <Sparkles size={14} className="mr-2 text-brand-purple" />}
       {name}
     </span>
     <div className="flex items-center">
@@ -36,6 +37,8 @@ const ConversationSidebar = ({
   mcpHubspotServiceReady,
   mcpYoutubeServiceReady,
   mcpPythonServiceReady,
+  mcpCodexServiceReady,
+  openaiConfigured,
 }) => {
   const [editingConversationId, setEditingConversationId] = useState(null);
   const [currentEditingTitle, setCurrentEditingTitle] = useState('');
@@ -231,6 +234,7 @@ const ConversationSidebar = ({
             <MCPStatusIndicator isReady={mcpPythonServiceReady} name="Python" />
             <MCPStatusIndicator isReady={mcpHubspotServiceReady} name="HubSpot" />
             <MCPStatusIndicator isReady={mcpYoutubeServiceReady} name="YouTube" />
+            <MCPStatusIndicator isReady={mcpCodexServiceReady && openaiConfigured} name="Codex" />
           </div>
         </div>
       )}
