@@ -8,6 +8,8 @@ import matplotlib
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+import numpy as np
+from scipy import stats
 from fastmcp import FastMCP
 from pandas import DataFrame
 
@@ -155,6 +157,27 @@ async def get_head(df_id: str, n: int = 5) -> str:
     return data_store[df_id].head(n).to_string()
 
 @mcp.tool()
+async def get_data_info(df_id: str) -> str:
+    """
+    Returns comprehensive information about the dataframe including data types, 
+    memory usage, and non-null counts.
+    """
+    if not df_id:
+        return "Error: df_id parameter is required"
+    if df_id not in data_store:
+        return f"Error: Dataframe with ID {df_id} not found."
+    
+    try:
+        df = data_store[df_id]
+        # Capture info() output using StringIO buffer
+        buffer = io.StringIO()
+        df.info(buf=buffer, memory_usage='deep')
+        info_str = buffer.getvalue()
+        return f"DataFrame Info:\n{info_str}"
+    except Exception as e:
+        return f"Error getting dataframe info: {e}"
+
+@mcp.tool()
 async def get_descriptive_statistics(df_id: str) -> str:
     """
     Returns descriptive statistics for the numerical columns of a loaded dataframe.
@@ -210,6 +233,212 @@ async def query_dataframe(df_id: str, query_string: str) -> str:
         return f"Query successful. Created new dataframe with ID {new_df_id}. Shape: {filtered_df.shape}"
     except Exception as e:
         return f"Error executing query: {e}"
+
+@mcp.tool()
+async def filter_dataframe(df_id: str, condition: str) -> str:
+    """
+    Filters a dataframe using pandas query syntax and returns the filtered result as a string.
+    Example condition: "age > 30 and city == 'New York'"
+    """
+    if not df_id or not condition:
+        return "Error: df_id and condition parameters are required"
+    if df_id not in data_store:
+        return f"Error: Dataframe with ID {df_id} not found."
+    
+    # Basic validation to prevent code injection
+    dangerous_keywords = ['import', 'exec', 'eval', '__', 'open', 'file']
+    if any(keyword in condition.lower() for keyword in dangerous_keywords):
+        return "Error: Invalid condition contains potentially dangerous operations"
+    
+    try:
+        filtered_df = data_store[df_id].query(condition)
+        return f"Filtered DataFrame (showing first 100 rows):\n{filtered_df.head(100).to_string()}"
+    except Exception as e:
+        return f"Error filtering dataframe: {e}"
+
+@mcp.tool()
+async def group_and_aggregate(df_id: str, group_by: List[str], agg_functions: str) -> str:
+    """
+    Groups dataframe by specified columns and applies aggregation functions.
+    agg_functions should be JSON string like: {"column1": "mean", "column2": ["sum", "count"]}
+    """
+    if not df_id or not group_by or not agg_functions:
+        return "Error: df_id, group_by, and agg_functions parameters are required"
+    if df_id not in data_store:
+        return f"Error: Dataframe with ID {df_id} not found."
+    
+    try:
+        df = data_store[df_id]
+        
+        # Validate group_by columns exist
+        missing_cols = [col for col in group_by if col not in df.columns]
+        if missing_cols:
+            return f"Error: Columns not found: {missing_cols}"
+        
+        # Parse aggregation functions safely
+        agg_dict = json.loads(agg_functions)
+        
+        # Perform groupby and aggregation
+        grouped = df.groupby(group_by).agg(agg_dict)
+        return f"Grouped and aggregated data:\n{grouped.to_string()}"
+    except json.JSONDecodeError:
+        return "Error: agg_functions must be valid JSON"
+    except Exception as e:
+        return f"Error performing group and aggregate: {e}"
+
+@mcp.tool()
+async def detect_outliers(df_id: str, method: str = "iqr", columns: Optional[List[str]] = None) -> str:
+    """
+    Detects outliers using IQR or Z-score methods.
+    method: 'iqr' (Interquartile Range) or 'zscore'
+    columns: List of numeric columns to analyze (if None, uses all numeric columns)
+    """
+    if not df_id:
+        return "Error: df_id parameter is required"
+    if df_id not in data_store:
+        return f"Error: Dataframe with ID {df_id} not found."
+    
+    if method not in ['iqr', 'zscore']:
+        return "Error: method must be 'iqr' or 'zscore'"
+    
+    try:
+        df = data_store[df_id]
+        
+        # Select numeric columns
+        if columns is None:
+            numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+        else:
+            numeric_cols = [col for col in columns if col in df.columns and df[col].dtype in ['int64', 'float64']]
+        
+        if not numeric_cols:
+            return "Error: No numeric columns found for outlier detection"
+        
+        outlier_summary = []
+        
+        for col in numeric_cols:
+            if method == 'iqr':
+                Q1 = df[col].quantile(0.25)
+                Q3 = df[col].quantile(0.75)
+                IQR = Q3 - Q1
+                lower_bound = Q1 - 1.5 * IQR
+                upper_bound = Q3 + 1.5 * IQR
+                outliers = df[(df[col] < lower_bound) | (df[col] > upper_bound)]
+                outlier_summary.append(f"{col}: {len(outliers)} outliers (bounds: {lower_bound:.2f} - {upper_bound:.2f})")
+            
+            elif method == 'zscore':
+                z_scores = np.abs(stats.zscore(df[col].dropna()))
+                outliers = df[z_scores > 3]
+                outlier_summary.append(f"{col}: {len(outliers)} outliers (|z-score| > 3)")
+        
+        return f"Outlier detection using {method} method:\n" + "\n".join(outlier_summary)
+    except Exception as e:
+        return f"Error detecting outliers: {e}"
+
+@mcp.tool()
+async def convert_data_types(df_id: str, type_map_json: str) -> str:
+    """
+    Converts column data types safely.
+    type_map_json: JSON string like {"column1": "int64", "column2": "datetime", "column3": "category"}
+    Supported types: int64, float64, str, datetime, category
+    """
+    if not df_id or not type_map_json:
+        return "Error: df_id and type_map_json parameters are required"
+    if df_id not in data_store:
+        return f"Error: Dataframe with ID {df_id} not found."
+    
+    try:
+        df = data_store[df_id]
+        type_map = json.loads(type_map_json)
+        
+        # Validate columns exist
+        missing_cols = [col for col in type_map.keys() if col not in df.columns]
+        if missing_cols:
+            return f"Error: Columns not found: {missing_cols}"
+        
+        # Validate type names
+        valid_types = ['int64', 'float64', 'str', 'datetime', 'category']
+        invalid_types = [t for t in type_map.values() if t not in valid_types]
+        if invalid_types:
+            return f"Error: Invalid types: {invalid_types}. Valid types: {valid_types}"
+        
+        conversion_results = []
+        
+        for col, new_type in type_map.items():
+            try:
+                if new_type == 'datetime':
+                    df[col] = pd.to_datetime(df[col])
+                elif new_type == 'category':
+                    df[col] = df[col].astype('category')
+                else:
+                    df[col] = df[col].astype(new_type)
+                conversion_results.append(f"{col}: converted to {new_type}")
+            except Exception as e:
+                conversion_results.append(f"{col}: conversion failed - {str(e)}")
+        
+        return f"Data type conversion results:\n" + "\n".join(conversion_results)
+    except json.JSONDecodeError:
+        return "Error: type_map_json must be valid JSON"
+    except Exception as e:
+        return f"Error converting data types: {e}"
+
+@mcp.tool()
+async def perform_hypothesis_test(df_id: str, test_type: str, col1: str, col2: Optional[str] = None) -> str:
+    """
+    Performs statistical hypothesis tests.
+    test_type: 'ttest' (two-sample t-test), 'chi2' (chi-square test), 'correlation' (Pearson correlation)
+    col1: First column name
+    col2: Second column name (required for ttest and correlation, optional for chi2)
+    """
+    if not df_id or not test_type or not col1:
+        return "Error: df_id, test_type, and col1 parameters are required"
+    if df_id not in data_store:
+        return f"Error: Dataframe with ID {df_id} not found."
+    
+    if test_type not in ['ttest', 'chi2', 'correlation']:
+        return "Error: test_type must be 'ttest', 'chi2', or 'correlation'"
+    
+    try:
+        df = data_store[df_id]
+        
+        # Validate columns exist
+        if col1 not in df.columns:
+            return f"Error: Column '{col1}' not found"
+        if col2 and col2 not in df.columns:
+            return f"Error: Column '{col2}' not found"
+        
+        if test_type == 'ttest':
+            if not col2:
+                return "Error: col2 is required for t-test"
+            
+            # Check if columns are numeric
+            if not pd.api.types.is_numeric_dtype(df[col1]) or not pd.api.types.is_numeric_dtype(df[col2]):
+                return "Error: Both columns must be numeric for t-test"
+            
+            statistic, p_value = stats.ttest_ind(df[col1].dropna(), df[col2].dropna())
+            return f"Two-sample t-test results:\nStatistic: {statistic:.4f}\nP-value: {p_value:.4f}\nSignificant at α=0.05: {p_value < 0.05}"
+        
+        elif test_type == 'chi2':
+            if col2:
+                # Chi-square test of independence
+                contingency_table = pd.crosstab(df[col1], df[col2])
+                statistic, p_value, dof, expected = stats.chi2_contingency(contingency_table)
+                return f"Chi-square test of independence:\nStatistic: {statistic:.4f}\nP-value: {p_value:.4f}\nDegrees of freedom: {dof}\nSignificant at α=0.05: {p_value < 0.05}"
+            else:
+                return "Error: col2 is required for chi-square test of independence"
+        
+        elif test_type == 'correlation':
+            if not col2:
+                return "Error: col2 is required for correlation test"
+            
+            # Check if columns are numeric
+            if not pd.api.types.is_numeric_dtype(df[col1]) or not pd.api.types.is_numeric_dtype(df[col2]):
+                return "Error: Both columns must be numeric for correlation test"
+            
+            correlation, p_value = stats.pearsonr(df[col1].dropna(), df[col2].dropna())
+            return f"Pearson correlation test:\nCorrelation coefficient: {correlation:.4f}\nP-value: {p_value:.4f}\nSignificant at α=0.05: {p_value < 0.05}"
+    
+    except Exception as e:
+        return f"Error performing hypothesis test: {e}"
 
 # --------------------------------------------------------------------------
 # Enhanced Data Visualization Tool 📈

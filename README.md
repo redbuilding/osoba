@@ -20,7 +20,7 @@ The project consists of several key components:
 
 - **MCP HubSpot Business Tools**: Create/update marketing emails via HubSpot APIs using OAuth, with a JSON-first prompting flow.
 
-- **MCP Python Data Analysis Server**: Load CSVs, inspect/clean data, compute statistics, query DataFrames, and produce plots (base64 images) for analysis workflows.
+- **MCP Python Data Analysis Server**: Comprehensive data analysis toolkit including CSV loading, data profiling, filtering, grouping/aggregation, outlier detection, data type conversion, statistical hypothesis testing, and visualization (base64 images) for complete analytical workflows.
 
 - **MongoDB**: Stores conversation history and user data.
 
@@ -43,7 +43,7 @@ This architecture demonstrates how MCP enables local models to access external t
 - 🔄 **Conversation Management**: List, rename, and delete conversations.
 - 📺 **YouTube Transcript Tool**: Paste a YouTube URL; transcripts are fetched and stored for multi-turn follow-ups.
 - 🧰 **HubSpot Tools**: OAuth-connect, then create/update marketing emails via guided JSON prompts.
-- 🐍 **Python Analysis Tool**: Upload a CSV and run analysis, cleaning, stats, and plots — results can stream back with images.
+- 🐍 **Python Analysis Tool**: Upload a CSV and run comprehensive analysis including data profiling, filtering, grouping, outlier detection, statistical testing, type conversion, and visualization — results stream back with images and detailed insights.
 - ⚡ **Streaming Responses**: Frontend renders model output token-by-token and indicators for tool usage.
 - 🗓️ **Long‑Running Tasks (Plan & Execute)**: Create autonomous tasks that plan and execute multi‑step workflows (overnight runs supported), with budgets, retries, and verification.
 - 📈 **Live Task Progress**: Tasks stream progress via SSE; per‑step outputs (tables/images/text) render in the UI.
@@ -137,7 +137,7 @@ Optional (enable additional tools):
         pip install youtube-transcript-api pytube yt-dlp requests
 
         # Python analysis tool
-        pip install pandas numpy matplotlib seaborn
+        pip install pandas numpy matplotlib seaborn scipy
         ```
 
 3.  **Set up Frontend:**
@@ -197,7 +197,7 @@ Optional (enable additional tools):
 -   Click the ✨ Tool Selector to enable one of: Web Search, Database, YouTube, HubSpot, Python.
 -   For YouTube: paste a video URL. The transcript is fetched and saved to the conversation for follow-ups.
 -   For HubSpot: click “Connect HubSpot” to complete OAuth, then describe the email to create/update.
--   For Python: upload a CSV file when prompted; follow-up questions reuse the loaded DataFrame.
+-   For Python: upload a CSV file when prompted; follow-up questions reuse the loaded DataFrame for advanced analysis including filtering, grouping, outlier detection, statistical testing, and visualization.
 -   Manage conversations using the sidebar (create new, select, rename, delete).
 
 ### Long‑Running Tasks (Plan & Execute)
@@ -228,6 +228,47 @@ LLM‑only steps (no MCP):
 ### Legacy Clients (Removed)
 
 The original `chat_client.py` (terminal) and `chat_frontend.py` (Gradio) have been removed from the repository as they are no longer compatible with the current FastAPI backend architecture. All functionality is now provided through the modern React frontend.
+
+## Python Data Analysis Tools
+
+The Python MCP server provides comprehensive data analysis capabilities through the following tools:
+
+### Core Data Operations
+- **`load_csv`** - Load CSV data from base64 encoded strings
+- **`get_head`** - Display first N rows of DataFrame
+- **`get_data_info`** - Comprehensive DataFrame information (dtypes, memory usage, non-null counts)
+- **`get_descriptive_statistics`** - Statistical summary for numerical columns
+
+### Data Quality & Cleaning
+- **`check_missing_values`** - Identify missing values across columns
+- **`handle_missing_values`** - Handle missing data (drop, fill, interpolate)
+- **`convert_data_types`** - Safe data type conversion (datetime, category, numeric)
+- **`detect_outliers`** - Outlier detection using IQR or Z-score methods
+
+### Data Manipulation & Analysis
+- **`filter_dataframe`** - Filter data using pandas query syntax with security validation
+- **`group_and_aggregate`** - Group by columns and apply aggregation functions
+- **`query_dataframe`** - Advanced DataFrame querying with new DataFrame creation
+- **`rename_columns`** - Rename DataFrame columns
+- **`drop_columns`** - Remove specified columns
+
+### Statistical Analysis
+- **`get_correlation_matrix`** - Compute correlation matrix for numerical columns
+- **`get_value_counts`** - Frequency analysis for categorical columns
+- **`perform_hypothesis_test`** - Statistical hypothesis testing:
+  - Two-sample t-tests
+  - Pearson correlation tests
+  - Chi-square tests of independence
+
+### Data Visualization
+- **`create_plot`** - Generate various plot types:
+  - Scatter plots
+  - Histograms
+  - Bar charts
+  - Box plots
+  - Returns base64-encoded images for web display
+
+All tools maintain session state through an in-memory DataFrame store, enabling complex multi-step analytical workflows within a single conversation.
 
 ## How It Works
 

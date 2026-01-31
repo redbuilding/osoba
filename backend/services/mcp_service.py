@@ -60,7 +60,9 @@ class AppState:
                 script_name="server_python.py",
                 executable="fastmcp",
                 command_verb="run",
-                required_tools=["load_csv", "get_head", "create_plot", "get_descriptive_statistics"]
+                required_tools=["load_csv", "get_head", "create_plot", "get_descriptive_statistics", 
+                              "get_data_info", "filter_dataframe", "group_and_aggregate", 
+                              "detect_outliers", "convert_data_types", "perform_hypothesis_test"]
             ),
         }
 
