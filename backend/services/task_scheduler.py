@@ -154,6 +154,7 @@ class TaskScheduler:
         try:
             task_data = {
                 "goal": scheduled_task["goal"],
+                "title": scheduled_task.get("name", scheduled_task["goal"][:50]),
                 "conversation_id": scheduled_task.get("conversation_id"),
                 "ollama_model_name": scheduled_task.get("ollama_model_name"),
                 "budget": scheduled_task.get("budget"),

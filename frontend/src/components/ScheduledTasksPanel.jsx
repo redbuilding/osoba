@@ -341,8 +341,8 @@ const ScheduledTasksPanel = ({ isOpen, onClose }) => {
                               ...prev,
                               simpleSchedule: { ...prev.simpleSchedule, date: e.target.value }
                             }))}
-                            className="w-full px-3 py-2 border border-gray-700 rounded-md text-sm bg-brand-surface-bg text-brand-text-primary focus:outline-none focus:ring-2 focus:ring-brand-purple"
-                            min={new Date().toISOString().split('T')[0]}
+                            className="w-full px-3 py-2 border border-gray-700 rounded-md text-sm bg-brand-surface-bg text-brand-text-primary focus:outline-none focus:ring-2 focus:ring-brand-purple [&::-webkit-calendar-picker-indicator]:filter [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:opacity-70"
+                            min={new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0]}
                           />
                         </div>
                       )}

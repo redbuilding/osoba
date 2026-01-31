@@ -19,11 +19,22 @@ logger = get_logger("mcp_backend_main")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Handles application startup and shutdown events."""
+    logger.info("FastAPI Lifespan: Starting up...")
     start_mcp_services()
-    await start_task_dispatcher()
+    logger.info("FastAPI Lifespan: MCP services started, starting task dispatcher...")
+    try:
+        await start_task_dispatcher()
+        logger.info("FastAPI Lifespan: Task dispatcher started successfully")
+    except Exception as e:
+        logger.error(f"FastAPI Lifespan: Failed to start task dispatcher: {e}", exc_info=True)
+    
+    logger.info("FastAPI Lifespan: Starting scheduler...")
     await scheduler.start()
+    logger.info("FastAPI Lifespan: Starting template initializer...")
     await initialize_default_templates()
+    logger.info("FastAPI Lifespan: Startup complete")
     yield
+    logger.info("FastAPI Lifespan: Shutting down...")
     await scheduler.stop()
     await stop_mcp_services()
     if mongo_client:

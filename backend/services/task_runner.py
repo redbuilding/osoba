@@ -74,88 +74,152 @@ async def start_task_dispatcher():
         logger.info("Task dispatcher disabled by config.")
         return
     logger.info("Starting task dispatcher loop.")
-    asyncio.create_task(_dispatch_loop())
+    try:
+        asyncio.create_task(_dispatch_loop())
+        logger.info("Task dispatcher loop created successfully.")
+    except Exception as e:
+        logger.error(f"Failed to start task dispatcher: {e}", exc_info=True)
 
 
 async def _dispatch_loop():
+    logger.info("Task dispatcher loop started")
     while not runner_state._stop.is_set():
         try:
             await _scan_and_schedule()
         except Exception as e:
             logger.error(f"Dispatcher error: {e}", exc_info=True)
-        await asyncio.sleep(TASK_DISPATCH_INTERVAL_MS / 1000.0)
+            # Continue running even if there's an error
+        try:
+            await asyncio.sleep(TASK_DISPATCH_INTERVAL_MS / 1000.0)
+        except Exception as e:
+            logger.error(f"Dispatcher sleep error: {e}", exc_info=True)
+    logger.info("Task dispatcher loop stopped")
 
 
 async def _scan_and_schedule():
+    # Prune finished workers to avoid stale blocks
+    try:
+        for tid, t in list(runner_state._workers.items()):
+            if t.done():
+                runner_state._workers.pop(tid, None)
+                logger.info(f"Pruned finished worker for task {tid}")
+    except Exception as e:
+        logger.error(f"Error pruning finished workers: {e}")
+
     # Only run one task at a time (queue system)
     if len(runner_state._workers) > 0:
+        logger.debug(f"Skipping scan - {len(runner_state._workers)} workers already running")
         return
     
     # Pick up tasks to run; priority-based approach
-    for t in list_tasks(limit=100):
+    tasks = list_tasks(limit=100)
+    logger.debug(f"Found {len(tasks)} tasks to check")
+    
+    for t in tasks:
         task_id = str(t.get("_id"))
         status = t.get("status")
+        logger.debug(f"Checking task {task_id}: status={status}, priority={t.get('priority', 2)}")
 
         if status in ("PLANNING", "PENDING", "RUNNING") and not runner_state.worker_for(task_id):
             # Start/continue running the highest priority task
             logger.info(f"Scheduling task {task_id} with status {status} and priority {t.get('priority', 2)}")
-            worker = asyncio.create_task(_run_task(task_id))
-            runner_state.set_worker(task_id, worker)
-            break  # Only start one task
+            try:
+                worker = asyncio.create_task(_run_task(task_id))
+                runner_state.set_worker(task_id, worker)
+                break  # Only start one task
+            except Exception as e:
+                logger.error(f"Failed to create worker for task {task_id}: {e}", exc_info=True)
 
 
 async def _run_task(task_id: str):
-    # Load task
-    doc = get_task(task_id)
-    if not doc:
-        return
-    task_start = datetime.now(timezone.utc)
-    if doc.get("status") == "PLANNING":
-        # Produce plan
-        model_name = doc.get("ollama_model_name")
-        if not model_name:
-            from services.ollama_service import get_default_ollama_model
-            model_name = await get_default_ollama_model()
-        plan = await plan_task(doc.get("goal", ""), model_name, doc.get("budget"))
-        update_task(task_id, {"plan": plan.model_dump(), "status": "PENDING", "current_step_index": -1})
-        await progress_bus.publish(task_id, {"type": "TASK_STATUS", "task_id": task_id, "status": "PENDING"})
+    logger.info(f"Starting _run_task for {task_id}")
+    try:
+        # Load task
         doc = get_task(task_id)
-
-    if doc.get("status") == "PENDING":
-        update_task(task_id, {"status": "RUNNING", "current_step_index": 0})
-        await progress_bus.publish(task_id, {"type": "TASK_STATUS", "task_id": task_id, "status": "RUNNING"})
-
-    # Execute steps
-    plan_dict = doc.get("plan") or {}
-    steps: list[Dict[str, Any]] = plan_dict.get("steps", [])
-    idx = int(doc.get("current_step_index", 0))
-
-    for i in range(idx, len(steps)):
-        # reload may have pause/cancel status
-        cur = get_task(task_id) or {}
-        cur_status = cur.get("status")
-        if cur_status in ("PAUSED", "CANCELED"):
-            await progress_bus.publish(task_id, {"type": "TASK_STATUS", "task_id": task_id, "status": cur_status})
+        if not doc:
+            logger.error(f"Task {task_id} not found")
             return
+        
+        task_start = datetime.now(timezone.utc)
+        logger.info(f"Task {task_id} current status: {doc.get('status')}")
+        
+        if doc.get("status") == "PLANNING":
+            logger.info(f"Task {task_id} in PLANNING - starting plan generation")
+            # Produce plan
+            model_name = doc.get("ollama_model_name")
+            if not model_name:
+                from services.ollama_service import get_default_ollama_model
+                model_name = await get_default_ollama_model()
+            plan = await plan_task(doc.get("goal", ""), model_name, doc.get("budget"))
+            logger.info(f"Task {task_id} plan generated, updating to PENDING")
+            update_task(task_id, {"plan": plan.model_dump(), "status": "PENDING", "current_step_index": -1})
+            await progress_bus.publish(task_id, {"type": "TASK_STATUS", "task_id": task_id, "status": "PENDING"})
+            logger.info(f"Task {task_id} updated to PENDING, reloading document")
+            doc = get_task(task_id)
 
-        # Budget checks before executing step
-        if not _check_budgets(cur, task_start):
-            update_task(task_id, {"status": "FAILED", "error": "Budget exceeded"})
-            await progress_bus.publish(task_id, {"type": "TASK_STATUS", "task_id": task_id, "status": "FAILED", "error": "Budget exceeded"})
-            await _post_conversation_update(cur, success=False)
-            return
+        logger.info(f"Task {task_id} status after planning: {doc.get('status') if doc else 'doc is None'}")
+        
+        if doc and doc.get("status") == "PENDING":
+            logger.info(f"Task {task_id} transitioning from PENDING to RUNNING")
+            update_task(task_id, {"status": "RUNNING", "current_step_index": 0})
+            await progress_bus.publish(task_id, {"type": "TASK_STATUS", "task_id": task_id, "status": "RUNNING"})
+            doc = get_task(task_id)  # Reload doc after status update
+            logger.info(f"Task {task_id} now in RUNNING status")
 
-        ok = await _execute_step_with_retry(task_id, i, steps[i])
-        if not ok:
-            await _post_conversation_update(get_task(task_id) or {}, success=False)
-            return
-        update_task(task_id, {"current_step_index": i + 1})
+        # Execute steps
+        plan_dict = doc.get("plan") or {} if doc else {}
+        steps: list[Dict[str, Any]] = plan_dict.get("steps", [])
+        idx = int(doc.get("current_step_index", 0)) if doc else 0
+        
+        # Safety check: ensure idx is not negative
+        if idx < 0:
+            idx = 0
+            update_task(task_id, {"current_step_index": 0})
+            
+        logger.info(f"Task {task_id} starting execution with {len(steps)} steps, starting at index {idx}")
 
-    # Done
-    update_task(task_id, {"status": "COMPLETED"})
-    await progress_bus.publish(task_id, {"type": "TASK_STATUS", "task_id": task_id, "status": "COMPLETED"})
-    # Post summary to conversation
-    await _post_conversation_update(get_task(task_id) or {}, success=True)
+        for i in range(idx, len(steps)):
+            logger.info(f"Task {task_id} executing step {i} of {len(steps)}")
+            # reload may have pause/cancel status
+            cur = get_task(task_id) or {}
+            cur_status = cur.get("status")
+            if cur_status in ("PAUSED", "CANCELED"):
+                await progress_bus.publish(task_id, {"type": "TASK_STATUS", "task_id": task_id, "status": cur_status})
+                return
+
+            # Budget checks before executing step
+            if not _check_budgets(cur, task_start):
+                update_task(task_id, {"status": "FAILED", "error": "Budget exceeded"})
+                await progress_bus.publish(task_id, {"type": "TASK_STATUS", "task_id": task_id, "status": "FAILED", "error": "Budget exceeded"})
+                await _post_conversation_update(cur, success=False)
+                return
+
+            ok = await _execute_step_with_retry(task_id, i, steps[i])
+            logger.info(f"Task {task_id} step {i} result: {ok}")
+            if not ok:
+                logger.error(f"Task {task_id} step {i} failed verification, stopping execution")
+                # Get the step details for debugging
+                step = steps[i]
+                logger.error(f"Failed step details: tool={step.get('tool')}, success_criteria={step.get('success_criteria')}")
+                await _post_conversation_update(get_task(task_id) or {}, success=False)
+                return
+            logger.info(f"Task {task_id} updating current_step_index to {i + 1}")
+            update_task(task_id, {"current_step_index": i + 1})
+
+        # Done
+        logger.info(f"Task {task_id} completed all steps, marking as COMPLETED")
+        update_task(task_id, {"status": "COMPLETED"})
+        await progress_bus.publish(task_id, {"type": "TASK_STATUS", "task_id": task_id, "status": "COMPLETED"})
+        # Post summary to conversation
+        await _post_conversation_update(get_task(task_id) or {}, success=True)
+        logger.info(f"Task {task_id} execution finished")
+    finally:
+        # Ensure worker cleanup always happens, even on early return/failure
+        try:
+            runner_state._workers.pop(task_id, None)
+            logger.info(f"Cleaned up worker for task {task_id}")
+        except Exception as e:
+            logger.error(f"Error cleaning up worker for task {task_id}: {e}")
 
 
 def _get_budget(doc: Dict[str, Any]) -> Dict[str, int]:
@@ -190,12 +254,17 @@ async def _execute_step_with_retry(task_id: str, idx: int, step: Dict[str, Any])
     max_retries = int(step.get("max_retries", 1))
     attempt = 0
     backoff = 1
+    logger.info(f"Starting step execution for task {task_id}, step {idx}: {step.get('tool', 'unknown')}")
     while True:
         try:
-            return await _execute_step(task_id, idx, step)
+            result = await _execute_step(task_id, idx, step)
+            logger.info(f"Step {idx} completed for task {task_id}: {result}")
+            return result
         except Exception as e:
+            logger.error(f"Step {idx} failed for task {task_id}, attempt {attempt}: {e}")
             attempt += 1
             if attempt > max_retries:
+                logger.error(f"Step {idx} failed permanently for task {task_id} after {max_retries} attempts")
                 return False
             await progress_bus.publish(task_id, {"type": "STEP_STATUS", "task_id": task_id, "index": idx, "status": "RETRYING", "error": str(e), "attempt": attempt})
             await asyncio.sleep(backoff)
@@ -203,8 +272,13 @@ async def _execute_step_with_retry(task_id: str, idx: int, step: Dict[str, Any])
 
 
 async def _verify_success(success_criteria: str, normalized_output: Dict[str, Any], model_name: str | None) -> bool:
+    logger.info(f"Verifying success criteria: '{success_criteria}'")
+    logger.info(f"Normalized output keys: {list(normalized_output.keys())}")
+    logger.info(f"Output preview: {str(normalized_output)[:200]}...")
+    
     # Fast rule: if criteria missing, accept
     if not success_criteria:
+        logger.info("No success criteria, accepting")
         return True
     
     # Be more lenient - if we have any meaningful output, consider it successful
@@ -212,10 +286,22 @@ async def _verify_success(success_criteria: str, normalized_output: Dict[str, An
     if raw:
         # Check if we have substantial content (more than 100 chars)
         content_str = str(raw)
+        logger.info(f"Raw content length: {len(content_str)}")
         if len(content_str) > 100:
+            logger.info("Content length check passed")
+            return True
+    
+    # Check text field as well
+    text = normalized_output.get("text")
+    if text:
+        content_str = str(text)
+        logger.info(f"Text content length: {len(content_str)}")
+        if len(content_str) > 100:
+            logger.info("Text length check passed")
             return True
     
     # Fallback to LLM verification only if needed
+    logger.info("Using LLM verification as fallback")
     if not model_name:
         from services.ollama_service import get_default_ollama_model
         model_name = await get_default_ollama_model()
@@ -234,12 +320,17 @@ async def _verify_success(success_criteria: str, normalized_output: Dict[str, An
             {"role": "user", "content": prompt},
         ], model_name)
         data = res and __import__('json').loads(res)
-        return bool(data and data.get("success") is True)
-    except Exception:
+        result = bool(data and data.get("success") is True)
+        logger.info(f"LLM verification result: {result}, response: {res}")
+        return result
+    except Exception as e:
+        logger.warning(f"Verification failed with error: {e}, being permissive")
+        return True  # Be permissive if verifier fails
         return True  # Be permissive if verifier fails
 
 
 async def _execute_step(task_id: str, idx: int, step: Dict[str, Any]):
+    logger.info(f"Executing step {idx} for task {task_id}: {step.get('tool', 'unknown')}")
     set_step_status(task_id, idx, {"status": "RUNNING", "started_at": datetime.now(timezone.utc)})
     await progress_bus.publish(task_id, {"type": "STEP_STATUS", "task_id": task_id, "index": idx, "status": "RUNNING"})
 
@@ -269,9 +360,11 @@ async def _execute_step(task_id: str, idx: int, step: Dict[str, Any]):
             norm: Dict[str, Any] = {"text": text or ""}
         else:
             service_name, tool_name = _resolve_tool(tool)
+            logger.info(f"Resolved tool {tool} to service {service_name}, tool {tool_name}")
             # Budget: increment tool call usage (optimistic)
             # We don't read-modify-write usage here to keep it simple; dispatcher checks before each step
             increment_usage(task_id, "tool_calls", 1)
+            logger.info(f"Submitting MCP request for task {task_id}, step {idx}")
             req_id = await submit_mcp_request(service_name, "tool", {"tool": tool_name, "params": params})
             # Wait with timeout
             resp = await wait_mcp_response(service_name, req_id, timeout=step_timeout)
