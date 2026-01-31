@@ -24,7 +24,7 @@ from services.progress_bus import progress_bus
 from services.task_planner import plan_task
 from services.mcp_service import submit_mcp_request, wait_mcp_response
 from core.config import WEB_SEARCH_SERVICE_NAME, MYSQL_DB_SERVICE_NAME, YOUTUBE_SERVICE_NAME, PYTHON_SERVICE_NAME
-from services.ollama_service import chat_with_ollama
+from services.provider_service import chat_with_provider
 from db.mongodb import conversations_collection
 
 
@@ -148,7 +148,7 @@ async def _run_task(task_id: str):
             # Produce plan
             model_name = doc.get("model_name") or doc.get("ollama_model_name")  # Support both old and new field names
             if not model_name:
-                from services.ollama_service import get_default_ollama_model
+                from services.llm_service import get_default_ollama_model
                 model_name = await get_default_ollama_model()
             plan = await plan_task(doc.get("goal", ""), model_name, doc.get("budget"))
             logger.info(f"Task {task_id} plan generated, updating to PENDING")
@@ -303,7 +303,7 @@ async def _verify_success(success_criteria: str, normalized_output: Dict[str, An
     # Fallback to LLM verification only if needed
     logger.info("Using LLM verification as fallback")
     if not model_name:
-        from services.ollama_service import get_default_ollama_model
+        from services.llm_service import get_default_ollama_model
         model_name = await get_default_ollama_model()
     
     content_preview = str(normalized_output)[:800]
@@ -315,7 +315,7 @@ async def _verify_success(success_criteria: str, normalized_output: Dict[str, An
         "Return JSON only."
     )
     try:
-        res = await chat_with_ollama([
+        res = await chat_with_provider([
             {"role": "system", "content": "You output only JSON."},
             {"role": "user", "content": prompt},
         ], model_name)
@@ -345,7 +345,7 @@ async def _execute_step(task_id: str, idx: int, step: Dict[str, Any]):
             task_doc = get_task(task_id) or {}
             model = task_doc.get("model_name") or task_doc.get("ollama_model_name")
             if not model:
-                from services.ollama_service import get_default_ollama_model
+                from services.llm_service import get_default_ollama_model
                 model = await get_default_ollama_model()
             prompt = None
             if isinstance(params, dict):
@@ -359,7 +359,7 @@ async def _execute_step(task_id: str, idx: int, step: Dict[str, Any]):
             if context_text:
                 messages.append({"role": "user", "content": f"Context from prior steps (use this):\n{context_text}"})
             messages.append({"role": "user", "content": prompt or ""})
-            text = await chat_with_ollama(messages, model)
+            text = await chat_with_provider(messages, model)
             norm: Dict[str, Any] = {"text": text or ""}
         else:
             service_name, tool_name = _resolve_tool(tool)
@@ -472,7 +472,7 @@ async def _post_conversation_update(task_doc: Dict[str, Any], success: bool):
             # Compose a brief summary with LLM
             titles = "\n".join([f"- {s.get('title','')} ({s.get('tool','')})" for s in plan])
             prompt = f"Summarize the completed task in 3-5 sentences for the user. Steps were:\n{titles}"
-            res = await chat_with_ollama([
+            res = await chat_with_provider([
                 {"role": "system", "content": "You write concise summaries."},
                 {"role": "user", "content": prompt},
             ], model)

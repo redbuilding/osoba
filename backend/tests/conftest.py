@@ -88,6 +88,30 @@ def mock_ollama_service():
 
 
 @pytest.fixture
+def mock_provider_service():
+    """Mock provider service for testing multi-provider functionality."""
+    mock = AsyncMock()
+    mock.chat_with_provider = AsyncMock(return_value="Mocked provider response")
+    mock.stream_chat_with_provider = AsyncMock()
+    mock.get_available_models_by_provider = AsyncMock(return_value={
+        'ollama': ['llama3.1', 'mistral'],
+        'openai': ['gpt-3.5-turbo', 'gpt-4'],
+        'anthropic': ['claude-3-haiku-20240307']
+    })
+    mock.get_provider_status = AsyncMock(return_value={
+        'provider_id': 'openai',
+        'name': 'OpenAI',
+        'available': True,
+        'configured': True
+    })
+    mock.validate_provider_api_key = AsyncMock(return_value={
+        'valid': True,
+        'message': 'API key validated successfully'
+    })
+    return mock
+
+
+@pytest.fixture
 def sample_chat_payload():
     """Sample chat payload for testing."""
     return {

@@ -16,6 +16,7 @@ conversations_collection = None
 tasks_collection = None
 scheduled_tasks_collection = None
 templates_collection = None
+settings_collection = None
 
 def create_search_indexes():
     """Create text indexes for conversation search."""
@@ -38,6 +39,7 @@ try:
     tasks_collection = db[MONGODB_TASKS_COLLECTION_NAME]
     scheduled_tasks_collection = db["scheduled_tasks"]
     templates_collection = db["task_templates"]
+    settings_collection = db["user_settings"]
     create_search_indexes()
     logger.info(f"Successfully connected to MongoDB: {MONGODB_URI}")
 except ConnectionFailure:
@@ -64,3 +66,8 @@ def get_templates_collection():
     if templates_collection is None:
         raise RuntimeError("MongoDB is not available.")
     return templates_collection
+
+def get_settings_collection():
+    if settings_collection is None:
+        raise RuntimeError("MongoDB is not available.")
+    return settings_collection

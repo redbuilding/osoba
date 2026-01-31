@@ -3,7 +3,7 @@ from fastapi import APIRouter, HTTPException, Response, status, Query
 
 from core.models import ConversationListItem, ChatMessage, RenamePayload
 from db import crud
-from services.ollama_service import get_default_ollama_model
+from services.llm_service import get_default_ollama_model
 from core.config import get_logger
 
 router = APIRouter()

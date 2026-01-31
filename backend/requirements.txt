@@ -10,3 +10,4 @@ httpx
 mcp
 fastmcp
 croniter
+cryptography

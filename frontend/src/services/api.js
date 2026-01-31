@@ -27,7 +27,8 @@ export const sendMessage = async (
   useDatabase,
   useHubspot,
   conversationId = null,
-  ollamaModelName = null,
+  modelName = null,
+  provider = null,
 ) => {
   try {
     const payload = {
@@ -38,8 +39,11 @@ export const sendMessage = async (
       use_hubspot: useHubspot,
       conversation_id: conversationId,
     };
-    if (ollamaModelName && !conversationId) {
-      payload.ollama_model_name = ollamaModelName;
+    if (modelName && !conversationId) {
+      payload.model_name = modelName;
+    }
+    if (provider && !conversationId) {
+      payload.provider = provider;
     }
     const response = await apiClient.post("/chat", payload);
     return response.data;
@@ -424,5 +428,125 @@ export const getTemplateParameters = async (templateId) => {
   } catch (error) {
     console.error("Error getting template parameters:", error);
     throw error;
+  }
+};
+
+// Provider management functions
+export const getProviders = async () => {
+  try {
+    const response = await apiClient.get("/providers");
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching providers:", error);
+    throw error.response
+      ? error.response.data
+      : new Error("Network error or server unavailable");
+  }
+};
+
+export const getProviderModels = async () => {
+  try {
+    const response = await apiClient.get("/providers/models");
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching provider models:", error);
+    throw error.response
+      ? error.response.data
+      : new Error("Network error or server unavailable");
+  }
+};
+
+export const getProviderStatus = async (providerId) => {
+  try {
+    const response = await apiClient.get(`/providers/${providerId}/status`);
+    return response.data;
+  } catch (error) {
+    console.error(`Error fetching provider ${providerId} status:`, error);
+    throw error.response
+      ? error.response.data
+      : new Error("Network error or server unavailable");
+  }
+};
+
+export const saveProviderSettings = async (provider, apiKey) => {
+  try {
+    const response = await apiClient.post("/providers/settings", {
+      provider,
+      api_key: apiKey
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error saving provider settings:", error);
+    throw error.response
+      ? error.response.data
+      : new Error("Network error or server unavailable");
+  }
+};
+
+export const removeProviderSettings = async (providerId) => {
+  try {
+    const response = await apiClient.delete(`/providers/${providerId}/settings`);
+    return response.data;
+  } catch (error) {
+    console.error(`Error removing provider ${providerId} settings:`, error);
+    throw error.response
+      ? error.response.data
+      : new Error("Network error or server unavailable");
+  }
+};
+
+export const validateProviderSettings = async (providerId) => {
+  try {
+    const response = await apiClient.get(`/providers/${providerId}/validate`);
+    return response.data;
+  } catch (error) {
+    console.error(`Error validating provider ${providerId} settings:`, error);
+    throw error.response
+      ? error.response.data
+      : new Error("Network error or server unavailable");
+  }
+};
+
+export const getUserSettings = async () => {
+  try {
+    const response = await apiClient.get("/settings");
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching user settings:", error);
+    throw error.response
+      ? error.response.data
+      : new Error("Network error or server unavailable");
+  }
+};
+
+// Enhanced model listing that includes all providers
+export const getAllModels = async () => {
+  try {
+    const response = await apiClient.get("/models");
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching all models:", error);
+    // Fallback to Ollama models for backward compatibility
+    try {
+      const ollamaModels = await getOllamaModels();
+      return {
+        models: ollamaModels.map(model => ({
+          name: model,
+          provider: 'ollama',
+          available: true
+        })),
+        providers: {
+          ollama: {
+            name: 'Ollama',
+            available: true,
+            configured: true
+          }
+        }
+      };
+    } catch (fallbackError) {
+      throw error.response
+        ? error.response.data
+        : new Error("Network error or server unavailable");
+    }
   }
 };

@@ -3,7 +3,8 @@ from typing import Dict, List
 
 from core.config import get_logger
 from core.models import Plan, PlanStep
-from services.ollama_service import chat_with_ollama, get_default_ollama_model
+from services.provider_service import chat_with_provider
+from services.llm_service import get_default_ollama_model
 
 
 logger = get_logger("task_planner")
@@ -80,7 +81,7 @@ async def plan_task(goal: str, model: str | None, budget: Dict | None) -> Plan:
         model_name = "llama3.1"  # Hard fallback
         logger.warning(f"Using hard fallback model: {model_name}")
     prompt = build_planning_prompt(goal, ALLOWED_TASK_TOOLS, budget)
-    raw = await chat_with_ollama([
+    raw = await chat_with_provider([
         {"role": "system", "content": "You produce only JSON."},
         {"role": "user", "content": prompt},
     ], model_name)

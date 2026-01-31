@@ -14,7 +14,8 @@ from core.config import (
 from core.models import ChatPayload, ChatMessage, ChatResponse
 from db.mongodb import get_conversations_collection
 from services.mcp_service import app_state, submit_mcp_request, wait_mcp_response
-from services.ollama_service import get_default_ollama_model, chat_with_ollama, stream_chat_with_ollama
+from services.llm_service import get_default_ollama_model
+from services.provider_service import chat_with_provider, stream_chat_with_provider
 from auth_hubspot import get_valid_token, SESSION_COOKIE_NAME
 
 logger = get_logger("chat_service")
@@ -210,7 +211,7 @@ class ChatProcessor:
             extracted_sql, db_results_data = None, None
             for attempt in range(2):
                 system_prompt = self._get_sql_gen_prompt(attempt, full_schema_context, locals().get("previous_faulty_sql"), locals().get("previous_db_error"))
-                raw_sql_resp = await chat_with_ollama([{"role": "system", "content": system_prompt}, {"role": "user", "content": self.user_msg_content}], self.model_name)
+                raw_sql_resp = await chat_with_provider([{"role": "system", "content": system_prompt}, {"role": "user", "content": self.user_msg_content}], self.model_name)
 
                 sql_match = re.search(r"```(?:sql)?\s*([\s\S]+?)\s*```", raw_sql_resp or "", re.I)
                 temp_sql = (sql_match.group(1) if sql_match else (raw_sql_resp or "")).strip()
@@ -283,7 +284,7 @@ Database Schema Context:
         logger.info(f"[CHAT_SVC] HubSpot interaction for: '{self.user_msg_content}'")
         try:
             system_prompt = self._get_hubspot_json_gen_prompt()
-            raw_json_resp = await chat_with_ollama([{"role": "system", "content": system_prompt}, {"role": "user", "content": self.user_msg_content}], self.model_name)
+            raw_json_resp = await chat_with_provider([{"role": "system", "content": system_prompt}, {"role": "user", "content": self.user_msg_content}], self.model_name)
 
             json_match = re.search(r"```json\s*([\s\S]+?)```", raw_json_resp or "", re.I)
             candidate = (json_match.group(1) if json_match else (raw_json_resp or "")).strip()
@@ -388,7 +389,7 @@ Database Schema Context:
 
             # Step 2: Use LLM to select a tool and parameters
             tool_selection_prompt = self._get_python_tool_selection_prompt(self.python_df_id)
-            raw_tool_resp = await chat_with_ollama([{"role": "system", "content": tool_selection_prompt}, {"role": "user", "content": self.user_msg_content}], self.model_name)
+            raw_tool_resp = await chat_with_provider([{"role": "system", "content": tool_selection_prompt}, {"role": "user", "content": self.user_msg_content}], self.model_name)
             logger.debug(f"LLM tool selection response: {raw_tool_resp}")
 
             tool_json_match = re.search(r"```json\s*([\s\S]+?)\s*```", raw_tool_resp or "", re.I)
@@ -542,7 +543,7 @@ Your JSON response:
         else:
             self.llm_history.append({"role": "user", "content": self.prompt_for_llm})
             repeat_penalty = self.payload.repeat_penalty or DEFAULT_REPEAT_PENALTY
-            model_response = await chat_with_ollama(self.llm_history, self.model_name, repeat_penalty)
+            model_response = await chat_with_provider(self.llm_history, self.model_name, repeat_penalty)
 
             if model_response:
                 final_content = f"{self.html_indicator}\n\n{model_response}" if self.is_html_response else model_response
@@ -572,7 +573,7 @@ Your JSON response:
         accumulated_response = ""
         repeat_penalty = self.payload.repeat_penalty or DEFAULT_REPEAT_PENALTY
 
-        async for chunk in stream_chat_with_ollama(self.llm_history, self.model_name, repeat_penalty):
+        async for chunk in stream_chat_with_provider(self.llm_history, self.model_name, repeat_penalty):
             yield chunk
             try:
                 data = json.loads(chunk.strip().split("data: ")[1])

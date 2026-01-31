@@ -11,7 +11,7 @@ from services.task_runner import start_task_dispatcher
 from services.task_scheduler import scheduler
 from services.template_initializer import initialize_default_templates
 from db.mongodb import mongo_client
-from api import chat, conversations, status, tasks, scheduled_tasks
+from api import chat, conversations, status, tasks, scheduled_tasks, providers
 from auth_hubspot import router as hubspot_auth_router
 
 logger = get_logger("mcp_backend_main")
@@ -60,6 +60,7 @@ app.include_router(conversations.router)
 app.include_router(status.router)
 app.include_router(tasks.router)
 app.include_router(scheduled_tasks.router)
+app.include_router(providers.router)
 
 # --- Static Files Hosting ---
 frontend_dist_path = os.path.join(BASE_DIR, '..', 'frontend', 'dist')

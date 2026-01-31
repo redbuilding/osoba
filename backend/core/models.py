@@ -25,12 +25,14 @@ class ChatPayload(BaseModel):
     csv_data_b64: Optional[str] = None
     conversation_id: Optional[str] = None
     model_name: Optional[str] = None
+    provider: Optional[str] = None  # New field for provider selection
     repeat_penalty: Optional[float] = None
 
 class ChatResponse(BaseModel):
     conversation_id: str
     chat_history: List[ChatMessage]
     model_name: Optional[str] = None
+    provider: Optional[str] = None  # New field for provider information
 
 class ConversationListItem(BaseModel):
     id: str = Field(alias="_id")
@@ -39,6 +41,7 @@ class ConversationListItem(BaseModel):
     updated_at: datetime
     message_count: int
     model_name: Optional[str] = None
+    provider: Optional[str] = None  # New field for provider information
 
     class Config:
         populate_by_name = True

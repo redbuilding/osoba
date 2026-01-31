@@ -11,6 +11,8 @@ import ChatInput from "./components/ChatInput";
 import ConversationSidebar from "./components/ConversationSidebar";
 import ToolSelector from "./components/ToolSelector";
 import TasksInspector from "./components/TasksInspector";
+import SettingsModal from "./components/SettingsModal";
+import ModelPickerModal from "./components/ModelPickerModal";
 import useKeyboardShortcuts from "./hooks/useKeyboardShortcuts";
 import {
   sendMessage, // still used for legacy / fall‑back
@@ -19,6 +21,8 @@ import {
   getConversations,
   getConversationMessages,
   getOllamaModels,
+  getAllModels,
+  getProviders,
   deleteConversation,
   renameConversation,
   getHubspotAuthStatus,
@@ -45,6 +49,7 @@ import {
   Youtube,
   FileCode,
   ListTodo,
+  Settings,
 } from "lucide-react";
 
 // MCP service names
@@ -83,10 +88,16 @@ const App = () => {
   const [conversationsError, setConversationsError] = useState(null);
   const [isChatHistoryLoading, setIsChatHistoryLoading] = useState(false);
 
-  // Ollama models
+  // Ollama models (backward compatibility)
   const [availableOllamaModels, setAvailableOllamaModels] = useState([]);
   const [selectedOllamaModel, setSelectedOllamaModel] = useState("");
   const [ollamaModelsError, setOllamaModelsError] = useState(null);
+
+  // Multi-provider support
+  const [selectedModel, setSelectedModel] = useState("");
+  const [selectedProvider, setSelectedProvider] = useState("ollama");
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isModelPickerOpen, setIsModelPickerOpen] = useState(false);
 
   // Layout
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -313,19 +324,39 @@ const App = () => {
   });
 
   /* --------------------------------------------------------------------- */
+  /*  Provider Management                                                  */
+  /* --------------------------------------------------------------------- */
+  const handleModelSelect = (modelName, providerId) => {
+    setSelectedModel(modelName);
+    setSelectedProvider(providerId);
+    
+    // Maintain backward compatibility with Ollama
+    if (providerId === 'ollama') {
+      setSelectedOllamaModel(modelName);
+    }
+  };
+
+  const handleSettingsUpdate = () => {
+    // Refresh provider status or models if needed
+    // This could trigger a re-fetch of provider models
+  };
+
+  /* --------------------------------------------------------------------- */
   /*  Send / Stream message                                                */
   /* --------------------------------------------------------------------- */
   const handleSendMessage = async (userInput) => {
     /* --- guards -------------------------------------------------------- */
     if (isLoading || isChatHistoryLoading) return;
 
-    const modelForThisMsg = currentConversationId ? null : selectedOllamaModel;
+    // Use selectedModel for new conversations, maintain backward compatibility
+    const modelForThisMsg = currentConversationId ? null : (selectedModel || selectedOllamaModel);
+    const providerForThisMsg = currentConversationId ? null : selectedProvider;
 
     if (!modelForThisMsg && !currentConversationId) {
-      setError("Please select an Ollama model for this new chat.");
+      setError("Please select a model for this new chat.");
       return;
     }
-    if (!ollamaAvailable) {
+    if (!ollamaAvailable && (!selectedProvider || selectedProvider === 'ollama')) {
       setError("Ollama server is not available. Cannot start chat.");
       return;
     }
@@ -355,7 +386,10 @@ const App = () => {
       use_python: activeTool === "python",
       csv_data_b64: activeTool === "python" && uploadedCsv ? uploadedCsv.data_b64 : null,
       conversation_id: currentConversationId,
-      ollama_model_name: modelForThisMsg,
+      model_name: modelForThisMsg,
+      provider: providerForThisMsg,
+      // Backward compatibility
+      ollama_model_name: selectedProvider === 'ollama' ? modelForThisMsg : null,
     };
 
     // Push user message + assistant placeholder to UI immediately
@@ -569,13 +603,16 @@ const App = () => {
   );
 
   const modelForDisplay =
+    currentConversationDetails?.model_name ||
     currentConversationDetails?.ollama_model_name ||
+    selectedModel ||
     selectedOllamaModel ||
     "N/A";
 
   const getChatInputPlaceholder = () => {
-    if (!ollamaAvailable) return "Ollama server unavailable...";
+    if (!ollamaAvailable && selectedProvider === 'ollama') return "Ollama server unavailable...";
     if (
+      !selectedModel &&
       !selectedOllamaModel &&
       !currentConversationId &&
       availableOllamaModels.length
@@ -639,48 +676,17 @@ const App = () => {
 
           <div className="text-xs text-brand-text-secondary flex items-center space-x-2 sm:space-x-3 flex-wrap">
             {/* Model select / label */}
-            <div className="flex items-center" title="Ollama Model Selection">
-              <BrainCircuit
-                size={14}
-                className={`mr-1 ${
-                  ollamaAvailable ? "text-brand-purple" : "text-brand-alert-red"
-                }`}
-              />
+            <div className="flex items-center" title="Model Selection">
+              <BrainCircuit size={14} className="mr-1 text-brand-purple" />
               {!currentConversationId ? (
-                <select
-                  value={selectedOllamaModel}
-                  onChange={(e) => setSelectedOllamaModel(e.target.value)}
-                  disabled={
-                    !availableOllamaModels.length ||
-                    isLoading ||
-                    isChatHistoryLoading ||
-                    !ollamaAvailable
-                  }
-                  className="bg-brand-surface-bg text-brand-text-secondary text-xs p-1 rounded border border-gray-600 focus:outline-none focus:ring-1 focus:ring-brand-purple max-w-[120px] sm:max-w-[180px] truncate"
-                  title={modelForDisplay}
+                <button
+                  onClick={() => setIsModelPickerOpen(true)}
+                  className="px-2 py-1 text-xs rounded bg-gray-700 hover:bg-gray-600 text-white"
                 >
-                  {ollamaModelsError && (
-                    <option value="">{ollamaModelsError}</option>
-                  )}
-                  {!ollamaModelsError && !ollamaAvailable && (
-                    <option value="">Ollama N/A</option>
-                  )}
-                  {!ollamaModelsError &&
-                    ollamaAvailable &&
-                    availableOllamaModels.length === 0 && (
-                      <option value="">No models</option>
-                    )}
-                  {availableOllamaModels.map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </select>
+                  {modelForDisplay ? `Model: ${modelForDisplay}` : 'Select Model'}
+                </button>
               ) : (
-                <span
-                  className="text-brand-text-secondary max-w-[120px] sm:max-w-[180px] truncate"
-                  title={modelForDisplay}
-                >
+                <span className="text-brand-text-secondary max-w-[180px] truncate" title={modelForDisplay}>
                   Model: {modelForDisplay}
                 </span>
               )}
@@ -708,6 +714,15 @@ const App = () => {
               }`}
             >
               <ListTodo size={14} /> Tasks{activeTasksCount ? ` (${activeTasksCount})` : ""}
+            </button>
+
+            {/* Settings button */}
+            <button
+              onClick={() => setIsSettingsOpen(true)}
+              title="Provider Settings"
+              className="flex items-center gap-1 px-2 py-1 text-xs rounded bg-gray-700 hover:bg-gray-600 text-white"
+            >
+              <Settings size={14} /> Settings
             </button>
           </div>
         </header>
@@ -795,6 +810,25 @@ const App = () => {
         activeTool={activeTool}
         onSelectTool={setActiveTool}
         onHubspotConnect={handleHubspotConnect}
+      />
+
+      {/* Settings modal */}
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        onSettingsUpdate={handleSettingsUpdate}
+      />
+
+      {/* Model Picker Modal */}
+      <ModelPickerModal
+        isOpen={isModelPickerOpen}
+        onClose={() => setIsModelPickerOpen(false)}
+        onSelectModel={(fullName, providerId) => {
+          handleModelSelect(fullName, providerId);
+          setIsModelPickerOpen(false);
+        }}
+        currentModel={selectedModel || selectedOllamaModel}
+        onOpenSettings={() => setIsSettingsOpen(true)}
       />
     </div>
   );

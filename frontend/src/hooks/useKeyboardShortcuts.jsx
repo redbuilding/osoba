@@ -17,7 +17,7 @@ const useKeyboardShortcuts = (shortcuts) => {
     if (event.ctrlKey || event.metaKey) keys.push('ctrl');
     if (event.shiftKey) keys.push('shift');
     if (event.altKey) keys.push('alt');
-    keys.push(event.key.toLowerCase());
+    keys.push(event.key?.toLowerCase() || '');
     
     const combination = keys.join('+');
 
