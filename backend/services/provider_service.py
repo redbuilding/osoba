@@ -251,22 +251,21 @@ async def validate_provider_api_key(provider_id: str, api_key: str) -> Dict[str,
         if not health_check_model:
             return {"valid": True, "message": "No health check model configured"}
         
-        test_messages = [{"role": "user", "content": "Hi"}]
+        test_messages = [{"role": "user", "content": "ping"}]
         # Ensure provider-prefixed model for health check
         provider_id = provider_id
         from core.providers import get_model_with_prefix
         request_params = {
             "model": get_model_with_prefix(provider_id, health_check_model),
             "messages": test_messages,
-            "max_tokens": 1
+            "max_tokens": 16
         }
         # Explicitly pass API key to LiteLLM to avoid reliance on env
         if provider_id != 'ollama' and config.get('api_key_env'):
             request_params['api_key'] = api_key
-        
-        # Add provider-specific params
-        if config.get('requires_max_tokens'):
-            request_params['max_tokens'] = 1
+        # Provider-specific params – ensure tokens set for providers that need it
+        if config.get('requires_max_tokens') and request_params.get('max_tokens', 0) < 1:
+            request_params['max_tokens'] = 16
         
         response = await litellm.acompletion(**request_params)
         

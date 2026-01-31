@@ -29,6 +29,7 @@ MYSQL_DB_SERVICE_NAME = "mysql_db_service"
 HUBSPOT_SERVICE_NAME = "hubspot_service"
 YOUTUBE_SERVICE_NAME = "youtube_service"
 PYTHON_SERVICE_NAME = "python_service"
+CODEX_SERVICE_NAME = "codex_workspace_service"
 MAX_DB_RESULT_CHARS = 5000 # Proxy for token limit (approx 1000-1200 tokens)
 MAX_TABLES_FOR_SCHEMA_CONTEXT = 7 # Max tables to fetch full schema for, to keep prompt size reasonable
 
@@ -48,3 +49,6 @@ TASK_MAX_SECONDS_DEFAULT = int(os.getenv('TASK_MAX_SECONDS_DEFAULT', '3600'))
 TASK_MAX_TOOL_CALLS_DEFAULT = int(os.getenv('TASK_MAX_TOOL_CALLS_DEFAULT', '50'))
 TASK_STEP_TIMEOUT_DEFAULT = int(os.getenv('TASK_STEP_TIMEOUT_DEFAULT', '120'))
 TASK_DISPATCH_INTERVAL_MS = int(os.getenv('TASK_DISPATCH_INTERVAL_MS', '2000'))
+
+# Debug / logging flags
+CODEX_DEBUG = os.getenv('CODEX_DEBUG', 'false').lower() == 'true'

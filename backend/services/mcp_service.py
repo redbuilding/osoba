@@ -10,7 +10,7 @@ from fastapi import HTTPException
 from fastmcp.client.transports import StdioServerParameters, stdio_client
 from mcp import ClientSession
 
-from core.config import BASE_DIR, WEB_SEARCH_SERVICE_NAME, MYSQL_DB_SERVICE_NAME, HUBSPOT_SERVICE_NAME, YOUTUBE_SERVICE_NAME, PYTHON_SERVICE_NAME, get_logger
+from core.config import BASE_DIR, WEB_SEARCH_SERVICE_NAME, MYSQL_DB_SERVICE_NAME, HUBSPOT_SERVICE_NAME, YOUTUBE_SERVICE_NAME, PYTHON_SERVICE_NAME, CODEX_SERVICE_NAME, get_logger
 
 logger = get_logger("mcp_service")
 
@@ -63,6 +63,13 @@ class AppState:
                 required_tools=["load_csv", "get_head", "create_plot", "get_descriptive_statistics", 
                               "get_data_info", "filter_dataframe", "group_and_aggregate", 
                               "detect_outliers", "convert_data_types", "perform_hypothesis_test"]
+            ),
+            CODEX_SERVICE_NAME: MCPServiceConfig(
+                name=CODEX_SERVICE_NAME,
+                script_name="server_codex.py",
+                executable="fastmcp",
+                command_verb="run",
+                required_tools=["create_workspace", "start_codex_run", "get_codex_run", "read_file", "get_manifest", "cleanup_workspace"]
             ),
         }
 

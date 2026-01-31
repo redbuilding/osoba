@@ -14,6 +14,8 @@ import TasksInspector from "./components/TasksInspector";
 import SettingsModal from "./components/SettingsModal";
 import ModelPickerModal from "./components/ModelPickerModal";
 import useKeyboardShortcuts from "./hooks/useKeyboardShortcuts";
+import CodexRunCard from "./components/CodexRunCard";
+import FileViewerModal from "./components/FileViewerModal";
 import {
   sendMessage, // still used for legacy / fall‑back
   streamMessage, // ✨ NEW – SSE streaming
@@ -21,6 +23,12 @@ import {
   getConversations,
   getConversationMessages,
   getOllamaModels,
+  getProviderStatus,
+  createCodexWorkspace,
+  startCodexRun,
+  getCodexRun,
+  getCodexManifest,
+  readCodexFile,
   getAllModels,
   getProviders,
   deleteConversation,
@@ -50,6 +58,7 @@ import {
   FileCode,
   ListTodo,
   Settings,
+  Sparkles,
 } from "lucide-react";
 
 // MCP service names
@@ -76,6 +85,8 @@ const App = () => {
   const [mcpHubspotServiceReady, setMcpHubspotServiceReady] = useState(false);
   const [mcpYoutubeServiceReady, setMcpYoutubeServiceReady] = useState(false);
   const [mcpPythonServiceReady, setMcpPythonServiceReady] = useState(false);
+  const [mcpCodexServiceReady, setMcpCodexServiceReady] = useState(false);
+  const [openaiConfigured, setOpenaiConfigured] = useState(false);
   const [isHubspotAuthenticated, setIsHubspotAuthenticated] = useState(false);
   const [dbConnected, setDbConnected] = useState(false);
   const [ollamaAvailable, setOllamaAvailable] = useState(false);
@@ -103,6 +114,8 @@ const App = () => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isTasksOpen, setIsTasksOpen] = useState(false);
   const [promotedGoal, setPromotedGoal] = useState("");
+  const [codexRuns, setCodexRuns] = useState([]); // [{run, workspaceId}]
+  const [fileViewer, setFileViewer] = useState({ open: false, workspaceId: null });
 
   // Refs
   const chatContainerRef = useRef(null);
@@ -156,6 +169,7 @@ const App = () => {
       setMcpPythonServiceReady(
         status.mcp_services?.[PYTHON_SERVICE_NAME]?.ready || false,
       );
+      setMcpCodexServiceReady(status.mcp_services?.["codex_workspace_service"]?.ready || false);
       setActiveTasksCount(status.tasks?.active || 0);
       setOllamaAvailable(status.ollama_available);
       const newDbConnected = status.db_connected;
@@ -169,12 +183,21 @@ const App = () => {
         if (conversationsError?.includes("MongoDB"))
           setConversationsError(null);
       }
+      // Fetch OpenAI provider status for gating Codex tool
+      try {
+        const prov = await getProviderStatus('openai');
+        setOpenaiConfigured(!!prov?.status?.configured);
+      } catch (e) {
+        setOpenaiConfigured(false);
+      }
     } catch {
       setMcpSearchServiceReady(false);
       setMcpDbServiceReady(false);
       setMcpHubspotServiceReady(false);
       setMcpYoutubeServiceReady(false);
       setMcpPythonServiceReady(false);
+      setMcpCodexServiceReady(false);
+      setOpenaiConfigured(false);
       setDbConnected(false);
       setOllamaAvailable(false);
       setConversationsError(
@@ -366,6 +389,49 @@ const App = () => {
         setError("Please upload a CSV file to use the Python Analysis tool.");
         return;
       }
+    }
+
+    // Codex tool: start workspace run instead of LLM chat
+    if (activeTool === 'codex') {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const ws = await createCodexWorkspace({ name_hint: currentConversationDetails?.title || 'task', keep: false });
+        const wsId = ws.workspace_id || ws.workspaceId || (ws.workspace_path && String(ws.workspace_path).split('/').pop()) || (ws.workspacePath && String(ws.workspacePath).split('/').pop());
+        const text = typeof userInput === 'string' ? userInput.trim() : String(userInput || '').trim();
+        const start = await startCodexRun({ workspace_id: wsId, instruction: text });
+        const runId = start.run_id;
+        // Insert a simple assistant placeholder and a run card entry
+        const assistantPlaceholder = {
+          role: "assistant",
+          content: "[Codex] Generating workspace…",
+          is_html: false,
+          timestamp: new Date().toISOString(),
+        };
+        setChatHistory((prev) => [...prev, { role: 'user', content: userInput, timestamp: new Date().toISOString() }, assistantPlaceholder]);
+        // Track run
+        setCodexRuns((prev) => [...prev, { workspaceId: ws.workspace_id, run: { status: 'queued', run_id: runId } }]);
+        // Poll for status
+        const poll = async () => {
+          try {
+            const status = await getCodexRun(runId);
+            const run = status.run || {};
+            setCodexRuns((prev) => prev.map((r) => (r.run?.run_id === runId ? { ...r, run } : r)));
+            if (run.status === 'completed' || run.status === 'failed') {
+              setIsLoading(false);
+              return;
+            }
+            setTimeout(poll, 1000);
+          } catch (e) {
+            setTimeout(poll, 1500);
+          }
+        };
+        poll();
+      } catch (e) {
+        setError(e?.detail || e?.message || 'Failed to start Codex run');
+        setIsLoading(false);
+      }
+      return;
     }
 
     /* --- begin streaming ---------------------------------------------- */
@@ -572,6 +638,13 @@ const App = () => {
         isReady: mcpPythonServiceReady,
       },
       {
+        id: "codex",
+        name: "Codex (Workspace)",
+        description: openaiConfigured ? "Generate files in an isolated workspace." : "Requires OpenAI API key.",
+        icon: <Sparkles size={24} />,
+        isReady: mcpCodexServiceReady && openaiConfigured,
+      },
+      {
         id: "hubspot",
         name: "HubSpot Actions",
         description: "Create marketing emails in HubSpot.",
@@ -593,6 +666,8 @@ const App = () => {
       mcpHubspotServiceReady,
       mcpYoutubeServiceReady,
       mcpPythonServiceReady,
+      mcpCodexServiceReady,
+      openaiConfigured,
       isHubspotAuthenticated,
     ],
   );
@@ -751,6 +826,16 @@ const App = () => {
               </div>
             </div>
           )}
+
+          {/* Codex Run Cards */}
+          {!isChatHistoryLoading && codexRuns.map((r, i) => (
+            <CodexRunCard
+              key={r.run?.run_id || i}
+              run={r.run}
+              onViewManifest={() => setFileViewer({ open: true, workspaceId: r.workspaceId })}
+              onCancel={() => {/* optional cancel wiring */}}
+            />
+          ))}
         </div>
 
         {/* Error banner */}
@@ -821,6 +906,15 @@ const App = () => {
         }}
         currentModel={selectedModel || selectedOllamaModel}
         onOpenSettings={() => setIsSettingsOpen(true)}
+      />
+
+      {/* File Viewer Modal */}
+      <FileViewerModal
+        isOpen={fileViewer.open}
+        onClose={() => setFileViewer({ open: false, workspaceId: null })}
+        workspaceId={fileViewer.workspaceId}
+        fetchManifest={getCodexManifest}
+        fetchFile={readCodexFile}
       />
     </div>
   );

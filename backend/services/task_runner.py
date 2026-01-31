@@ -24,6 +24,8 @@ from services.progress_bus import progress_bus
 from services.task_planner import plan_task
 from services.mcp_service import submit_mcp_request, wait_mcp_response
 from core.config import WEB_SEARCH_SERVICE_NAME, MYSQL_DB_SERVICE_NAME, YOUTUBE_SERVICE_NAME, PYTHON_SERVICE_NAME
+from services.codex_client import create_workspace as codex_create_workspace, start_run as codex_start_run, get_run_status as codex_get_run_status
+from services.provider_service import get_provider_status as get_provider_status_async
 from services.provider_service import chat_with_provider
 from db.mongodb import conversations_collection
 
@@ -362,20 +364,53 @@ async def _execute_step(task_id: str, idx: int, step: Dict[str, Any]):
             text = await chat_with_provider(messages, model)
             norm: Dict[str, Any] = {"text": text or ""}
         else:
-            service_name, tool_name = _resolve_tool(tool)
-            logger.info(f"Resolved tool {tool} to service {service_name}, tool {tool_name}")
-            # Budget: increment tool call usage (optimistic)
-            # We don't read-modify-write usage here to keep it simple; dispatcher checks before each step
-            increment_usage(task_id, "tool_calls", 1)
-            logger.info(f"Submitting MCP request for task {task_id}, step {idx}")
-            req_id = await submit_mcp_request(service_name, "tool", {"tool": tool_name, "params": params})
-            # Wait with timeout
-            resp = await wait_mcp_response(service_name, req_id, timeout=step_timeout)
-            if resp.get("status") == "error":
-                raise RuntimeError(resp.get("error"))
-
-            data = resp.get("data")
-            norm: Dict[str, Any] = {"raw": data}
+            if tool == "codex.run":
+                # Gate: ensure OpenAI configured
+                try:
+                    status = await get_provider_status_async('openai')
+                except Exception:
+                    status = {"configured": False}
+                if not status.get('configured'):
+                    raise RuntimeError("OpenAI API key is required to run Codex")
+                # Create workspace and start run
+                name_hint = (get_task(task_id) or {}).get("title", "task")
+                ws = await codex_create_workspace(name_hint=name_hint, keep=False)
+                ws_id = ws.get("workspace_id")
+                if not ws_id:
+                    raise RuntimeError("Failed to create Codex workspace")
+                instr = step.get("instruction") or (params.get("instruction") if isinstance(params, dict) else None) or (get_task(task_id) or {}).get("goal", "")
+                start = await codex_start_run(ws_id, instr)
+                run_id = start.get("run_id")
+                if not run_id:
+                    raise RuntimeError("Failed to start Codex run")
+                deadline = time.time() + step_timeout
+                last_status = None
+                while time.time() < deadline:
+                    st = await codex_get_run_status(run_id)
+                    last_status = st.get("run") or {}
+                    state = last_status.get("status")
+                    if state in ("completed", "failed"):
+                        break
+                    await asyncio.sleep(1.0)
+                if not last_status or last_status.get("status") != "completed" or not last_status.get("task_ok"):
+                    raise RuntimeError((last_status or {}).get("error_message") or "Codex run failed")
+                norm = {
+                    "text": last_status.get("summary"),
+                    "artifacts": last_status.get("artifacts"),
+                    "output_policy": last_status.get("output_policy"),
+                }
+                data = norm
+            else:
+                service_name, tool_name = _resolve_tool(tool)
+                logger.info(f"Resolved tool {tool} to service {service_name}, tool {tool_name}")
+                increment_usage(task_id, "tool_calls", 1)
+                logger.info(f"Submitting MCP request for task {task_id}, step {idx}")
+                req_id = await submit_mcp_request(service_name, "tool", {"tool": tool_name, "params": params})
+                resp = await wait_mcp_response(service_name, req_id, timeout=step_timeout)
+                if resp.get("status") == "error":
+                    raise RuntimeError(resp.get("error"))
+                data = resp.get("data")
+                norm: Dict[str, Any] = {"raw": data}
 
         # Special handling for python.load_csv: capture dataframe id
         if tool == "python.load_csv":

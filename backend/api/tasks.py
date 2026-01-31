@@ -59,9 +59,13 @@ async def create_task_endpoint(payload: TaskCreatePayload):
     doc["_id"] = str(doc["_id"])
     
     # Add queue position for user feedback
-    queue_position = get_queue_position(tid)
-    if queue_position > 1:
-        doc["queue_position"] = queue_position
+    try:
+        queue_position = get_queue_position(tid)
+        if queue_position > 1:
+            doc["queue_position"] = queue_position
+    except Exception:
+        # In test/memory mode or if DB unavailable, skip queue position
+        pass
     
     return TaskDetail.model_validate(doc)
 

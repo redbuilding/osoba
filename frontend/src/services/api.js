@@ -529,6 +529,54 @@ export const getUserSettings = async () => {
   }
 };
 
+// ----- Codex MCP API -----
+export const createCodexWorkspace = async ({ name_hint, keep = false }) => {
+  const response = await apiClient.post('/codex/workspaces', { name_hint, keep });
+  const data = response.data || {};
+  if (Array.isArray(data)) {
+    const txt = (data[0] && data[0].content) || '';
+    try {
+      return JSON.parse(txt);
+    } catch (e) {
+      return { raw: data };
+    }
+  }
+  return data;
+};
+
+export const startCodexRun = async ({ workspace_id, instruction, model = null, timeout_seconds = 900 }) => {
+  const payload = {
+    workspace_id,
+    workspaceId: workspace_id, // tolerant for backend variants
+    instruction: typeof instruction === 'string' ? instruction : String(instruction || ''),
+    timeout_seconds,
+    timeoutSeconds: timeout_seconds,
+  };
+  if (model) payload.model = model;
+  const response = await apiClient.post('/codex/runs', payload);
+  return response.data;
+};
+
+export const getCodexRun = async (run_id) => {
+  const response = await apiClient.get(`/codex/runs/${run_id}`);
+  return response.data;
+};
+
+export const cancelCodexRun = async (run_id) => {
+  const response = await apiClient.post(`/codex/runs/${run_id}/cancel`);
+  return response.data;
+};
+
+export const getCodexManifest = async (workspace_id) => {
+  const response = await apiClient.get(`/codex/workspaces/${workspace_id}/manifest`);
+  return response.data;
+};
+
+export const readCodexFile = async (workspace_id, relative_path) => {
+  const response = await apiClient.get(`/codex/workspaces/${workspace_id}/file`, { params: { relative_path } });
+  return response.data;
+};
+
 // Enhanced model listing that includes all providers
 export const getAllModels = async () => {
   try {

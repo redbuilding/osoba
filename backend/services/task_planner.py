@@ -19,7 +19,17 @@ ALLOWED_TASK_TOOLS = [
     "python.create_plot",
     "python.query_dataframe",
     "llm.generate",
+    "codex.run",
 ]
+
+# Back-compat shim for tests that patch chat_with_ollama directly
+async def chat_with_ollama(messages, model_name, repeat_penalty=1.15):
+    try:
+        # If model is unprefixed, assume ollama
+        full = model_name if str(model_name).startswith("ollama/") else f"ollama/{model_name}"
+        return await chat_with_provider(messages, full, repeat_penalty)
+    except Exception:
+        return None
 
 # Lightweight tool aliasing to keep plans robust across models
 TOOL_ALIASES = {
@@ -199,4 +209,49 @@ async def plan_task(goal: str, model: str | None, budget: Dict | None) -> Plan:
             plan.steps = fixed_steps
     except Exception:
         pass
+
+    # Gate Codex (requires OpenAI key)
+    try:
+        from services.provider_service import get_provider_status
+        status = await get_provider_status('openai')
+        if not status.get('configured'):
+            gated: List[PlanStep] = []
+            for s in plan.steps:
+                if s.tool == "codex.run":
+                    gated.append(PlanStep(
+                        id=s.id,
+                        title=s.title or "Generate output",
+                        instruction=s.instruction or "Write a concise result based on context.",
+                        tool="llm.generate",
+                        params={},
+                        success_criteria=s.success_criteria or "Produced a useful result",
+                        max_retries=s.max_retries or 1,
+                    ))
+                else:
+                    gated.append(s)
+            plan.steps = gated
+    except Exception:
+        pass
+
+    # Heuristic: add Codex step for code scaffolding goals if available
+    try:
+        from services.provider_service import get_provider_status
+        status = await get_provider_status('openai')
+        codex_ok = bool(status.get('configured'))
+        keywords = ["scaffold", "generate code", "build app", "web app", "init repo", "create files", "project structure"]
+        if codex_ok and not any(s.tool == "codex.run" for s in plan.steps):
+            gl = (goal or "").lower()
+            if any(k in gl for k in keywords):
+                plan.steps.append(PlanStep(
+                    id=f"s{len(plan.steps)+1}",
+                    title="Run Codex to generate workspace",
+                    instruction=goal,
+                    tool="codex.run",
+                    params={},
+                    success_criteria="Workspace generated with relevant files",
+                    max_retries=0,
+                ))
+    except Exception:
+        pass
+
     return plan

@@ -11,7 +11,7 @@ import importlib.util
 from fastmcp import Client
 
 # Import the server module directly
-spec = importlib.util.spec_from_file_location("server", "server_python.py")
+spec = importlib.util.spec_from_file_location("server", "backend/server_python.py")
 server_module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(server_module)
 
