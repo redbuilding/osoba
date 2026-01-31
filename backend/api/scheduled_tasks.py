@@ -22,11 +22,20 @@ logger = get_logger("api_scheduled_tasks")
 @router.post("/api/scheduled-tasks", response_model=dict)
 async def create_scheduled_task(payload: ScheduledTaskPayload):
     try:
-        # Validate cron expression
-        try:
-            croniter.croniter(payload.schedule.cron_expression)
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail=f"Invalid cron expression: {e}")
+        # Validate schedule type and timing
+        s_type = (payload.schedule.type or "recurring").lower()
+        if s_type == "recurring":
+            if not payload.schedule.cron_expression:
+                raise HTTPException(status_code=400, detail="Missing cron_expression for recurring schedule")
+            try:
+                croniter.croniter(payload.schedule.cron_expression)
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=f"Invalid cron expression: {e}")
+        elif s_type == "once":
+            if not payload.schedule.once_at:
+                raise HTTPException(status_code=400, detail="Missing once_at for one-time schedule")
+        else:
+            raise HTTPException(status_code=400, detail=f"Invalid schedule type: {payload.schedule.type}")
 
         # Validate model selection if provided
         if payload.model_name:
@@ -93,7 +102,7 @@ async def run_scheduled_task_now(task_id: str, payload: dict | None = None):
             "conversation_id": scheduled.get("conversation_id"),
             "model_name": override_model or scheduled.get("model_name") or scheduled.get("ollama_model_name"),
             "budget": scheduled.get("budget"),
-            "status": "PENDING",
+            "status": "PLANNING",
             "created_at": datetime.now(timezone.utc),
             "updated_at": datetime.now(timezone.utc),
             "priority": 1,
@@ -115,6 +124,12 @@ async def list_scheduled_tasks():
             # Manually set id field from _id
             task_dict = dict(task)
             task_dict['id'] = str(task_dict.pop('_id'))  # Remove _id and set id
+            # Flatten next_run and last_run for convenience
+            sched = task_dict.get('schedule') or {}
+            if 'next_run' in sched:
+                task_dict['next_run'] = sched.get('next_run')
+            if 'timezone' in sched:
+                task_dict['timezone'] = sched.get('timezone')
             result.append(task_dict)
         return result
     except Exception as e:

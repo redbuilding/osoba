@@ -137,6 +137,15 @@ async def _add_provider_params(request_params: Dict[str, Any], provider_id: str,
             request_params['api_base'] = api_base
     # For other providers like OpenRouter, don't set api_base - let LiteLLM use defaults
     
+    # Provider-specific headers (optional but recommended)
+    if provider_id == 'openrouter':
+        # OpenRouter recommends sending HTTP-Referer and X-Title for routing/attribution
+        # These aren't required for auth but help with 401 cases behind proxies
+        headers = request_params.get('extra_headers') or {}
+        headers.setdefault('HTTP-Referer', os.getenv('OPENROUTER_HTTP_REFERER', 'http://localhost'))
+        headers.setdefault('X-Title', os.getenv('OPENROUTER_APP_NAME', 'MCP App'))
+        request_params['extra_headers'] = headers
+    
     # Add max_tokens for Anthropic
     if config.get('requires_max_tokens'):
         request_params['max_tokens'] = config.get('default_max_tokens', 4096)

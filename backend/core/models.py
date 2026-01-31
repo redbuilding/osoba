@@ -123,7 +123,10 @@ class TaskDetail(BaseModel):
 ############################
 
 class TaskSchedule(BaseModel):
-    cron_expression: str
+    # type: 'recurring' | 'once'. Default to 'recurring' for backward compatibility.
+    type: str = "recurring"
+    cron_expression: Optional[str] = None
+    once_at: Optional[str] = None  # ISO 8601, interpreted in 'timezone' if naive
     timezone: str = "UTC"
     enabled: bool = True
     next_run: Optional[datetime] = None

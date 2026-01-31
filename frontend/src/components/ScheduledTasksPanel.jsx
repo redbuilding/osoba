@@ -98,19 +98,26 @@ const ScheduledTasksPanel = ({ isOpen, onClose }) => {
     setError(null);
 
     try {
-      const cronExpression = formData.scheduleType === 'simple' 
-        ? generateCronFromSimple(formData.simpleSchedule)
-        : formData.cron_expression;
+      let schedulePayload = { timezone: formData.timezone, enabled: formData.enabled };
+      if (formData.scheduleType === 'simple' && formData.simpleSchedule.type === 'once') {
+        if (!formData.simpleSchedule.date) {
+          throw new Error('Please select a date for the one-time schedule');
+        }
+        // Build ISO-like string without timezone; backend interprets in selected timezone
+        const onceAt = `${formData.simpleSchedule.date}T${formData.simpleSchedule.time}:00`;
+        schedulePayload = { ...schedulePayload, type: 'once', once_at: onceAt };
+      } else {
+        const cronExpression = formData.scheduleType === 'simple' 
+          ? generateCronFromSimple(formData.simpleSchedule)
+          : formData.cron_expression;
+        schedulePayload = { ...schedulePayload, type: 'recurring', cron_expression: cronExpression };
+      }
 
       await createScheduledTask({
         name: formData.name,
         goal: formData.goal,
         model_name: formModel || null,
-        schedule: {
-          cron_expression: cronExpression,
-          timezone: formData.timezone,
-          enabled: formData.enabled
-        }
+        schedule: schedulePayload,
       });
 
       setFormData({
@@ -409,7 +416,13 @@ const ScheduledTasksPanel = ({ isOpen, onClose }) => {
                       )}
 
                       <div className="text-xs text-brand-text-secondary">
-                        Preview: {formatCronExpression(generateCronFromSimple(formData.simpleSchedule))}
+                        {formData.simpleSchedule.type === 'once' ? (
+                          <>
+                            Preview: Once at {formData.simpleSchedule.date ? new Date(`${formData.simpleSchedule.date}T${formData.simpleSchedule.time}:00`).toLocaleString() : '—'} ({formData.timezone})
+                          </>
+                        ) : (
+                          <>Preview: {formatCronExpression(generateCronFromSimple(formData.simpleSchedule))}</>
+                        )}
                       </div>
                     </div>
                   ) : (
@@ -508,11 +521,15 @@ const ScheduledTasksPanel = ({ isOpen, onClose }) => {
                     <div className="flex items-center gap-4 text-xs text-brand-text-secondary">
                       <span className="flex items-center gap-1">
                         <Calendar className="w-3 h-3" />
-                        {formatCronExpression(task.schedule.cron_expression)}
+                        {task.schedule?.type === 'once'
+                          ? 'Once'
+                          : formatCronExpression(task.schedule?.cron_expression || '')}
                       </span>
                       <span>Runs: {task.run_count || 0}</span>
-                      {task.next_run && (
-                        <span>Next: {new Date(task.next_run).toLocaleString()}</span>
+                      {(task.schedule?.next_run || task.next_run) && (
+                        <span>
+                          Next: {new Date(task.schedule?.next_run || task.next_run).toLocaleString()} {task.schedule?.timezone ? `(${task.schedule.timezone})` : ''}
+                        </span>
                       )}
                     </div>
                   </div>

@@ -1,9 +1,17 @@
 import os
 from contextlib import asynccontextmanager
+from dotenv import load_dotenv, find_dotenv
 import uvicorn
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+
+# Load .env early so all downstream modules see environment variables
+_dotenv_path = find_dotenv(usecwd=True, raise_error_if_not_found=False)
+if _dotenv_path:
+    load_dotenv(_dotenv_path)
+else:
+    load_dotenv()
 
 from core.config import get_logger, BASE_DIR
 from services.mcp_service import start_mcp_services, stop_mcp_services

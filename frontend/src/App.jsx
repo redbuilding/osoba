@@ -743,7 +743,9 @@ const App = () => {
             <div className="flex justify-start mb-4 animate-pulse">
               <div className="max-w-[70%] p-3 rounded-lg shadow bg-brand-surface-bg text-brand-text-primary rounded-bl-none">
                 Thinking with{" "}
-                {currentConversationDetails?.ollama_model_name ||
+                {currentConversationDetails?.model_name ||
+                  currentConversationDetails?.ollama_model_name ||
+                  selectedModel ||
                   selectedOllamaModel}
                 ...
               </div>

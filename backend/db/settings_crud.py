@@ -32,10 +32,11 @@ def decrypt_api_key(encrypted_key: str) -> str:
     try:
         return fernet.decrypt(encrypted_key.encode()).decode()
     except Exception as e:
-        # Likely a legacy plaintext key or a key encrypted with a different Fernet secret.
-        # Return as-is to keep the app functional; do not log the key value.
-        logger.warning("API key not decryptable with current SETTINGS_ENCRYPTION_KEY; treating as plaintext.")
-        return encrypted_key
+        # Likely encrypted with a different SETTINGS_ENCRYPTION_KEY. Do not return the ciphertext
+        # as a usable API key; treat as missing so the UI shows provider unconfigured and the
+        # user can re-enter the key. Avoid logging the key itself.
+        logger.warning("Stored API key can't be decrypted with current SETTINGS_ENCRYPTION_KEY; treating as missing.")
+        return ""
 
 def get_user_settings(user_id: str = "default") -> Optional[Dict[str, Any]]:
     """Get user settings including provider configurations."""
