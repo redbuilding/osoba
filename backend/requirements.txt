@@ -3,6 +3,7 @@ uvicorn
 pydantic
 pymongo
 ollama
+litellm
 mysql-connector-python
 python-dotenv
 httpx

@@ -156,7 +156,7 @@ class TaskScheduler:
                 "goal": scheduled_task["goal"],
                 "title": scheduled_task.get("name", scheduled_task["goal"][:50]),
                 "conversation_id": scheduled_task.get("conversation_id"),
-                "ollama_model_name": scheduled_task.get("ollama_model_name"),
+                "model_name": scheduled_task.get("model_name") or scheduled_task.get("ollama_model_name"),
                 "budget": scheduled_task.get("budget"),
                 "status": "PENDING",
                 "created_at": datetime.now(timezone.utc),

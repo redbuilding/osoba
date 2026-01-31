@@ -129,7 +129,7 @@ class ChatProcessor:
             self.obj_id = ObjectId(self.conv_id)
             conv = self.collection.find_one({"_id": self.obj_id})
             if not conv: raise ValueError(f"Conv ID '{self.conv_id}' not found.")
-            self.model_name = conv.get("ollama_model_name")
+            self.model_name = conv.get("model_name") or conv.get("ollama_model_name")  # Support both old and new field names
             self.youtube_transcript = conv.get("youtube_transcript")
             self.python_df_id = conv.get("python_df_id")
             for msg in conv.get("messages", []):
@@ -139,11 +139,11 @@ class ChatProcessor:
                 self.ui_history.append(ChatMessage(**msg))
 
         if not self.model_name:
-            self.model_name = self.payload.ollama_model_name or await get_default_ollama_model()
+            self.model_name = self.payload.model_name or await get_default_ollama_model()
 
         if not self.conv_id:
             new_title = f"Chat: {self.user_msg_content[:30]}{'...' if len(self.user_msg_content) > 30 else ''}"
-            new_doc = {"title": new_title, "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc), "messages": [], "ollama_model_name": self.model_name}
+            new_doc = {"title": new_title, "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc), "messages": [], "model_name": self.model_name}
             res = self.collection.insert_one(new_doc)
             self.conv_id = str(res.inserted_id)
             self.obj_id = res.inserted_id
@@ -550,7 +550,7 @@ Your JSON response:
             else:
                 self._save_assistant_message(f"Sorry, I could not get a response from the model ({self.model_name}).", "")
 
-        return ChatResponse(conversation_id=self.conv_id, chat_history=self.ui_history, ollama_model_name=self.model_name)
+        return ChatResponse(conversation_id=self.conv_id, chat_history=self.ui_history, model_name=self.model_name)
 
     async def process_streaming(self) -> AsyncGenerator[str, None]:
         await self._run_pipeline()

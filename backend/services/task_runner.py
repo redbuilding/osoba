@@ -146,7 +146,7 @@ async def _run_task(task_id: str):
         if doc.get("status") == "PLANNING":
             logger.info(f"Task {task_id} in PLANNING - starting plan generation")
             # Produce plan
-            model_name = doc.get("ollama_model_name")
+            model_name = doc.get("model_name") or doc.get("ollama_model_name")  # Support both old and new field names
             if not model_name:
                 from services.ollama_service import get_default_ollama_model
                 model_name = await get_default_ollama_model()
@@ -343,7 +343,7 @@ async def _execute_step(task_id: str, idx: int, step: Dict[str, Any]):
         if tool and tool.startswith("llm."):
             # LLM-only step: use instruction or params.prompt to generate text
             task_doc = get_task(task_id) or {}
-            model = task_doc.get("ollama_model_name")
+            model = task_doc.get("model_name") or task_doc.get("ollama_model_name")
             if not model:
                 from services.ollama_service import get_default_ollama_model
                 model = await get_default_ollama_model()
@@ -389,7 +389,7 @@ async def _execute_step(task_id: str, idx: int, step: Dict[str, Any]):
                 norm["df_id"] = m.group(1)
         # Verification
         task_doc = get_task(task_id) or {}
-        verified = await _verify_success(step.get("success_criteria", ""), norm, task_doc.get("ollama_model_name"))
+        verified = await _verify_success(step.get("success_criteria", ""), norm, task_doc.get("model_name") or task_doc.get("ollama_model_name"))
         if not verified:
             raise RuntimeError("Verification failed for step output")
 
@@ -464,7 +464,7 @@ async def _post_conversation_update(task_doc: Dict[str, Any], success: bool):
         conv_id = task_doc.get("conversation_id")
         if not conv_id:
             return
-        model = task_doc.get("ollama_model_name") or ""
+        model = task_doc.get("model_name") or task_doc.get("ollama_model_name") or ""
         plan = (task_doc.get("plan") or {}).get("steps", [])
         status = task_doc.get("status")
         summary_text = None

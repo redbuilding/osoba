@@ -36,8 +36,10 @@ MAX_TABLES_FOR_SCHEMA_CONTEXT = 7 # Max tables to fetch full schema for, to keep
 MONGODB_URI = os.getenv('MONGODB_URI', 'mongodb://localhost:27017/')
 MONGODB_DATABASE_NAME = os.getenv('MONGODB_DATABASE_NAME', 'mcp_chat_db')
 MONGODB_COLLECTION_NAME = os.getenv('MONGODB_COLLECTION_NAME', 'conversations')
-DEFAULT_OLLAMA_MODEL = os.getenv('DEFAULT_OLLAMA_MODEL', 'devstral:24b')
-DEFAULT_REPEAT_PENALTY = float(os.getenv("OLLAMA_REPEAT_PENALTY", "1.15"))
+# Support both old and new environment variable names for backward compatibility
+DEFAULT_MODEL = os.getenv('DEFAULT_MODEL') or os.getenv('DEFAULT_OLLAMA_MODEL', 'devstral:24b')
+DEFAULT_REPEAT_PENALTY = float(os.getenv("REPEAT_PENALTY") or os.getenv("OLLAMA_REPEAT_PENALTY", "1.15"))
+OLLAMA_API_BASE = os.getenv('OLLAMA_API_BASE', 'http://localhost:11434')
 
 # Tasks feature configuration
 MONGODB_TASKS_COLLECTION_NAME = os.getenv('MONGODB_TASKS_COLLECTION_NAME', 'tasks')

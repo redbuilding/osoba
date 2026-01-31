@@ -126,7 +126,7 @@ async def create_task_from_template(template_id: str, payload: TaskFromTemplateP
         task_data = {
             "goal": rendered_goal,
             "conversation_id": payload.conversation_id,
-            "ollama_model_name": payload.ollama_model_name,
+            "model_name": payload.model_name,
             "status": "PENDING",
             "created_at": datetime.now(timezone.utc),
             "updated_at": datetime.now(timezone.utc)

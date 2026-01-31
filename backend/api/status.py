@@ -43,6 +43,6 @@ async def get_status():
 
 @router.get("/api/ollama-models", response_model=List[str])
 async def list_ollama_models_endpoint():
-    """Lists available Ollama model tags."""
+    """Lists available LLM model tags."""
     # The service function already handles exceptions and converts them to HTTPException
     return await get_ollama_model_tags()

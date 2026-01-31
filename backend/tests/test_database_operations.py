@@ -39,7 +39,7 @@ class TestDatabaseOperations:
             ],
             "created_at": datetime.now(timezone.utc),
             "updated_at": datetime.now(timezone.utc),
-            "ollama_model_name": "llama3.1"
+            "model_name": "llama3.1"
         }
 
     async def test_get_all_conversations(self):

@@ -21,10 +21,10 @@ async def search_conversations_endpoint(
 
         for doc in db_convs:
             doc["message_count"] = crud.count_messages_in_conversation(doc["_id"])
-            if not doc.get("ollama_model_name"):
+            if not doc.get("model_name") and not doc.get("ollama_model_name"):
                 if default_model_cache is None:
                     default_model_cache = await get_default_ollama_model()
-                doc["ollama_model_name"] = default_model_cache
+                doc["model_name"] = default_model_cache
             
             # Convert ObjectId to string for Pydantic validation
             doc["_id"] = str(doc["_id"])
@@ -44,10 +44,10 @@ async def list_conversations():
 
         for doc in db_convs:
             doc["message_count"] = crud.count_messages_in_conversation(doc["_id"])
-            if not doc.get("ollama_model_name"):
+            if not doc.get("model_name") and not doc.get("ollama_model_name"):
                 if default_model_cache is None:
                     default_model_cache = await get_default_ollama_model()
-                doc["ollama_model_name"] = default_model_cache
+                doc["model_name"] = default_model_cache
             
             # Convert ObjectId to string for Pydantic validation
             doc["_id"] = str(doc["_id"])
@@ -93,8 +93,8 @@ async def rename_conversation_title_endpoint(conversation_id: str, payload: Rena
             raise HTTPException(status_code=404, detail="Conversation not found for renaming.")
 
         updated_doc["message_count"] = crud.count_messages_in_conversation(updated_doc["_id"])
-        if not updated_doc.get("ollama_model_name"):
-            updated_doc["ollama_model_name"] = await get_default_ollama_model()
+        if not updated_doc.get("model_name") and not updated_doc.get("ollama_model_name"):
+            updated_doc["model_name"] = await get_default_ollama_model()
 
         logger.info(f"Renamed conversation ID {conversation_id} to '{payload.new_title}'")
         

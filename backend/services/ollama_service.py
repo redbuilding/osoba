@@ -3,10 +3,12 @@ import json
 import os
 from typing import Optional, List, Dict, AsyncGenerator
 
+import litellm
 import ollama
+from openai import APITimeoutError, BadRequestError, AuthenticationError, NotFoundError, RateLimitError, APIConnectionError, InternalServerError
 from fastapi import HTTPException
 
-from core.config import DEFAULT_OLLAMA_MODEL, DEFAULT_REPEAT_PENALTY, get_logger
+from core.config import DEFAULT_MODEL, DEFAULT_REPEAT_PENALTY, OLLAMA_API_BASE, get_logger
 
 logger = get_logger("ollama_service")
 
@@ -15,53 +17,47 @@ async def chat_with_ollama(messages: List[Dict[str, str]], model_name: str,
     try:
         valid_messages = [msg for msg in messages if isinstance(msg, dict) and 'role' in msg and 'content' in msg]
         if not valid_messages:
-            logger.error(f"[Ollama] No valid messages provided to model '{model_name}'.")
+            logger.error(f"[LLM] No valid messages provided to model '{model_name}'.")
             return None
 
-        response = await asyncio.to_thread(
-            ollama.chat,
-            model=model_name,
+        response = await litellm.acompletion(
+            model=f"ollama/{model_name}",
             messages=valid_messages,
-            options={"repeat_penalty": repeat_penalty}
+            api_base=OLLAMA_API_BASE,
+            temperature=1.0 / repeat_penalty if repeat_penalty > 0 else 1.0
         )
-        if response and "message" in response and "content" in response["message"]:
-            return response["message"]["content"]
-        logger.warning(f"[Ollama] Unexpected response structure from model '{model_name}': {response}")
+        if response and response.choices and response.choices[0].message.content:
+            return response.choices[0].message.content
+        logger.warning(f"[LLM] Unexpected response structure from model '{model_name}': {response}")
         return None
     except Exception as e:
-        logger.error(f"[Ollama] Error with model '{model_name}': {e}", exc_info=True)
+        logger.error(f"[LLM] Error with model '{model_name}': {e}", exc_info=True)
         return None
 
 async def stream_chat_with_ollama(messages: List[Dict[str, str]], model_name: str, repeat_penalty: float = DEFAULT_REPEAT_PENALTY) -> AsyncGenerator[str, None]:
     """
     Async generator that yields Server-Sent Event (SSE) lines containing tokens
-    streamed from Ollama.
+    streamed from LiteLLM.
     """
     try:
-        # Use sync client directly - the streaming is already async-friendly
-        stream_iter = ollama.chat(
-            model=model_name,
+        response = await litellm.acompletion(
+            model=f"ollama/{model_name}",
             messages=messages,
             stream=True,
-            options={"repeat_penalty": repeat_penalty}
+            api_base=OLLAMA_API_BASE,
+            temperature=1.0 / repeat_penalty if repeat_penalty > 0 else 1.0
         )
 
-        for chunk in stream_iter:
-            if chunk and "message" in chunk and "content" in chunk["message"]:
-                token = chunk["message"]["content"]
-                logger.debug(f"[OllamaStream] Raw token: {repr(token)}")
+        async for chunk in response:
+            if chunk.choices and chunk.choices[0].delta.content:
+                token = chunk.choices[0].delta.content
+                logger.debug(f"[LLMStream] Raw token: {repr(token)}")
                 payload = json.dumps({"type": "token", "content": token})
                 yield f"data: {payload}\n\n"
     except Exception as e:
-        logger.error(f"[OllamaStream] Error with model '{model_name}': {e}", exc_info=True)
+        logger.error(f"[LLMStream] Error with model '{model_name}': {e}", exc_info=True)
         err_payload = json.dumps(
-            {'type': 'error', 'content': f"Ollama stream error: {str(e)}"}
-        )
-        yield f"data: {err_payload}\n\n"
-    except Exception as e:
-        logger.error(f"[OllamaStream] Error with model '{model_name}': {e}", exc_info=True)
-        err_payload = json.dumps(
-            {'type': 'error', 'content': f"Ollama stream error: {str(e)}"}
+            {'type': 'error', 'content': f"LLM stream error: {str(e)}"}
         )
         yield f"data: {err_payload}\n\n"
 
@@ -79,27 +75,28 @@ async def get_default_ollama_model() -> str:
             return models_info[0]['model']
     except Exception as e:
         logger.warning(f"Could not get Ollama models due to an error: {e}. Falling back to default.", exc_info=False)
-    return DEFAULT_OLLAMA_MODEL
+    return DEFAULT_MODEL
 
 async def list_ollama_models_info() -> List[Dict]:
     """Internal function to fetch raw model data."""
     try:
+        # LiteLLM doesn't provide detailed model info, so we call Ollama API directly
         response = await asyncio.to_thread(ollama.list)
         if response and isinstance(response.get('models'), list):
             return response['models']
         logger.warning(f"Unexpected format from ollama.list(): {response}. Expected .models list.")
         return []
-    except ollama.ResponseError as e:
-        logger.error(f"Ollama API ResponseError: {e.status_code} - {e.error}", exc_info=True)
-        raise HTTPException(status_code=e.status_code or 500, detail=f"Ollama API error: {e.error or 'Unknown Ollama API response error'}")
-    except ollama.RequestError as e:
+    except BadRequestError as e:
+        logger.error(f"LLM API BadRequestError: {e.status_code} - {e}", exc_info=True)
+        raise HTTPException(status_code=e.status_code or 400, detail=f"LLM API error: {e}")
+    except APIConnectionError as e:
         host = os.getenv('OLLAMA_HOST','localhost:11434')
         actual_host = f"http://{host}" if not host.startswith(('http://','https://')) else host
-        logger.error(f"Ollama API RequestError (could not connect to {actual_host}): {e}", exc_info=True)
-        raise HTTPException(status_code=503, detail=f"Could not connect to Ollama service at {actual_host}. Ensure Ollama is running.")
+        logger.error(f"LLM API ConnectionError (could not connect to {actual_host}): {e}", exc_info=True)
+        raise HTTPException(status_code=503, detail=f"Could not connect to LLM service at {actual_host}. Ensure Ollama is running.")
     except Exception as e:
-        logger.error(f"An unexpected error occurred while fetching Ollama models: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="An unexpected error occurred while fetching Ollama models.")
+        logger.error(f"An unexpected error occurred while fetching LLM models: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="An unexpected error occurred while fetching LLM models.")
 
 async def get_ollama_model_tags() -> List[str]:
     """Fetches just the model tags for API responses."""

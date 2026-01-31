@@ -24,13 +24,13 @@ class ChatPayload(BaseModel):
     use_python: bool = False
     csv_data_b64: Optional[str] = None
     conversation_id: Optional[str] = None
-    ollama_model_name: Optional[str] = None
+    model_name: Optional[str] = None
     repeat_penalty: Optional[float] = None
 
 class ChatResponse(BaseModel):
     conversation_id: str
     chat_history: List[ChatMessage]
-    ollama_model_name: Optional[str] = None
+    model_name: Optional[str] = None
 
 class ConversationListItem(BaseModel):
     id: str = Field(alias="_id")
@@ -38,7 +38,7 @@ class ConversationListItem(BaseModel):
     created_at: datetime
     updated_at: datetime
     message_count: int
-    ollama_model_name: Optional[str] = None
+    model_name: Optional[str] = None
 
     class Config:
         populate_by_name = True
@@ -75,7 +75,7 @@ class Plan(BaseModel):
 class TaskCreatePayload(BaseModel):
     goal: str
     conversation_id: str | None = None
-    ollama_model_name: str | None = None
+    model_name: str | None = None
     budget: dict | None = None  # { max_seconds?: int, max_tool_calls?: int }
     dry_run: bool = False
     priority: int = 2  # 1=scheduled, 2=user, 3=low
@@ -101,7 +101,7 @@ class TaskDetail(BaseModel):
     created_at: datetime
     updated_at: datetime
     conversation_id: str | None = None
-    ollama_model_name: str | None = None
+    model_name: str | None = None
     budget: dict | None = None
     usage: dict | None = None
     plan: Plan | None = None
@@ -129,7 +129,7 @@ class ScheduledTaskPayload(BaseModel):
     goal: str
     schedule: TaskSchedule
     template_id: Optional[str] = None
-    ollama_model_name: Optional[str] = None
+    model_name: Optional[str] = None
     budget: Optional[dict] = None
 
 class ScheduledTaskSummary(BaseModel):
@@ -176,4 +176,4 @@ class TaskFromTemplatePayload(BaseModel):
     template_id: str
     parameters: Dict[str, str]  # Values for placeholders
     conversation_id: Optional[str] = None
-    ollama_model_name: Optional[str] = None
+    model_name: Optional[str] = None

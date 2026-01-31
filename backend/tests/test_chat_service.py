@@ -130,12 +130,12 @@ class TestChatService:
             "chat_history": [],
             "use_search": False,
             "conversation_id": None,
-            "ollama_model_name": "llama3.1"
+            "model_name": "llama3.1"
         }
         payload = ChatPayload(**payload_data)
         assert payload.user_message == "Test message"
         assert payload.conversation_id is None
-        assert payload.ollama_model_name == "llama3.1"
+        assert payload.model_name == "llama3.1"
         assert payload.use_search is False
 
     async def test_chat_payload_with_tool(self):
@@ -146,7 +146,7 @@ class TestChatService:
             "use_search": True,
             "use_database": True,
             "conversation_id": None,
-            "ollama_model_name": "llama3.1"
+            "model_name": "llama3.1"
         }
         payload = ChatPayload(**payload_data)
         assert payload.use_search is True
@@ -169,11 +169,11 @@ class TestChatService:
         response_data = {
             "conversation_id": "507f1f77bcf86cd799439011",
             "chat_history": [],
-            "ollama_model_name": "llama3.1"
+            "model_name": "llama3.1"
         }
         response = ChatResponse(**response_data)
         assert response.conversation_id == "507f1f77bcf86cd799439011"
-        assert response.ollama_model_name == "llama3.1"
+        assert response.model_name == "llama3.1"
         assert response.chat_history == []
 
     async def test_extract_json_edge_cases(self):

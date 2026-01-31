@@ -22,7 +22,7 @@ class TestStreaming:
             "chat_history": [],
             "use_search": False,
             "conversation_id": None,
-            "ollama_model_name": "llama3.1"
+            "model_name": "llama3.1"
         }
 
     async def test_streaming_response_format(self):

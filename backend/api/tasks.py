@@ -34,7 +34,7 @@ async def create_task_endpoint(payload: TaskCreatePayload):
         "created_at": now,
         "updated_at": now,
         "conversation_id": payload.conversation_id,
-        "ollama_model_name": payload.ollama_model_name,
+        "model_name": payload.model_name,
         "budget": payload.budget or {},
         "usage": {"tool_calls": 0, "seconds_elapsed": 0},
         "current_step_index": -1,
