@@ -789,6 +789,7 @@ const App = () => {
         onClose={() => setIsTasksOpen(false)}
         initialGoal={promotedGoal}
         conversationId={currentConversationId}
+        defaultConversationModel={currentConversationDetails?.model_name || currentConversationDetails?.ollama_model_name || selectedModel || selectedOllamaModel || null}
       />
 
       {/* Tool selector panel */}

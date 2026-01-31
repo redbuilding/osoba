@@ -7,6 +7,8 @@ from core.models import (
 )
 from db import scheduled_tasks_crud, templates_crud
 from services.task_scheduler import scheduler
+from services.provider_service import get_provider_status, get_available_models_by_provider
+from core.providers import extract_provider_from_model
 from services.template_engine import template_engine
 from db.tasks_crud import create_task
 from data.default_templates import get_default_templates
@@ -25,6 +27,28 @@ async def create_scheduled_task(payload: ScheduledTaskPayload):
             croniter.croniter(payload.schedule.cron_expression)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=f"Invalid cron expression: {e}")
+
+        # Validate model selection if provided
+        if payload.model_name:
+            try:
+                provider_id, clean = extract_provider_from_model(payload.model_name)
+                status_info = await get_provider_status(provider_id)
+                if provider_id != 'ollama' and not status_info.get('configured'):
+                    raise HTTPException(status_code=400, detail=f"Provider '{provider_id}' not configured")
+                models_by_provider = await get_available_models_by_provider()
+                allowed = set(models_by_provider.get(provider_id, []))
+                # Models list for non-ollama may be provider-prefixed in config; normalize
+                if provider_id != 'ollama':
+                    # accept both prefixed and clean
+                    ok = (payload.model_name in allowed) or (clean in {m.split('/',1)[1] if '/' in m else m for m in allowed})
+                else:
+                    ok = clean in allowed or payload.model_name in allowed
+                if not ok:
+                    raise HTTPException(status_code=400, detail=f"Model '{payload.model_name}' not available for provider '{provider_id}'")
+            except HTTPException:
+                raise
+            except Exception as e:
+                raise HTTPException(status_code=400, detail=f"Invalid model: {e}")
         
         # Create scheduled task
         task_data = payload.model_dump()
@@ -36,6 +60,51 @@ async def create_scheduled_task(payload: ScheduledTaskPayload):
     except Exception as e:
         logger.error(f"Error creating scheduled task: {e}")
         raise HTTPException(status_code=500, detail="Error creating scheduled task")
+
+@router.post("/api/scheduled-tasks/{task_id}/run", response_model=dict)
+async def run_scheduled_task_now(task_id: str, payload: dict | None = None):
+    """Immediately create a Task from a scheduled task, optionally overriding model_name."""
+    try:
+        scheduled = scheduled_tasks_crud.get_scheduled_task(task_id)
+        if not scheduled:
+            raise HTTPException(status_code=404, detail="Scheduled task not found")
+
+        override_model = None
+        if payload and isinstance(payload, dict):
+            override_model = payload.get("model_name")
+        # Validate override if present
+        if override_model:
+            provider_id, clean = extract_provider_from_model(override_model)
+            status_info = await get_provider_status(provider_id)
+            if provider_id != 'ollama' and not status_info.get('configured'):
+                raise HTTPException(status_code=400, detail=f"Provider '{provider_id}' not configured")
+            models_by_provider = await get_available_models_by_provider()
+            allowed = set(models_by_provider.get(provider_id, []))
+            if provider_id != 'ollama':
+                ok = (override_model in allowed) or (clean in {m.split('/',1)[1] if '/' in m else m for m in allowed})
+            else:
+                ok = clean in allowed or override_model in allowed
+            if not ok:
+                raise HTTPException(status_code=400, detail=f"Model '{override_model}' not available for provider '{provider_id}'")
+
+        task_data = {
+            "goal": scheduled["goal"],
+            "title": scheduled.get("name", scheduled["goal"][:50]),
+            "conversation_id": scheduled.get("conversation_id"),
+            "model_name": override_model or scheduled.get("model_name") or scheduled.get("ollama_model_name"),
+            "budget": scheduled.get("budget"),
+            "status": "PENDING",
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc),
+            "priority": 1,
+        }
+        new_task_id = create_task(task_data)
+        return {"task_id": new_task_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error running scheduled task now: {e}")
+        raise HTTPException(status_code=500, detail="Error running scheduled task")
 
 @router.get("/api/scheduled-tasks")
 async def list_scheduled_tasks():

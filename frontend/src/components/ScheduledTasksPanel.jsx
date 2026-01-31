@@ -3,14 +3,19 @@ import { X, Clock, Plus, Trash2, Calendar } from 'lucide-react';
 import { 
   listScheduledTasks, 
   createScheduledTask, 
-  deleteScheduledTask 
+  deleteScheduledTask,
+  runScheduledTaskNow
 } from '../services/api';
+import ModelPickerModal from './ModelPickerModal';
 
 const ScheduledTasksPanel = ({ isOpen, onClose }) => {
   const [scheduledTasks, setScheduledTasks] = useState([]);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [isModelModalOpen, setIsModelModalOpen] = useState(false);
+  const [formModel, setFormModel] = useState(null);
+  const [runOverrideForId, setRunOverrideForId] = useState(null);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -100,6 +105,7 @@ const ScheduledTasksPanel = ({ isOpen, onClose }) => {
       await createScheduledTask({
         name: formData.name,
         goal: formData.goal,
+        model_name: formModel || null,
         schedule: {
           cron_expression: cronExpression,
           timezone: formData.timezone,
@@ -123,12 +129,27 @@ const ScheduledTasksPanel = ({ isOpen, onClose }) => {
         }
       });
       setShowCreateForm(false);
+      setFormModel(null);
       fetchScheduledTasks();
     } catch (error) {
       setError(error.response?.data?.detail || 'Failed to create scheduled task');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleRunNow = async (taskId) => {
+    try {
+      await runScheduledTaskNow(taskId);
+      // maybe show a toast in future
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to run task');
+    }
+  };
+
+  const handleRunWithModel = (taskId) => {
+    setRunOverrideForId(taskId);
+    setIsModelModalOpen(true);
   };
 
   const handleDeleteTask = async (taskId) => {
@@ -410,6 +431,28 @@ const ScheduledTasksPanel = ({ isOpen, onClose }) => {
                 </div>
                 
                 <div className="mb-4">
+                  <label className="block text-sm font-medium mb-1 text-brand-text-primary">Model</label>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsModelModalOpen(true)}
+                      className="px-3 py-2 text-sm rounded bg-gray-700 hover:bg-gray-600 text-white"
+                    >
+                      {formModel ? `Model: ${formModel}` : 'Select Model'}
+                    </button>
+                    {formModel && (
+                      <button
+                        type="button"
+                        onClick={() => setFormModel(null)}
+                        className="px-2 py-1 text-xs rounded bg-gray-700 hover:bg-gray-600 text-white"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mb-4">
                   <label className="block text-sm font-medium mb-1 text-brand-text-primary">Goal</label>
                   <textarea
                     value={formData.goal}
@@ -458,6 +501,9 @@ const ScheduledTasksPanel = ({ isOpen, onClose }) => {
                     </div>
                     
                     <p className="text-sm text-brand-text-secondary mb-2">{task.goal}</p>
+                    {task.model_name && (
+                      <div className="text-xs text-brand-text-secondary mb-1">Model: {task.model_name}</div>
+                    )}
                     
                     <div className="flex items-center gap-4 text-xs text-brand-text-secondary">
                       <span className="flex items-center gap-1">
@@ -470,14 +516,29 @@ const ScheduledTasksPanel = ({ isOpen, onClose }) => {
                       )}
                     </div>
                   </div>
-                  
-                  <button
-                    onClick={() => handleDeleteTask(task.id)}
-                    className="p-2 text-red-400 hover:bg-red-900/30 rounded focus:outline-none focus:ring-2 focus:ring-red-400"
-                    title="Delete scheduled task"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleRunNow(task.id)}
+                      className="px-2 py-1 text-xs rounded bg-blue-700 hover:bg-blue-600 text-white"
+                      title="Run now"
+                    >
+                      Run
+                    </button>
+                    <button
+                      onClick={() => handleRunWithModel(task.id)}
+                      className="px-2 py-1 text-xs rounded bg-gray-700 hover:bg-gray-600 text-white"
+                      title="Run now with model override"
+                    >
+                      Run with Model
+                    </button>
+                    <button
+                      onClick={() => handleDeleteTask(task.id)}
+                      className="p-2 text-red-400 hover:bg-red-900/30 rounded focus:outline-none focus:ring-2 focus:ring-red-400"
+                      title="Delete scheduled task"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -492,6 +553,23 @@ const ScheduledTasksPanel = ({ isOpen, onClose }) => {
           </div>
         </div>
       </div>
+      {/* Shared Model Picker for create form or run override */}
+      <ModelPickerModal
+        isOpen={isModelModalOpen}
+        onClose={() => { setIsModelModalOpen(false); setRunOverrideForId(null); }}
+        onSelectModel={(fullName) => {
+          if (runOverrideForId) {
+            runScheduledTaskNow(runOverrideForId, fullName).finally(() => {
+              setRunOverrideForId(null);
+            });
+          } else {
+            setFormModel(fullName);
+          }
+          setIsModelModalOpen(false);
+        }}
+        currentModel={runOverrideForId ? null : formModel}
+        onOpenSettings={() => { /* Settings modal owned by App; skip */ }}
+      />
     </div>
   );
 };

@@ -90,6 +90,7 @@ class TaskSummary(BaseModel):
     status: str
     created_at: datetime
     updated_at: datetime
+    model_name: str | None = None
     priority: int = 2  # 1=scheduled, 2=user, 3=low
 
     class Config:
@@ -140,6 +141,7 @@ class ScheduledTaskSummary(BaseModel):
     name: str
     goal: str
     schedule: TaskSchedule
+    model_name: Optional[str] = None
     created_at: datetime
     last_run: Optional[datetime] = None
     next_run: Optional[datetime] = None

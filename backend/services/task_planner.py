@@ -21,6 +21,32 @@ ALLOWED_TASK_TOOLS = [
     "llm.generate",
 ]
 
+# Lightweight tool aliasing to keep plans robust across models
+TOOL_ALIASES = {
+    # search variants
+    "search": "web_search",
+    "web-search": "web_search",
+    "google_search": "web_search",
+    "bing_search": "web_search",
+    # generation variants
+    "write": "llm.generate",
+    "compose": "llm.generate",
+    "summarize": "llm.generate",
+    "generate": "llm.generate",
+    "generate_text": "llm.generate",
+    "finalize": "llm.generate",
+    "draft": "llm.generate",
+    "draft_email": "llm.generate",
+    "write_email": "llm.generate",
+    "compose_email": "llm.generate",
+}
+
+def _normalize_tool(name: str | None) -> str | None:
+    if not name:
+        return None
+    key = str(name).strip().lower().replace(" ", "_")
+    return TOOL_ALIASES.get(key, key)
+
 
 def _tool_catalog_text() -> str:
     return (
@@ -70,6 +96,8 @@ def build_planning_prompt(goal: str, allowed_tools: List[str], budget: Dict | No
         f"Tool catalog:\n{_tool_catalog_text()}\n"
         f"Budget: {budget or {}}\n"
         "Constraints: Use only allowed tools; be concise; 3-10 steps; each step has id,title,instruction,tool,params?,success_criteria,max_retries.\n"
+        "Important: Only use python.* tools if the user provides a CSV (python.load_csv must appear before any python.query_dataframe).\n"
+        "Do NOT fabricate dataframe IDs; do not reference 'result of step X' as a dataframe id. When analyzing web_search output, use llm.generate to extract or write content.\n"
         f"JSON schema (for guidance): {json.dumps(schema)}\n"
         "Output ONLY the JSON object. No prose."
     )
@@ -113,9 +141,9 @@ async def plan_task(goal: str, model: str | None, budget: Dict | None) -> Plan:
     # Enforce tool whitelist and coerce steps
     steps = []
     for i, st in enumerate(plan_dict.get("steps", [])):
-        tool = st.get("tool")
+        tool = _normalize_tool(st.get("tool"))
         if tool not in ALLOWED_TASK_TOOLS:
-            logger.warning(f"Planner proposed tool not allowed: {tool}; skipping step {i}")
+            logger.warning(f"Planner proposed tool not allowed: {st.get('tool')}; skipping step {i}")
             continue
         steps.append(PlanStep(
             id=str(st.get("id", f"s{i+1}")),
@@ -128,9 +156,47 @@ async def plan_task(goal: str, model: str | None, budget: Dict | None) -> Plan:
         ))
     if not steps:
         steps = [PlanStep(id="s1", title="Search web", instruction=goal, tool="web_search", params={"query": goal}, success_criteria="Found at least one relevant result")]
+    # Ensure there's a generative step when appropriate
+    have_generate = any(s.tool == "llm.generate" for s in steps)
+    if not have_generate:
+        # Heuristic: if goal implies writing or we only have a single step, add a generate step
+        gl = (goal or "").lower()
+        wants_writing = any(w in gl for w in ["write", "email", "newsletter", "summary", "report", "compose", "draft"]) or len(steps) < 2
+        if wants_writing:
+            steps.append(PlanStep(
+                id=f"s{len(steps)+1}",
+                title="Generate final output",
+                instruction="Using the outputs of prior steps, produce the requested deliverable.",
+                tool="llm.generate",
+                params={},
+                success_criteria="Output fulfills the user's request succinctly",
+                max_retries=1,
+            ))
     plan = Plan(
         constraints=plan_dict.get("constraints", []),
         resources=plan_dict.get("resources", []),
         steps=steps,
     )
+    # Sanitize plan: avoid python dataframe tools unless a CSV is loaded earlier
+    try:
+        has_csv_load = any(s.tool == "python.load_csv" for s in plan.steps)
+        if not has_csv_load:
+            fixed_steps: List[PlanStep] = []
+            for s in plan.steps:
+                if s.tool and s.tool.startswith("python.") and s.tool != "python.load_csv":
+                    # Replace with a generate step to extract/transform text instead of DataFrame ops
+                    fixed_steps.append(PlanStep(
+                        id=s.id,
+                        title=(s.title or "Generate output"),
+                        instruction=(s.instruction or "Summarize and extract key points from prior step outputs."),
+                        tool="llm.generate",
+                        params={},
+                        success_criteria="Text captures key facts succinctly",
+                        max_retries=s.max_retries or 1,
+                    ))
+                else:
+                    fixed_steps.append(s)
+            plan.steps = fixed_steps
+    except Exception:
+        pass
     return plan

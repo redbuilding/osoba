@@ -378,6 +378,16 @@ export const deleteScheduledTask = async (taskId) => {
   }
 };
 
+export const runScheduledTaskNow = async (taskId, modelName = null) => {
+  try {
+    const response = await apiClient.post(`/scheduled-tasks/${taskId}/run`, modelName ? { model_name: modelName } : {});
+    return response.data;
+  } catch (error) {
+    console.error("Error running scheduled task now:", error);
+    throw error;
+  }
+};
+
 // ---------- Templates API ----------
 
 export const listTemplates = async (category = null) => {

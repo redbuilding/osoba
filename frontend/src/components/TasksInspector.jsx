@@ -4,6 +4,7 @@ import { createTask, listTasks, getTaskDetail, streamTask, pauseTask, resumeTask
 import TaskTemplateSelector from "./TaskTemplateSelector";
 import ScheduledTasksPanel from "./ScheduledTasksPanel";
 import RightPanel from "./RightPanel";
+import ModelPickerModal from "./ModelPickerModal";
 
 const StatusPill = ({ status }) => {
   const color = {
@@ -23,6 +24,9 @@ const TaskRow = ({ task, onSelect }) => (
     <div className="min-w-0 flex-1">
       <div className="text-sm text-brand-text-primary truncate">{task.title || task.goal}</div>
       <div className="text-xs text-brand-text-secondary truncate">{task.goal}</div>
+      {task.model_name && (
+        <div className="text-[11px] text-brand-text-secondary truncate">Model: {task.model_name}</div>
+      )}
     </div>
     <StatusPill status={task.status} />
   </button>
@@ -56,7 +60,7 @@ const StepOutput = ({ output }) => {
           if (blk.type === "text") {
             return (
               <pre key={i} className="text-xs whitespace-pre-wrap bg-black/20 p-2 rounded border border-gray-700 text-brand-text-secondary">
-                {blk.content || ""}
+                {blk.content || blk.text || ""}
               </pre>
             );
           }
@@ -142,6 +146,7 @@ const TaskDetailInline = ({ taskId, onClose, onTaskDeleted }) => {
 
   useEffect(() => {
     let aborter;
+    let poller;
     const load = async () => {
       try {
         const d = await getTaskDetail(taskId);
@@ -151,22 +156,57 @@ const TaskDetailInline = ({ taskId, onClose, onTaskDeleted }) => {
       }
       aborter = new AbortController();
       streamTask(taskId, {
-        onData: (e) => setEvents((prev) => [...prev, e]),
+        onData: async (e) => {
+          setEvents((prev) => [...prev, e]);
+          // Optimistically merge step status for snappier UI
+          if (e && e.type === 'STEP_STATUS' && typeof e.index === 'number') {
+            setDetail((prev) => {
+              if (!prev || !prev.plan || !Array.isArray(prev.plan.steps)) return prev;
+              const steps = [...prev.plan.steps];
+              if (steps[e.index]) {
+                steps[e.index] = { ...steps[e.index], status: e.status, error: e.error ?? steps[e.index].error };
+              }
+              return { ...prev, plan: { ...prev.plan, steps } };
+            });
+          }
+          if (e && e.type === 'TASK_STATUS' && e.status) {
+            setDetail((prev) => prev ? { ...prev, status: e.status } : prev);
+          }
+          // Always fetch fresh state to sync outputs and counters
+          if (e && (e.type === 'STEP_STATUS' || e.type === 'TASK_STATUS')) {
+            try {
+              const fresh = await getTaskDetail(taskId);
+              setDetail(fresh);
+            } catch {}
+          }
+          // On terminal status, do a delayed fetch in case of write/read race
+          if (e && e.type === 'TASK_STATUS' && ['COMPLETED','FAILED','CANCELED'].includes(e.status)) {
+            setTimeout(async () => {
+              try { const finalFresh = await getTaskDetail(taskId); setDetail(finalFresh); } catch {}
+            }, 300);
+          }
+        },
         onError: () => {},
         onClose: () => {},
       }, aborter.signal);
     };
     load();
-    return () => aborter && aborter.abort();
+    return () => {
+      aborter && aborter.abort();
+    };
   }, [taskId]);
 
   const handlePause = async () => { await pauseTask(taskId); const d = await getTaskDetail(taskId); setDetail(d); };
   const handleResume = async () => { await resumeTask(taskId); const d = await getTaskDetail(taskId); setDetail(d); };
   const handleCancel = async () => { await cancelTask(taskId); const d = await getTaskDetail(taskId); setDetail(d); };
   const handleDelete = async () => {
-    if (confirm('Are you sure you want to delete this task? This action cannot be undone.')) {
+    if (!confirm('Delete this task? This action cannot be undone.')) return;
+    try {
       await deleteTask(taskId);
-      onTaskDeleted(); // Refresh task list and close detail view
+    } catch (e) {
+      console.warn('Delete task failed or task not found:', e);
+    } finally {
+      onTaskDeleted();
     }
   };
 
@@ -242,9 +282,28 @@ const TaskDetailInline = ({ taskId, onClose, onTaskDeleted }) => {
           <button onClick={onClose} className="p-1 bg-gray-700 rounded hover:bg-gray-600" title="Close"><X size={14}/></button>
         </div>
       </div>
+      {detail.model_name && (
+        <div className="text-[11px] text-brand-text-secondary mb-2">Model: {detail.model_name}</div>
+      )}
       <div className="text-xs text-brand-text-secondary mb-3">{detail.goal}</div>
       <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
         {steps.map((s, i) => {
+          // Derive a stable status when step.status is temporarily missing
+          const deriveStatus = () => {
+            const csi = typeof detail.current_step_index === 'number' ? detail.current_step_index : -1;
+            const isTerminal = ['COMPLETED','FAILED','CANCELED'].includes(detail.status);
+            if (isTerminal) {
+              if (i < csi) return 'COMPLETED';
+              if (i === csi) return detail.status === 'COMPLETED' ? 'COMPLETED' : 'FAILED';
+              return 'PENDING';
+            }
+            if (s.status) return s.status;
+            if (csi < 0) return 'PENDING';
+            if (i < csi) return 'COMPLETED';
+            if (i === csi) return 'RUNNING';
+            return 'PENDING';
+          };
+          const effectiveStatus = deriveStatus();
           const hasTable = s.outputs && s.outputs.raw && typeof s.outputs.raw === 'string' && s.outputs.raw.includes('columns');
           const hasImage = Array.isArray(s.outputs?.raw) && s.outputs.raw.some(b => b.type === 'image');
           return (
@@ -257,16 +316,16 @@ const TaskDetailInline = ({ taskId, onClose, onTaskDeleted }) => {
                 <div className="flex items-center gap-1 ml-2">
                   {hasTable && <TableIcon size={12} className="text-brand-text-secondary"/>}
                   {hasImage && <ImageIcon size={12} className="text-brand-text-secondary"/>}
-                  <StatusPill status={s.status || 'PENDING'} />
+                  <StatusPill status={effectiveStatus} />
                 </div>
               </div>
               <div className="text-xs text-brand-text-secondary mt-1">Tool: {s.tool}</div>
               {s.error && <div className="text-xs text-red-400 mt-1">{s.error}</div>}
-              {expanded[i] && (
+              {expanded[i] && s.outputs && (
                 <div className="mt-2">
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="text-xs text-brand-text-secondary">Output:</div>
-                    {s.outputs && (
+                  {(s.outputs.text || s.outputs.raw) && (
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="text-xs text-brand-text-secondary">Output:</div>
                       <button 
                         onClick={() => handleCopyStep(s)} 
                         className="p-1 bg-gray-600 rounded hover:bg-gray-500 text-xs" 
@@ -274,8 +333,8 @@ const TaskDetailInline = ({ taskId, onClose, onTaskDeleted }) => {
                       >
                         <Copy size={10}/>
                       </button>
-                    )}
-                  </div>
+                    </div>
+                  )}
                   <StepOutput output={s.outputs} />
                 </div>
               )}
@@ -295,20 +354,27 @@ const TaskDetailInline = ({ taskId, onClose, onTaskDeleted }) => {
   );
 };
 
-const TasksInspector = ({ isOpen, onClose, initialGoal = "", conversationId = null }) => {
+const TasksInspector = ({ isOpen, onClose, initialGoal = "", conversationId = null, defaultConversationModel = null }) => {
   const [goal, setGoal] = useState("");
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [listError, setListError] = useState("");
   const [selectedId, setSelectedId] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
   const [showScheduled, setShowScheduled] = useState(false);
+  const [taskModel, setTaskModel] = useState(null);
+  const [isModelModalOpen, setIsModelModalOpen] = useState(false);
 
   const fetchTasks = async () => {
     setLoading(true);
+    setListError("");
     try {
       const data = await listTasks();
       setTasks(data || []);
+    } catch (e) {
+      setTasks([]);
+      setListError("Failed to load tasks. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -318,15 +384,20 @@ const TasksInspector = ({ isOpen, onClose, initialGoal = "", conversationId = nu
   useEffect(() => {
     if (isOpen) {
       setGoal(initialGoal || "");
+      // Initialize task model from conversation if available
+      setTaskModel(defaultConversationModel || null);
     }
-  }, [isOpen, initialGoal]);
+  }, [isOpen, initialGoal, defaultConversationModel]);
 
   const handleCreate = async () => {
     if (!goal.trim()) return;
     setSubmitting(true);
     try {
-      await createTask({ goal, conversation_id: conversationId });
+      const payload = { goal, conversation_id: conversationId };
+      if (taskModel) payload.model_name = taskModel;
+      await createTask(payload);
       setGoal("");
+      // keep selected task model for next time
       await fetchTasks();
     } finally {
       setSubmitting(false);
@@ -334,7 +405,7 @@ const TasksInspector = ({ isOpen, onClose, initialGoal = "", conversationId = nu
   };
 
   return (
-    <RightPanel isOpen={isOpen} onClose={onClose} title="Tasks" width="w-96">
+    <RightPanel isOpen={isOpen} onClose={onClose} title="Tasks" width="w-[480px]">
       <div className="flex flex-col h-full">
         {/* Task Creation */}
         <div className="p-3 border-b border-gray-700">
@@ -345,6 +416,13 @@ const TasksInspector = ({ isOpen, onClose, initialGoal = "", conversationId = nu
               placeholder="Describe your long-running goal..." 
               className="flex-1 p-2 bg-brand-surface-bg border border-gray-700 rounded text-brand-text-primary placeholder-brand-text-secondary focus:outline-none focus:ring-2 focus:ring-brand-purple text-sm"
             />
+            <button
+              onClick={() => setIsModelModalOpen(true)}
+              className="px-2 py-2 rounded bg-gray-700 hover:bg-gray-600 text-white text-xs"
+              title="Select model for this task"
+            >
+              {taskModel ? `Model: ${taskModel}` : 'Select Model'}
+            </button>
             <button 
               onClick={handleCreate} 
               disabled={submitting || !goal.trim()} 
@@ -388,7 +466,10 @@ const TasksInspector = ({ isOpen, onClose, initialGoal = "", conversationId = nu
             </div>
           ) : (
             <div className="space-y-1 h-full overflow-y-auto">
-              {tasks.length === 0 && (
+              {listError && (
+                <div className="text-sm text-brand-alert-red">{listError}</div>
+              )}
+              {tasks.length === 0 && !listError && (
                 <div className="text-sm text-brand-text-secondary">No tasks yet.</div>
               )}
               {tasks.map((t) => (
@@ -417,6 +498,15 @@ const TasksInspector = ({ isOpen, onClose, initialGoal = "", conversationId = nu
       <ScheduledTasksPanel
         isOpen={showScheduled}
         onClose={() => setShowScheduled(false)}
+      />
+
+      {/* Model Picker for direct task */}
+      <ModelPickerModal
+        isOpen={isModelModalOpen}
+        onClose={() => setIsModelModalOpen(false)}
+        onSelectModel={(fullName) => { setTaskModel(fullName); setIsModelModalOpen(false); }}
+        currentModel={taskModel}
+        onOpenSettings={() => { /* Settings modal owned by App; skip here */ }}
       />
     </RightPanel>
   );

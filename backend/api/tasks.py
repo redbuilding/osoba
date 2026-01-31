@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from core.models import TaskCreatePayload, TaskSummary, TaskDetail
+from db.mongodb import get_conversations_collection
 from core.config import get_logger
 from db.tasks_crud import create_task, list_tasks, get_task, update_task, create_indexes, get_queue_position
 from services.progress_bus import progress_bus
@@ -27,6 +28,16 @@ async def create_task_endpoint(payload: TaskCreatePayload):
     if not payload.goal:
         raise HTTPException(status_code=400, detail="Missing goal")
     now = datetime.now(timezone.utc)
+    # Resolve model_name
+    resolved_model = payload.model_name
+    # If launched from a conversation and no model provided, inherit the conversation's model
+    if not resolved_model and payload.conversation_id:
+        try:
+            conv = get_conversations_collection().find_one({"_id": __import__('bson').ObjectId(payload.conversation_id)})
+            if conv:
+                resolved_model = conv.get("model_name") or conv.get("ollama_model_name")
+        except Exception:
+            resolved_model = resolved_model or None
     doc = {
         "title": payload.goal[:60] or "Task",
         "goal": payload.goal,
@@ -34,7 +45,7 @@ async def create_task_endpoint(payload: TaskCreatePayload):
         "created_at": now,
         "updated_at": now,
         "conversation_id": payload.conversation_id,
-        "model_name": payload.model_name,
+        "model_name": resolved_model,
         "budget": payload.budget or {},
         "usage": {"tool_calls": 0, "seconds_elapsed": 0},
         "current_step_index": -1,
@@ -68,6 +79,28 @@ async def get_task_detail(task_id: str):
     doc = get_task(task_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Task not found")
+    # Defensive normalization: ensure plan steps have required fields to avoid validation errors
+    try:
+        plan = (doc.get("plan") or {})
+        steps = plan.get("steps")
+        if isinstance(steps, list):
+            normalized = []
+            for i, st in enumerate(steps):
+                if not isinstance(st, dict):
+                    st = {}
+                st.setdefault("id", st.get("id") or f"s{i+1}")
+                st.setdefault("title", st.get("title") or st.get("tool") or f"Step {i+1}")
+                st.setdefault("instruction", st.get("instruction") or "")
+                st.setdefault("tool", st.get("tool") or "unknown")
+                st.setdefault("params", st.get("params") or {})
+                st.setdefault("success_criteria", st.get("success_criteria") or "")
+                st.setdefault("max_retries", int(st.get("max_retries") or 1))
+                normalized.append(st)
+            plan["steps"] = normalized
+            doc["plan"] = plan
+    except Exception:
+        # If anything goes wrong, continue with raw doc; the UI can still render
+        pass
     doc["_id"] = str(doc["_id"])  # for Pydantic aliasing
     return TaskDetail.model_validate(doc)
 
