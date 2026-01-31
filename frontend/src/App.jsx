@@ -692,18 +692,7 @@ const App = () => {
               )}
             </div>
 
-            {/* MongoDB status */}
-            <span
-              className={`flex items-center ${
-                dbConnected
-                  ? "text-brand-success-green"
-                  : "text-brand-alert-red"
-              }`}
-              title="Chat History DB (MongoDB) Status"
-            >
-              <Database size={14} className="mr-1" />
-              History DB: {dbConnected ? "Conn." : "Disc."}
-            </span>
+            {/* History DB indicator moved to sidebar */}
 
             {/* Tasks button */}
             <button

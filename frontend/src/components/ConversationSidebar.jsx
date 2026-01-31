@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { PlusSquare, MessageSquare, Loader2, AlertTriangle, Trash2, Pencil, Check, X, Wifi, Server, Share2, Youtube, FileCode } from 'lucide-react';
+import { PlusSquare, MessageSquare, Loader2, AlertTriangle, Trash2, Pencil, Check, X, Wifi, Server, Share2, Youtube, FileCode, Database } from 'lucide-react';
 import SidebarSearch from './SidebarSearch';
 
 const MCPStatusIndicator = ({ isReady, name }) => (
@@ -117,6 +117,14 @@ const ConversationSidebar = ({
         
         {!isCollapsed && (
           <h2 className="text-sm font-semibold text-brand-text-secondary mb-2 px-2">History</h2>
+        )}
+
+        {/* History DB status indicator (moved from header) */}
+        {!isCollapsed && (
+          <div className="flex items-center text-xs text-brand-text-secondary mb-2 px-2" title="Chat History DB (MongoDB) Status">
+            <Database size={14} className="mr-1" />
+            History DB: {dbConnected ? <span className="text-brand-success-green ml-1">Conn.</span> : <span className="text-brand-alert-red ml-1">Disc.</span>}
+          </div>
         )}
         
         {isLoading && (
