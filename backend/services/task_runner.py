@@ -352,11 +352,14 @@ async def _execute_step(task_id: str, idx: int, step: Dict[str, Any]):
                 prompt = params.get("prompt")
             if not prompt:
                 prompt = step.get("instruction", "")
+            # Build context from prior steps
+            context_text = _build_llm_context(task_doc, idx)
             increment_usage(task_id, "tool_calls", 1)
-            text = await chat_with_ollama([
-                {"role": "system", "content": "You are a helpful assistant."},
-                {"role": "user", "content": prompt or ""},
-            ], model)
+            messages = [{"role": "system", "content": "You are a helpful assistant."}]
+            if context_text:
+                messages.append({"role": "user", "content": f"Context from prior steps (use this):\n{context_text}"})
+            messages.append({"role": "user", "content": prompt or ""})
+            text = await chat_with_ollama(messages, model)
             norm: Dict[str, Any] = {"text": text or ""}
         else:
             service_name, tool_name = _resolve_tool(tool)
@@ -402,6 +405,59 @@ async def _execute_step(task_id: str, idx: int, step: Dict[str, Any]):
         update_task(task_id, {"status": "FAILED", "error": f"Step {idx} failed: {e}"})
         return False
 
+
+def _build_llm_context(task_doc: Dict[str, Any], upto_index: int, max_chars: int = 4000) -> str:
+    """Aggregate text outputs from previous steps to provide short context for LLM steps.
+    Safe and bounded: extracts text from prior steps' outputs and truncates.
+    """
+    try:
+        if not task_doc:
+            return ""
+        plan = (task_doc.get("plan") or {}).get("steps", [])
+        if not isinstance(plan, list) or upto_index <= 0:
+            return ""
+
+        chunks: list[str] = []
+        total = 0
+        for i in range(0, min(upto_index, len(plan))):
+            st = plan[i] or {}
+            outputs = st.get("outputs") or {}
+            texts: list[str] = []
+            # Direct text from earlier LLM/tool normalization
+            t = outputs.get("text")
+            if isinstance(t, str) and t.strip():
+                texts.append(t.strip())
+            # Extract text-like content from raw MCP response
+            raw = outputs.get("raw")
+            if isinstance(raw, list):
+                for item in raw:
+                    if isinstance(item, dict):
+                        c = item.get("content") or item.get("text")
+                        if isinstance(c, str) and c.strip():
+                            texts.append(c.strip())
+                    elif isinstance(item, str) and item.strip():
+                        texts.append(item.strip())
+            elif isinstance(raw, str) and raw.strip():
+                texts.append(raw.strip())
+            elif raw is not None:
+                s = str(raw)
+                if s.strip() and len(s) <= 800:
+                    texts.append(s.strip())
+
+            if texts:
+                title = st.get("title") or st.get("tool") or f"Step {i+1}"
+                block = f"[{title}]\n" + "\n".join(texts)
+                chunks.append(block)
+                total += len(block)
+                if total >= max_chars:
+                    break
+
+        context = "\n\n".join(chunks)
+        if len(context) > max_chars:
+            context = context[-max_chars:]
+        return context
+    except Exception:
+        return ""
 
 async def _post_conversation_update(task_doc: Dict[str, Any], success: bool):
     try:
