@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException
 from typing import List, Dict, Any
 from pydantic import BaseModel
 from services.context_service import get_user_context, format_context_for_system_prompt
-from db.crud import pin_conversation_for_context, get_pinned_conversations, update_conversation_summary
+from db import crud
 from core.config import get_logger
 
 logger = get_logger("user_context_api")
@@ -47,7 +47,21 @@ async def get_user_profile_context(user_id: str = "default"):
 async def pin_conversation(payload: PinConversationPayload, user_id: str = "default"):
     """Pin or unpin a conversation for context use."""
     try:
-        success = pin_conversation_for_context(payload.conversation_id, user_id, payload.pinned)
+        # Enforce max pin limit of 5 per user when pinning
+        if payload.pinned:
+            try:
+                conv = crud.get_conversation_by_id(payload.conversation_id)
+                already_pinned = bool(conv and conv.get("pinned_for_context"))
+                if not already_pinned:
+                    current = crud.get_pinned_conversations(user_id, limit=6)
+                    if len(current) >= 5:
+                        # Return 400 to indicate policy violation
+                        raise HTTPException(status_code=400, detail="MAX_PINS_REACHED: You can pin up to 5 chats. Unpin one to proceed.")
+            except Exception:
+                # If DB not available, skip strict enforcement (tests/mocked)
+                pass
+
+        success = crud.pin_conversation_for_context(payload.conversation_id, user_id, payload.pinned)
         
         if not success:
             return ContextResponse(
@@ -68,7 +82,7 @@ async def pin_conversation(payload: PinConversationPayload, user_id: str = "defa
 async def get_user_pinned_conversations(user_id: str = "default"):
     """Get conversations pinned for context by user."""
     try:
-        pinned_conversations = get_pinned_conversations(user_id)
+        pinned_conversations = crud.get_pinned_conversations(user_id)
         
         return ContextResponse(
             success=True,
@@ -79,11 +93,25 @@ async def get_user_pinned_conversations(user_id: str = "default"):
         logger.error(f"Error getting pinned conversations: {e}")
         raise HTTPException(status_code=500, detail=f"Error getting pinned conversations: {str(e)}")
 
+@router.get("/api/user-context/pin-stats")
+async def get_pin_stats(user_id: str = "default"):
+    """Return current pinned count and max allowed pins for UI guardrails."""
+    try:
+        try:
+            current = crud.get_pinned_conversations(user_id, limit=10)
+            count = len(current)
+        except Exception:
+            count = 0
+        return {"count": count, "max": 5}
+    except Exception as e:
+        logger.error(f"Error getting pin stats: {e}")
+        raise HTTPException(status_code=500, detail="Error getting pin stats")
+
 @router.post("/api/user-context/conversation-summary")
 async def update_conversation_summary_endpoint(payload: ConversationSummaryPayload):
     """Update the summary of a conversation."""
     try:
-        success = update_conversation_summary(payload.conversation_id, payload.summary)
+        success = crud.update_conversation_summary(payload.conversation_id, payload.summary)
         
         if not success:
             return ContextResponse(

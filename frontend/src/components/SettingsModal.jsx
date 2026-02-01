@@ -1,15 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { X, Eye, EyeOff, Check, AlertCircle, Loader2, Settings, User } from 'lucide-react';
+import { X, Eye, EyeOff, Check, AlertCircle, Loader2, Settings, FileText } from 'lucide-react';
 import { 
   getProviders, 
   getUserSettings, 
   saveProviderSettings, 
   removeProviderSettings 
 } from '../services/api';
-import UserProfileSettings from './UserProfileSettings';
+// import UserProfileSettings from './UserProfileSettings';
+import ModelPickerModal from './ModelPickerModal';
+import { getSummarySettings, saveSummarySettings } from '../services/api';
 
 const SettingsModal = ({ isOpen, onClose, onSettingsUpdate, embedded = false }) => {
   const [activeTab, setActiveTab] = useState('providers');
+  const [summaryModel, setSummaryModel] = useState('');
+  const [isModelPickerOpen, setIsModelPickerOpen] = useState(false);
   const [providers, setProviders] = useState([]);
   const [apiKeys, setApiKeys] = useState({});
   const [showKeys, setShowKeys] = useState({});
@@ -21,6 +25,7 @@ const SettingsModal = ({ isOpen, onClose, onSettingsUpdate, embedded = false }) 
     if (isOpen) {
       fetchProviders();
       fetchSettings();
+      fetchSummarySettings();
     }
   }, [isOpen]);
 
@@ -53,6 +58,15 @@ const SettingsModal = ({ isOpen, onClose, onSettingsUpdate, embedded = false }) 
       setValidationStatus(validation);
     } catch (err) {
       console.error('Error fetching settings:', err);
+    }
+  };
+
+  const fetchSummarySettings = async () => {
+    try {
+      const s = await getSummarySettings();
+      setSummaryModel(s.model_name || '');
+    } catch (err) {
+      // ignore
     }
   };
 
@@ -192,16 +206,17 @@ const SettingsModal = ({ isOpen, onClose, onSettingsUpdate, embedded = false }) 
           <Settings className="w-4 h-4" />
           <span>Providers</span>
         </button>
+        {/* Profile tab removed (managed elsewhere) */}
         <button
-          onClick={() => setActiveTab('profile')}
+          onClick={() => setActiveTab('summaries')}
           className={`flex items-center space-x-2 px-6 py-3 text-sm font-medium transition-colors duration-200
-            ${activeTab === 'profile' 
+            ${activeTab === 'summaries' 
               ? 'text-brand-purple border-b-2 border-brand-purple bg-brand-purple/10' 
               : 'text-brand-text-secondary hover:text-brand-text-primary hover:bg-gray-700/50'
             }`}
         >
-          <User className="w-4 h-4" />
-          <span>Profile</span>
+          <FileText className="w-4 h-4" />
+          <span>AI Summaries</span>
         </button>
       </div>
 
@@ -293,8 +308,27 @@ const SettingsModal = ({ isOpen, onClose, onSettingsUpdate, embedded = false }) 
           </div>
         )}
         
-        {activeTab === 'profile' && (
-          <UserProfileSettings onProfileUpdate={onSettingsUpdate} />
+        {/* Profile tab content removed */}
+
+        {activeTab === 'summaries' && (
+          <div className="space-y-4">
+            <div className="p-4 bg-brand-surface-bg border border-gray-700 rounded-lg">
+              <h3 className="text-sm font-semibold text-brand-text-primary mb-2">AI Chat Summaries</h3>
+              <p className="text-xs text-brand-text-secondary mb-3">
+                Choose the AI model used to generate chat summaries on demand.
+              </p>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-brand-text-secondary">Model:</span>
+                <span className="text-sm text-brand-text-primary truncate max-w-[240px]">{summaryModel || 'Not set'}</span>
+                <button
+                  className="ml-auto px-2 py-1 text-xs rounded bg-gray-700 text-white hover:bg-gray-600"
+                  onClick={() => { setIsModelPickerOpen(true); }}
+                >
+                  Select Model
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </>
@@ -303,8 +337,25 @@ const SettingsModal = ({ isOpen, onClose, onSettingsUpdate, embedded = false }) 
   if (embedded) {
     // Render panel content only (no overlay/header/footer) for embedded usage
     return (
-      <div className="w-full">
+      <div className="w-full relative">
         {content}
+        {isModelPickerOpen && (
+          <ModelPickerModal
+            isOpen={isModelPickerOpen}
+            onClose={() => setIsModelPickerOpen(false)}
+            currentModel={summaryModel}
+            onOpenSettings={() => setActiveTab('providers')}
+            onSelectModel={async (modelFullName) => {
+              try {
+                await saveSummarySettings(modelFullName);
+                setSummaryModel(modelFullName);
+                setIsModelPickerOpen(false);
+              } catch (e) {
+                console.error('Failed to save summary model', e);
+              }
+            }}
+          />
+        )}
       </div>
     );
   }
@@ -313,9 +364,7 @@ const SettingsModal = ({ isOpen, onClose, onSettingsUpdate, embedded = false }) 
     <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
       <div className="bg-brand-surface-bg border border-gray-700 rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden">
         <div className="flex items-center justify-between p-6 border-b border-gray-700 bg-black/20">
-          <h2 className="text-xl font-semibold text-brand-text-primary">
-            {activeTab === 'providers' ? 'Provider Settings' : 'User Profile'}
-          </h2>
+          <h2 className="text-xl font-semibold text-brand-text-primary">Settings</h2>
           <button
             onClick={onClose}
             className="p-1 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-purple"
@@ -334,6 +383,23 @@ const SettingsModal = ({ isOpen, onClose, onSettingsUpdate, embedded = false }) 
           </button>
         </div>
       </div>
+      {isModelPickerOpen && (
+        <ModelPickerModal
+          isOpen={isModelPickerOpen}
+          onClose={() => setIsModelPickerOpen(false)}
+          currentModel={summaryModel}
+          onOpenSettings={() => setActiveTab('providers')}
+          onSelectModel={async (modelFullName) => {
+            try {
+              await saveSummarySettings(modelFullName);
+              setSummaryModel(modelFullName);
+              setIsModelPickerOpen(false);
+            } catch (e) {
+              console.error('Failed to save summary model', e);
+            }
+          }}
+        />
+      )}
     </div>
   );
 };

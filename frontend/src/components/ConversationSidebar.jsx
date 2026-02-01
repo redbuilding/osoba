@@ -41,6 +41,8 @@ const ConversationSidebar = ({
   mcpPythonServiceReady,
   mcpCodexServiceReady,
   openaiConfigured,
+  pinnedCount = 0,
+  pinnedMax = 5,
 }) => {
   const [editingConversationId, setEditingConversationId] = useState(null);
   const [currentEditingTitle, setCurrentEditingTitle] = useState('');
@@ -122,7 +124,10 @@ const ConversationSidebar = ({
         />
         
         {!isCollapsed && (
-          <h2 className="text-sm font-semibold text-brand-text-secondary mb-2 px-2">History</h2>
+          <div className="flex items-center justify-between mb-2 px-2">
+            <h2 className="text-sm font-semibold text-brand-text-secondary">History</h2>
+            <span className="text-[11px] text-brand-text-secondary">{pinnedCount}/{pinnedMax} pinned</span>
+          </div>
         )}
 
         {/* History DB status indicator */}
@@ -218,6 +223,7 @@ const ConversationSidebar = ({
                         conversationId={conv.id}
                         isPinned={conv.pinned_for_context || false}
                         onPinToggle={onPinConversation}
+                        disabled={!isCollapsed && !conv.pinned_for_context && pinnedCount >= pinnedMax}
                       />
                       <button
                         onClick={(e) => handleEditClick(e, conv)}

@@ -89,7 +89,7 @@ const ModelPickerModal = ({ isOpen, onClose, onSelectModel, currentModel, onOpen
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50">
+    <div className="fixed inset-0 z-[100]">
       <div className="absolute inset-0 bg-black bg-opacity-60" onClick={onClose} />
       <div className="absolute inset-0 flex items-center justify-center p-4">
         <div className="w-full max-w-4xl bg-brand-surface-bg border border-gray-700 rounded-xl shadow-2xl overflow-hidden">
@@ -174,4 +174,3 @@ const ModelPickerModal = ({ isOpen, onClose, onSelectModel, currentModel, onOpen
 };
 
 export default ModelPickerModal;
-

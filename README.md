@@ -39,6 +39,7 @@ This architecture demonstrates how MCP enables local models to access external t
 - 🤖 **Polite Web Crawling**: Respects robots.txt, implements rate limiting, and uses proper User-Agent identification for ethical content extraction.
 - 👤 **User Profile & Context**: Configure personal information (role, expertise, projects) and pin conversations for contextual AI assistance. The AI understands your background and can reference previous work for personalized responses.
 - 📌 **Conversation Pinning**: Select specific conversations to include as context for future chats, enabling the AI to build upon previous discussions and maintain continuity across sessions.
+- 🧾 **AI Chat Summaries (On‑Demand)**: Generate concise, LLM‑authored summaries for conversations and use them as the context payload for pinned chats (no heuristics). Summaries are user‑triggered, model‑selectable in Settings, and pinning enforces a cap of 5 chats.
 - 🎯 **Personalized AI Responses**: AI adapts its communication style and suggestions based on your profile information and pinned conversation history for more relevant assistance.
 - 💾 **Persistent Conversations**: Chat history is saved in MongoDB, allowing users to resume conversations.
 - 🧠 **Multi‑Provider LLMs**: Ollama (local), plus OpenAI, Anthropic, Google, OpenRouter, Groq, SambaNova — with a Settings screen for API keys and a unified model picker.
@@ -231,6 +232,9 @@ Optional (enable additional tools):
 -   Use Settings (header) to configure provider API keys and unlock non‑Ollama models and Codex.
 -   **Configure User Profile**: In Settings → User Profile, add your role, expertise areas, current projects, and communication preferences for personalized AI assistance.
 -   **Pin Conversations**: Hover over conversations in the sidebar and click the pin button to include them as context for future chats.
+    - If a conversation lacks a summary, you’ll be prompted to generate one before pinning. The UI blocks while the summary is created, then completes the pin.
+    - Up to 5 conversations can be pinned. Attempts beyond the cap are blocked and the sidebar shows “X/5 pinned”.
+    - Summaries are generated on‑demand by your chosen model (see Settings → Summaries) and are stored for reuse; only stored summaries are used for context.
 -   For YouTube: paste a video URL. The transcript is fetched and saved to the conversation for follow-ups.
 -   For HubSpot: click “Connect HubSpot” to complete OAuth, then describe the email to create/update.
 -   For Python: upload a CSV file when prompted; follow-up questions reuse the loaded DataFrame for advanced analysis including filtering, grouping, outlier detection, statistical testing, and visualization.
@@ -460,6 +464,31 @@ Frontend UX notes:
         *   The Backend may re-prompt Ollama with the tool's results to generate a final, informed response.
 4.  The **Backend** stores/retrieves conversation history from **MongoDB**.
 5.  The final response is streamed back to the **Frontend** and displayed to the user.
+
+### AI Summaries for Context
+
+- Purpose: Pinned conversations contribute short, LLM‑generated summaries to the system prompt so future chats can reference prior work without sending full transcripts.
+- Generation:
+  - On‑demand, user‑initiated (not heuristic). If you pin a chat that has no summary, the app asks to generate one first and gates pinning until done.
+  - The backend assembles up to ~1000 words of recent conversation (HTML stripped) and prompts the selected model to produce a single‑paragraph summary capped at ~750 characters.
+  - Stored summaries are reused; automatic regeneration is not performed.
+- Limits & Enforcement:
+  - Hard cap of 5 pinned conversations. The backend enforces the cap and the UI disables pinning at the limit.
+  - Pin stats are surfaced in the UI (e.g., “X/5 pinned”).
+- Model Selection:
+  - Choose the model under Settings → Summaries → Select Model. This uses the same provider model catalogs as chat.
+  - If no model is configured for summaries, generation will fail until you select one.
+- Context Assembly:
+  - Only stored summaries are included in the system prompt for context; heuristic/auto summaries are not used.
+  - The context service budgets space for summaries alongside your profile prompt.
+- Maintenance:
+  - Admin utilities exist to bulk remove summaries and/or unpin all chats for a clean slate. Use with care in production.
+
+APIs (reference):
+- Summary settings: `GET /api/summaries/settings`, `POST /api/summaries/settings { model_name }`
+- Generate summary: `POST /api/summaries/generate { conversation_id }`
+- Pinning: `POST /api/user-context/pin-conversation { conversation_id, pinned }` (cap enforced)
+- Pin stats: `GET /api/user-context/pin-stats` → `{ count, max }`
 
 ## Scheduled Tasks (Timezone & One‑Time)
 

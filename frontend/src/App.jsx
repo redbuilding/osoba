@@ -10,6 +10,7 @@ import ChatMessage from "./components/ChatMessage";
 import SaveArtifactModal from "./components/SaveArtifactModal";
 import ChatInput from "./components/ChatInput";
 import ConversationSidebar from "./components/ConversationSidebar";
+import GenerateSummaryModal from "./components/GenerateSummaryModal";
 import ToolSelector from "./components/ToolSelector";
 import TasksInspector from "./components/TasksInspector";
 import SettingsModal from "./components/SettingsModal";
@@ -38,6 +39,7 @@ import {
   getActiveProfile,
   deleteConversation,
   renameConversation,
+  pinConversation,
   getHubspotAuthStatus,
   BACKEND_URL,
   createTask,
@@ -47,6 +49,8 @@ import {
   pauseTask,
   resumeTask,
   cancelTask,
+  getPinStats,
+  generateChatSummary,
 } from "./services/api";
 import {
   AlertTriangle,
@@ -634,6 +638,68 @@ const App = () => {
     }
   };
 
+  const [pinStats, setPinStats] = useState({ count: 0, max: 5 });
+  const [summaryModal, setSummaryModal] = useState({ open: false, conversationId: null });
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
+
+  const refreshPinStats = useCallback(async () => {
+    try {
+      const stats = await getPinStats();
+      setPinStats(stats);
+    } catch (_) {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshPinStats();
+  }, [refreshPinStats]);
+
+  const handlePinConversation = async (conversationId, pinned) => {
+    setError(null);
+    try {
+      if (pinned) {
+        // Block pin until summary exists or is generated
+        const conv = conversations.find(c => c.id === conversationId);
+        const hasSummary = !!(conv && conv.summary && conv.summary.length > 0);
+        if (!hasSummary) {
+          // Ask user to confirm generation first; do not pin yet
+          setSummaryModal({ open: true, conversationId });
+          return;
+        }
+      }
+
+      // Proceed with pin/unpin
+      await pinConversation(conversationId, pinned);
+      setConversations((prev) => prev.map((c) => (c.id === conversationId ? { ...c, pinned_for_context: pinned } : c)));
+      refreshPinStats();
+    } catch (err) {
+      setError(err.detail || err.message || "Failed to update pin status.");
+      refreshPinStats();
+    }
+  };
+
+  const confirmGenerateSummary = async () => {
+    if (!summaryModal.conversationId) return;
+    try {
+      setIsGeneratingSummary(true);
+      // Generate first
+      const res = await generateChatSummary(summaryModal.conversationId);
+      // Update conversation with new summary locally
+      setConversations(prev => prev.map(c => c.id === summaryModal.conversationId ? { ...c, summary: res.summary } : c));
+      // Now pin the conversation after successful generation
+      await pinConversation(summaryModal.conversationId, true);
+      setConversations(prev => prev.map(c => c.id === summaryModal.conversationId ? { ...c, pinned_for_context: true } : c));
+      refreshPinStats();
+      window.dispatchEvent(new CustomEvent('oc-toast', { detail: { message: 'Summary generated and chat pinned', type: 'success' } }));
+    } catch (e) {
+      window.dispatchEvent(new CustomEvent('oc-toast', { detail: { message: e.detail || 'Failed to generate summary', type: 'error' } }));
+    } finally {
+      setIsGeneratingSummary(false);
+      setSummaryModal({ open: false, conversationId: null });
+    }
+  };
+
   /* --------------------------------------------------------------------- */
   /*  Misc helpers                                                         */
   /* --------------------------------------------------------------------- */
@@ -761,6 +827,7 @@ const App = () => {
         onNewChat={handleNewChat}
         onDeleteConversation={handleDeleteConversation}
         onRenameConversation={handleRenameConversation}
+        onPinConversation={handlePinConversation}
         isLoading={isConversationsLoading}
         dbConnected={dbConnected}
         conversationsError={conversationsError}
@@ -773,6 +840,15 @@ const App = () => {
         mcpPythonServiceReady={mcpPythonServiceReady}
         mcpCodexServiceReady={mcpCodexServiceReady}
         openaiConfigured={openaiConfigured}
+        pinnedCount={pinStats.count || conversations.filter(c => c.pinned_for_context).length}
+        pinnedMax={pinStats.max || 5}
+      />
+
+      <GenerateSummaryModal
+        isOpen={summaryModal.open}
+        isGenerating={isGeneratingSummary}
+        onConfirm={confirmGenerateSummary}
+        onCancel={() => setSummaryModal({ open: false, conversationId: null })}
       />
 
       {/* Center Column - Main chat area */}

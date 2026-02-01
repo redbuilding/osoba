@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import Mock, patch, AsyncMock
 from services.context_service import (
     get_user_context, get_profile_context, get_conversation_context,
-    get_pinned_conversations, generate_conversation_summary, format_context_for_system_prompt
+    get_pinned_conversations, format_context_for_system_prompt
 )
 from db.crud import pin_conversation_for_context, get_pinned_conversations as get_pinned_from_db, update_conversation_summary
 from api.user_context import router
@@ -87,29 +87,6 @@ class TestContextService:
             result = await get_conversation_context("test_user")
             assert result == ""
 
-    def test_generate_conversation_summary_success(self):
-        """Test conversation summary generation."""
-        conversation_data = {
-            "messages": [
-                {"role": "user", "content": "How do I implement authentication?"},
-                {"role": "assistant", "content": "You can use JWT tokens..."},
-                {"role": "user", "content": "What about password hashing?"},
-                {"role": "assistant", "content": "Use bcrypt for secure hashing..."}
-            ]
-        }
-        
-        result = generate_conversation_summary(conversation_data)
-        
-        assert "authentication" in result.lower()
-        assert "password hashing" in result.lower()
-        assert len(result) <= 200  # Respects length limit
-
-    def test_generate_conversation_summary_empty(self):
-        """Test conversation summary with no messages."""
-        conversation_data = {"messages": []}
-        
-        result = generate_conversation_summary(conversation_data)
-        assert result == ""
 
     def test_format_context_for_system_prompt_full(self):
         """Test system prompt formatting with full context."""
@@ -252,7 +229,7 @@ class TestContextSizeLimits:
         """Test that context size limits are properly enforced."""
         # Create oversized context
         large_profile = "x" * 300  # Exceeds MAX_PROFILE_CHARS (200)
-        large_conversation = "y" * 600  # Exceeds MAX_CONVERSATION_CONTEXT_CHARS (500)
+        large_conversation = "y" * 5000  # Exceeds MAX_CONVERSATION_CONTEXT_CHARS (2500)
         
         with patch('services.context_service.get_profile_context', return_value=large_profile), \
              patch('services.context_service.get_conversation_context', return_value=large_conversation):
@@ -261,24 +238,9 @@ class TestContextSizeLimits:
             
             # Check that context is truncated to limits
             assert len(result["profile_context"]) <= 200
-            assert len(result["conversation_context"]) <= 500
-            assert result["total_chars"] <= 800
+            assert len(result["conversation_context"]) <= 2500
+            assert result["total_chars"] <= 2700
 
-    def test_conversation_summary_length_limit(self):
-        """Test that conversation summaries respect length limits."""
-        # Create conversation with very long messages
-        long_message = "x" * 500
-        conversation_data = {
-            "messages": [
-                {"role": "user", "content": long_message},
-                {"role": "user", "content": long_message}
-            ]
-        }
-        
-        result = generate_conversation_summary(conversation_data)
-        
-        # Summary should be truncated to 200 characters
-        assert len(result) <= 200
 
 class TestErrorHandling:
     
@@ -293,10 +255,4 @@ class TestErrorHandling:
             assert result["conversation_context"] == ""
             assert result["total_chars"] == 0
 
-    def test_generate_conversation_summary_error_handling(self):
-        """Test error handling in conversation summary generation."""
-        # Invalid conversation data
-        invalid_data = {"invalid": "data"}
-        
-        result = generate_conversation_summary(invalid_data)
-        assert result == ""
+    # Heuristic summary unit tests removed in favor of LLM-generated summaries

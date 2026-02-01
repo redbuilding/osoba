@@ -756,6 +756,16 @@ export const pinConversation = async (conversationId, pinned = true) => {
   }
 };
 
+export const getPinStats = async () => {
+  try {
+    const response = await apiClient.get("/user-context/pin-stats");
+    return response.data; // { count, max }
+  } catch (error) {
+    console.error("Error getting pin stats:", error);
+    return { count: 0, max: 5 };
+  }
+};
+
 export const getPinnedConversations = async () => {
   try {
     const response = await apiClient.get("/user-context/pinned-conversations");
@@ -780,5 +790,37 @@ export const updateConversationSummary = async (conversationId, summary) => {
     throw error.response
       ? error.response.data
       : new Error("Network error or server unavailable");
+  }
+};
+
+// ---------- Summaries API ----------
+
+export const getSummarySettings = async () => {
+  try {
+    const response = await apiClient.get("/summaries/settings");
+    return response.data; // { model_name }
+  } catch (error) {
+    console.error("Error getting summary settings:", error);
+    return { model_name: "" };
+  }
+};
+
+export const saveSummarySettings = async (modelName) => {
+  try {
+    const response = await apiClient.post("/summaries/settings", { model_name: modelName });
+    return response.data;
+  } catch (error) {
+    console.error("Error saving summary settings:", error);
+    throw error.response ? error.response.data : new Error("Network error or server unavailable");
+  }
+};
+
+export const generateChatSummary = async (conversationId) => {
+  try {
+    const response = await apiClient.post("/summaries/generate", { conversation_id: conversationId });
+    return response.data; // { success, summary }
+  } catch (error) {
+    console.error("Error generating chat summary:", error);
+    throw error.response ? error.response.data : new Error("Network error or server unavailable");
   }
 };
