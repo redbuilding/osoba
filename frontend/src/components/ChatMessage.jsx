@@ -36,7 +36,7 @@ const parseMessageContent = (content) => {
 };
 
 
-const ChatMessage = ({ message, onPromoteToTask, isStreaming = false }) => {
+const ChatMessage = ({ message, onPromoteToTask, isStreaming = false, assistantName = 'Assistant' }) => {
   const { role, content, is_html, indicator, type } = message;
   const isUser = role === 'user';
   const [copied, copy] = useCopyToClipboard();
@@ -101,7 +101,7 @@ const ChatMessage = ({ message, onPromoteToTask, isStreaming = false }) => {
           ) : (
             <Bot size={20} className="mr-2 text-brand-purple flex-shrink-0" />
           )}
-          <span className="font-semibold text-sm">{isUser ? 'You' : 'Assistant'}</span>
+          <span className="font-semibold text-sm">{isUser ? 'You' : (assistantName || 'Assistant')}</span>
         </div>
 
         {/* Show indicator separately if present */}

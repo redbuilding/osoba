@@ -188,19 +188,19 @@ const ProfileManager = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 text-brand-text-primary">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">AI Profiles</h2>
-          <p className="text-gray-600 mt-1">
+          <h2 className="text-2xl font-semibold">AI Profiles</h2>
+          <p className="text-brand-text-secondary mt-1">
             Create personalized AI assistants with custom communication styles and expertise areas.
           </p>
         </div>
         <button
           onClick={handleCreateProfile}
           disabled={profiles.length >= 3 || isLoading}
-          className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+          className="flex items-center space-x-2 px-4 py-2 bg-brand-purple text-white rounded-md hover:bg-brand-button-grad-to disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-brand-purple"
         >
           <Plus className="w-4 h-4" />
           <span>New Profile</span>
@@ -209,31 +209,29 @@ const ProfileManager = () => {
 
       {/* Messages */}
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-md p-4">
+        <div className="bg-brand-surface-bg border border-gray-700 rounded-md p-4">
           <div className="flex items-center">
-            <AlertCircle className="w-5 h-5 text-red-600 mr-2" />
-            <span className="text-red-800">{error}</span>
+            <AlertCircle className="w-5 h-5 text-brand-alert-red mr-2" />
+            <span className="text-brand-alert-red">{error}</span>
           </div>
         </div>
       )}
 
       {success && (
-        <div className="bg-green-50 border border-green-200 rounded-md p-4">
+        <div className="bg-brand-surface-bg border border-gray-700 rounded-md p-4">
           <div className="flex items-center">
-            <div className="w-5 h-5 bg-green-600 rounded-full flex items-center justify-center mr-2">
-              <div className="w-2 h-2 bg-white rounded-full"></div>
-            </div>
-            <span className="text-green-800">{success}</span>
+            <div className="w-3 h-3 rounded-full bg-brand-success-green mr-2"></div>
+            <span className="text-brand-success-green">{success}</span>
           </div>
         </div>
       )}
 
       {/* Profile Limit Info */}
-      <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+      <div className="bg-brand-surface-bg border border-gray-700 rounded-md p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center">
-            <User className="w-5 h-5 text-blue-600 mr-2" />
-            <span className="text-blue-800">
+            <User className="w-5 h-5 text-brand-text-secondary mr-2" />
+            <span className="text-brand-text-secondary">
               {profiles.length}/3 profiles created
             </span>
           </div>
@@ -241,12 +239,12 @@ const ProfileManager = () => {
             <button
               onClick={handleDeactivateAll}
               disabled={isLoading}
-              className="text-sm text-blue-600 hover:text-blue-800 underline"
+              className="text-sm text-brand-purple hover:text-brand-button-grad-to underline"
             >
               Use Default (No Profile)
             </button>
           ) : (
-            <span className="text-sm text-blue-600">Using default behavior</span>
+            <span className="text-sm text-brand-text-secondary">Using default behavior</span>
           )}
         </div>
       </div>
@@ -254,19 +252,19 @@ const ProfileManager = () => {
       {/* Profiles List */}
       {isLoading && profiles.length === 0 ? (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
-          <span className="ml-2 text-gray-600">Loading profiles...</span>
+          <Loader2 className="w-6 h-6 animate-spin text-brand-purple" />
+          <span className="ml-2 text-brand-text-secondary">Loading profiles...</span>
         </div>
       ) : profiles.length === 0 ? (
         <div className="text-center py-12">
-          <User className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No profiles yet</h3>
-          <p className="text-gray-600 mb-4">
+          <User className="w-12 h-12 text-brand-text-secondary mx-auto mb-4" />
+          <h3 className="text-lg font-medium mb-2">No profiles yet</h3>
+          <p className="text-brand-text-secondary mb-4">
             Create your first AI profile to get started with personalized conversations.
           </p>
           <button
             onClick={handleCreateProfile}
-            className="inline-flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            className="inline-flex items-center space-x-2 px-4 py-2 bg-brand-purple text-white rounded-md hover:bg-brand-button-grad-to focus:outline-none focus:ring-2 focus:ring-brand-purple"
           >
             <Plus className="w-4 h-4" />
             <span>Create Profile</span>
@@ -277,25 +275,25 @@ const ProfileManager = () => {
           {profiles.map((profile) => (
             <div
               key={profile._id}
-              className={`bg-white border rounded-lg p-6 ${
-                profile.is_active ? 'border-blue-300 bg-blue-50' : 'border-gray-200'
+              className={`bg-brand-surface-bg border rounded-lg p-6 border-gray-700 ${
+                profile.is_active ? 'ring-1 ring-brand-purple' : ''
               }`}
             >
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center space-x-2 mb-2">
-                    <h3 className="text-lg font-semibold text-gray-900">
+                    <h3 className="text-lg font-semibold">
                       {profile.name}
                     </h3>
                     {profile.is_active && (
-                      <div className="flex items-center space-x-1 px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
-                        <Star className="w-3 h-3" />
+                      <div className="flex items-center space-x-1 px-2 py-0.5 bg-black/30 text-brand-text-secondary border border-gray-700 rounded-full text-xs">
+                        <Star className="w-3 h-3 text-brand-purple" />
                         <span>Active</span>
                       </div>
                     )}
                   </div>
                   
-                  <div className="space-y-2 text-sm text-gray-600">
+                  <div className="space-y-2 text-sm text-brand-text-secondary">
                     <div>
                       <span className="font-medium">Style:</span> {getCommunicationStyleLabel(profile.communication_style)}
                     </div>
@@ -307,7 +305,7 @@ const ProfileManager = () => {
                           {profile.expertise_areas.map((area, index) => (
                             <span
                               key={index}
-                              className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs"
+                              className="px-2 py-1 bg-black/30 text-brand-text-secondary border border-gray-700 rounded text-xs"
                             >
                               {area}
                             </span>
@@ -323,7 +321,7 @@ const ProfileManager = () => {
                     <button
                       onClick={() => handleActivateProfile(profile._id)}
                       disabled={isLoading}
-                      className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
+                      className="p-2 text-brand-text-secondary hover:text-brand-purple hover:bg-gray-800 rounded focus:outline-none focus:ring-2 focus:ring-brand-purple"
                       title="Activate profile"
                     >
                       <Star className="w-4 h-4" />
@@ -333,7 +331,7 @@ const ProfileManager = () => {
                   <button
                     onClick={() => handleEditProfile(profile)}
                     disabled={isLoading}
-                    className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded"
+                    className="p-2 text-brand-text-secondary hover:text-brand-text-primary hover:bg-gray-800 rounded focus:outline-none focus:ring-2 focus:ring-brand-purple"
                     title="Edit profile"
                   >
                     <Edit className="w-4 h-4" />
@@ -342,7 +340,7 @@ const ProfileManager = () => {
                   <button
                     onClick={() => handleDeleteProfile(profile._id)}
                     disabled={isLoading}
-                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
+                    className="p-2 text-brand-text-secondary hover:text-brand-alert-red hover:bg-gray-800 rounded focus:outline-none focus:ring-2 focus:ring-brand-purple"
                     title="Delete profile"
                   >
                     <Trash2 className="w-4 h-4" />

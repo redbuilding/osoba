@@ -157,9 +157,17 @@ const ConversationSidebar = ({
                 const isEditingThis = editingConversationId === conv.id;
                 return (
                   <div key={conv.id} className="relative group">
-                    <button
+                    <div
+                      role="button"
+                      tabIndex={0}
                       onClick={() => !isEditingThis && onSelectConversation(conv.id)}
-                      className={`w-full flex items-start text-left p-2 rounded-md text-sm transition-colors duration-150 focus:outline-none
+                      onKeyDown={(e) => {
+                        if (!isEditingThis && (e.key === 'Enter' || e.key === ' ')) {
+                          e.preventDefault();
+                          onSelectConversation(conv.id);
+                        }
+                      }}
+                      className={`w-full flex items-start text-left p-2 rounded-md text-sm transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-purple
                         ${ currentConversationId === conv.id && !isEditingThis ? 'bg-brand-blue text-white' : 'text-brand-text-secondary hover:bg-gray-700 hover:text-brand-text-primary'}
                         ${isCollapsed ? 'justify-center' : ''}
                         ${isEditingThis ? 'bg-gray-700' : ''}`}
@@ -198,7 +206,7 @@ const ConversationSidebar = ({
                           )}
                         </div>
                       )}
-                    </button>
+                    </div>
                     {!isEditingThis && !isCollapsed && (
                       <div className="absolute top-1/2 right-1 transform -translate-y-1/2 flex items-center opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-150 z-10">
                         <button

@@ -807,7 +807,13 @@ const App = () => {
               )}
             </div>
 
-            {/* History DB indicator moved to sidebar */}
+            {/* Profile selector */}
+            {activeProfile && (
+              <div className="flex items-center gap-1 px-2 py-1 text-xs rounded bg-black/30 border border-gray-700 text-brand-text-secondary">
+                <User size={14} className="text-brand-text-secondary" />
+                <span className="max-w-[160px] truncate">{activeProfile.name}</span>
+              </div>
+            )}
 
             {/* Tasks button */}
             <button
@@ -819,14 +825,6 @@ const App = () => {
             >
               <ListTodo size={14} /> Tasks{activeTasksCount ? ` (${activeTasksCount})` : ""}
             </button>
-
-            {/* Profile selector */}
-            {activeProfile && (
-              <div className="flex items-center gap-1 px-2 py-1 text-xs rounded bg-blue-700 text-white">
-                <User size={14} />
-                <span>{activeProfile.name}</span>
-              </div>
-            )}
 
             {/* Settings button */}
             <button
@@ -855,6 +853,7 @@ const App = () => {
                 key={msg.timestamp ? `${msg.timestamp}-${idx}` : idx}
                 message={msg}
                 isStreaming={isLoading && idx === chatHistory.length - 1 && msg.role === 'assistant'}
+                assistantName={activeProfile?.name || 'Assistant'}
                 onPromoteToTask={(goalText) => {
                   setPromotedGoal(goalText || "");
                   setIsTasksOpen(true);
@@ -932,7 +931,11 @@ const App = () => {
       {/* Settings page */}
       {isSettingsOpen && (
         <SettingsPage
-          onClose={() => setIsSettingsOpen(false)}
+          onClose={() => {
+            setIsSettingsOpen(false);
+            // Refresh profiles on exit so header indicator updates
+            fetchProfiles();
+          }}
         />
       )}
 

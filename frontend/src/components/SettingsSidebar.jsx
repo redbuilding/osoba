@@ -24,11 +24,11 @@ const SettingsSidebar = ({ activeSection, onSectionChange }) => {
   ];
 
   return (
-    <div className="w-64 bg-gray-50 border-r border-gray-200 h-full flex flex-col">
-      <div className="p-6 border-b border-gray-200">
+    <div className="w-64 bg-brand-surface-bg border-r border-gray-700 h-full flex flex-col text-brand-text-primary">
+      <div className="p-6 border-b border-gray-700">
         <div className="flex items-center space-x-2">
-          <Settings className="w-5 h-5 text-gray-600" />
-          <h1 className="text-lg font-semibold text-gray-900">Settings</h1>
+          <Settings className="w-5 h-5 text-brand-text-secondary" />
+          <h1 className="text-lg font-semibold">Settings</h1>
         </div>
       </div>
       
@@ -42,18 +42,18 @@ const SettingsSidebar = ({ activeSection, onSectionChange }) => {
               <li key={section.id}>
                 <button
                   onClick={() => onSectionChange(section.id)}
-                  className={`w-full flex items-start space-x-3 p-3 rounded-lg text-left transition-colors ${
+                  className={`w-full flex items-start space-x-3 p-3 rounded-lg text-left transition-colors border ${
                     isActive
-                      ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                      : 'text-gray-700 hover:bg-gray-100'
-                  }`}
+                      ? 'bg-black/30 border-gray-700 text-brand-purple'
+                      : 'border-transparent text-brand-text-secondary hover:bg-gray-800'
+                  } focus:outline-none focus:ring-2 focus:ring-brand-purple`}
                 >
-                  <Icon className={`w-5 h-5 mt-0.5 ${isActive ? 'text-blue-600' : 'text-gray-500'}`} />
+                  <Icon className={`w-5 h-5 mt-0.5 ${isActive ? 'text-brand-purple' : 'text-brand-text-secondary'}`} />
                   <div>
-                    <div className={`font-medium ${isActive ? 'text-blue-700' : 'text-gray-900'}`}>
+                    <div className={`font-medium ${isActive ? 'text-brand-text-primary' : 'text-brand-text-primary'}`}>
                       {section.label}
                     </div>
-                    <div className={`text-sm ${isActive ? 'text-blue-600' : 'text-gray-500'}`}>
+                    <div className={`text-sm ${isActive ? 'text-brand-purple' : 'text-brand-text-secondary'}`}>
                       {section.description}
                     </div>
                   </div>
@@ -64,8 +64,8 @@ const SettingsSidebar = ({ activeSection, onSectionChange }) => {
         </ul>
       </nav>
       
-      <div className="p-4 border-t border-gray-200">
-        <div className="text-xs text-gray-500">
+      <div className="p-4 border-t border-gray-700">
+        <div className="text-xs text-brand-text-secondary">
           Settings are saved automatically
         </div>
       </div>

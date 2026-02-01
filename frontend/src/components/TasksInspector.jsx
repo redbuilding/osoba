@@ -8,12 +8,12 @@ import ModelPickerModal from "./ModelPickerModal";
 
 const StatusPill = ({ status }) => {
   const color = {
-    PLANNING: "bg-blue-700",
+    PLANNING: "bg-brand-stat-blue",
     PENDING: "bg-gray-600",
-    RUNNING: "bg-green-700",
+    RUNNING: "bg-brand-success-green",
     PAUSED: "bg-yellow-600",
-    FAILED: "bg-red-700",
-    COMPLETED: "bg-emerald-700",
+    FAILED: "bg-brand-alert-red",
+    COMPLETED: "bg-brand-success-green",
     CANCELED: "bg-gray-500",
   }[status] || "bg-gray-600";
   return <span className={`text-xs px-2 py-1 rounded ${color} text-white`}>{status}</span>;
@@ -164,7 +164,14 @@ const TaskDetailInline = ({ taskId, onClose, onTaskDeleted }) => {
               if (!prev || !prev.plan || !Array.isArray(prev.plan.steps)) return prev;
               const steps = [...prev.plan.steps];
               if (steps[e.index]) {
-                steps[e.index] = { ...steps[e.index], status: e.status, error: e.error ?? steps[e.index].error };
+                const next = { ...steps[e.index], status: e.status };
+                // Clear transient errors when step restarts or completes
+                if (e.status === 'RUNNING' || e.status === 'COMPLETED') {
+                  next.error = undefined;
+                } else if (typeof e.error !== 'undefined') {
+                  next.error = e.error;
+                }
+                steps[e.index] = next;
               }
               return { ...prev, plan: { ...prev.plan, steps } };
             });
@@ -443,14 +450,14 @@ const TasksInspector = ({ isOpen, onClose, initialGoal = "", conversationId = nu
           <div className="flex gap-2">
             <button 
               onClick={() => setShowTemplates(true)}
-              className="flex items-center gap-1 px-3 py-1 text-xs rounded bg-blue-600 hover:bg-blue-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-400"
+              className="flex items-center gap-1 px-3 py-1 text-xs rounded bg-gray-700 hover:bg-gray-600 text-white focus:outline-none focus:ring-2 focus:ring-brand-purple"
             >
               <Layers className="w-3 h-3" />
               Templates
             </button>
             <button 
               onClick={() => setShowScheduled(true)}
-              className="flex items-center gap-1 px-3 py-1 text-xs rounded bg-green-600 hover:bg-green-700 text-white focus:outline-none focus:ring-2 focus:ring-green-400"
+              className="flex items-center gap-1 px-3 py-1 text-xs rounded bg-gray-700 hover:bg-gray-600 text-white focus:outline-none focus:ring-2 focus:ring-brand-purple"
             >
               <Clock className="w-3 h-3" />
               Scheduled

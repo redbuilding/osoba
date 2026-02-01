@@ -218,7 +218,7 @@ const ScheduledTasksPanel = ({ isOpen, onClose }) => {
             <h3 className="font-medium">Scheduled Tasks ({scheduledTasks.length})</h3>
             <button
               onClick={() => setShowCreateForm(true)}
-              className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              className="flex items-center gap-2 px-3 py-2 bg-brand-purple text-white rounded-md hover:bg-brand-button-grad-to focus:outline-none focus:ring-2 focus:ring-brand-purple"
             >
               <Plus className="w-4 h-4" />
               New Schedule
@@ -506,7 +506,7 @@ const ScheduledTasksPanel = ({ isOpen, onClose }) => {
                       <h4 className="font-medium text-brand-text-primary">{task.name}</h4>
                       <span className={`px-2 py-1 text-xs rounded ${
                         task.schedule.enabled 
-                          ? 'bg-green-700 text-green-200' 
+                          ? 'bg-brand-success-green text-white' 
                           : 'bg-gray-700 text-gray-300'
                       }`}>
                         {task.schedule.enabled ? 'Active' : 'Disabled'}
@@ -526,31 +526,51 @@ const ScheduledTasksPanel = ({ isOpen, onClose }) => {
                           : formatCronExpression(task.schedule?.cron_expression || '')}
                       </span>
                       <span>Runs: {task.run_count || 0}</span>
-                      {(task.schedule?.next_run || task.next_run) && (
-                        <span>
-                          Next: {new Date(task.schedule?.next_run || task.next_run).toLocaleString()} {task.schedule?.timezone ? `(${task.schedule.timezone})` : ''}
-                        </span>
-                      )}
+                      {(task.schedule?.next_run || task.next_run) && (() => {
+                        const next = task.schedule?.next_run || task.next_run;
+                        const tz = task.schedule?.timezone || 'UTC';
+                        const ensureUtcDate = (value) => {
+                          if (!value) return null;
+                          if (value instanceof Date) return value;
+                          if (typeof value === 'string') {
+                            // If the string has no timezone designator, treat it as UTC
+                            const hasTz = /Z|[+-]\d{2}:\d{2}$/.test(value);
+                            return new Date(hasTz ? value : `${value}Z`);
+                          }
+                          return new Date(value);
+                        };
+                        const nextDate = ensureUtcDate(next);
+                        const nextInTz = nextDate ? nextDate.toLocaleString(undefined, {
+                          timeZone: tz,
+                          dateStyle: 'medium',
+                          timeStyle: 'short',
+                        }) : '';
+                        return (
+                          <span>
+                            Next: {nextInTz} ({tz})
+                          </span>
+                        );
+                      })()}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => handleRunNow(task.id)}
-                      className="px-2 py-1 text-xs rounded bg-blue-700 hover:bg-blue-600 text-white"
+                      className="px-2 py-1 text-xs rounded bg-brand-purple hover:bg-brand-button-grad-to text-white focus:outline-none focus:ring-2 focus:ring-brand-purple"
                       title="Run now"
                     >
                       Run
                     </button>
                     <button
                       onClick={() => handleRunWithModel(task.id)}
-                      className="px-2 py-1 text-xs rounded bg-gray-700 hover:bg-gray-600 text-white"
+                      className="px-2 py-1 text-xs rounded bg-gray-700 hover:bg-gray-600 text-white focus:outline-none focus:ring-2 focus:ring-brand-purple"
                       title="Run now with model override"
                     >
                       Run with Model
                     </button>
                     <button
                       onClick={() => handleDeleteTask(task.id)}
-                      className="p-2 text-red-400 hover:bg-red-900/30 rounded focus:outline-none focus:ring-2 focus:ring-red-400"
+                      className="p-2 text-brand-alert-red hover:bg-red-900/30 rounded focus:outline-none focus:ring-2 focus:ring-brand-purple"
                       title="Delete scheduled task"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -562,7 +582,7 @@ const ScheduledTasksPanel = ({ isOpen, onClose }) => {
 
             {scheduledTasks.length === 0 && !showCreateForm && (
               <div className="text-center py-8 text-brand-text-secondary">
-                <Clock className="w-12 h-12 mx-auto mb-3 text-gray-600" />
+                <Clock className="w-12 h-12 mx-auto mb-3 text-brand-text-secondary" />
                 <p>No scheduled tasks yet</p>
                 <p className="text-sm">Create your first scheduled task to automate recurring work</p>
               </div>

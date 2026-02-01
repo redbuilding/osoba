@@ -101,14 +101,14 @@ const ProfileForm = ({ profile, onSave, onCancel, isLoading }) => {
   };
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-6">
+    <div className="bg-brand-surface-bg rounded-lg border border-gray-700 p-6 text-brand-text-primary">
       <div className="flex items-center justify-between mb-6">
-        <h3 className="text-lg font-semibold text-gray-900">
+        <h3 className="text-lg font-semibold">
           {profile ? 'Edit Profile' : 'Create New Profile'}
         </h3>
         <button
           onClick={onCancel}
-          className="text-gray-400 hover:text-gray-600"
+          className="text-brand-text-secondary hover:text-brand-text-primary focus:outline-none focus:ring-2 focus:ring-brand-purple rounded"
           disabled={isLoading}
         >
           <X className="w-5 h-5" />
@@ -118,40 +118,40 @@ const ProfileForm = ({ profile, onSave, onCancel, isLoading }) => {
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Profile Name */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-brand-text-secondary mb-2">
             Profile Name *
           </label>
           <input
             type="text"
             value={formData.name}
             onChange={(e) => handleInputChange('name', e.target.value)}
-            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-              errors.name ? 'border-red-300' : 'border-gray-300'
+            className={`w-full px-3 py-2 border rounded-md bg-brand-main-bg text-brand-text-primary placeholder-brand-text-secondary focus:outline-none focus:ring-2 focus:ring-brand-purple ${
+              errors.name ? 'border-red-600' : 'border-gray-700'
             }`}
             placeholder="e.g., Technical Assistant, Creative Helper"
             maxLength={100}
             disabled={isLoading}
           />
           {errors.name && (
-            <div className="mt-1 flex items-center text-sm text-red-600">
+            <div className="mt-1 flex items-center text-sm text-brand-alert-red">
               <AlertCircle className="w-4 h-4 mr-1" />
               {errors.name}
             </div>
           )}
-          <div className="mt-1 text-xs text-gray-500">
+          <div className="mt-1 text-xs text-brand-text-secondary">
             {formData.name.length}/100 characters
           </div>
         </div>
 
         {/* Communication Style */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-brand-text-secondary mb-2">
             Communication Style
           </label>
           <select
             value={formData.communication_style}
             onChange={(e) => handleInputChange('communication_style', e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 border border-gray-700 rounded-md bg-brand-main-bg text-brand-text-primary focus:outline-none focus:ring-2 focus:ring-brand-purple"
             disabled={isLoading}
           >
             {communicationStyles.map((style) => (
@@ -160,14 +160,14 @@ const ProfileForm = ({ profile, onSave, onCancel, isLoading }) => {
               </option>
             ))}
           </select>
-          <div className="mt-1 text-sm text-gray-600">
+          <div className="mt-1 text-sm text-brand-text-secondary">
             {communicationStyles.find(s => s.value === formData.communication_style)?.description}
           </div>
         </div>
 
         {/* Expertise Areas */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-brand-text-secondary mb-2">
             Expertise Areas (Optional)
           </label>
           
@@ -178,7 +178,7 @@ const ProfileForm = ({ profile, onSave, onCancel, isLoading }) => {
               value={newExpertiseArea}
               onChange={(e) => setNewExpertiseArea(e.target.value)}
               onKeyPress={handleKeyPress}
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="flex-1 px-3 py-2 border border-gray-700 rounded-md bg-brand-main-bg text-brand-text-primary placeholder-brand-text-secondary focus:outline-none focus:ring-2 focus:ring-brand-purple"
               placeholder="e.g., AI, Programming, Writing"
               disabled={isLoading || formData.expertise_areas.length >= 5}
             />
@@ -186,7 +186,7 @@ const ProfileForm = ({ profile, onSave, onCancel, isLoading }) => {
               type="button"
               onClick={addExpertiseArea}
               disabled={!newExpertiseArea.trim() || formData.expertise_areas.length >= 5 || isLoading}
-              className="px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+              className="px-3 py-2 bg-brand-purple text-white rounded-md hover:bg-brand-button-grad-to disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-brand-purple"
             >
               <Plus className="w-4 h-4" />
             </button>
@@ -196,12 +196,12 @@ const ProfileForm = ({ profile, onSave, onCancel, isLoading }) => {
           {formData.expertise_areas.length > 0 && (
             <div className="space-y-2">
               {formData.expertise_areas.map((area, index) => (
-                <div key={index} className="flex items-center justify-between bg-gray-50 px-3 py-2 rounded-md">
-                  <span className="text-sm text-gray-700">{area}</span>
+                <div key={index} className="flex items-center justify-between bg-black/30 border border-gray-700 px-3 py-2 rounded-md">
+                  <span className="text-sm text-brand-text-secondary">{area}</span>
                   <button
                     type="button"
                     onClick={() => removeExpertiseArea(index)}
-                    className="text-gray-400 hover:text-red-600"
+                    className="text-brand-text-secondary hover:text-brand-alert-red focus:outline-none focus:ring-2 focus:ring-brand-purple rounded"
                     disabled={isLoading}
                   >
                     <Trash2 className="w-4 h-4" />
@@ -212,23 +212,23 @@ const ProfileForm = ({ profile, onSave, onCancel, isLoading }) => {
           )}
 
           {errors.expertise_areas && (
-            <div className="mt-1 flex items-center text-sm text-red-600">
+            <div className="mt-1 flex items-center text-sm text-brand-alert-red">
               <AlertCircle className="w-4 h-4 mr-1" />
               {errors.expertise_areas}
             </div>
           )}
           
-          <div className="mt-1 text-xs text-gray-500">
+          <div className="mt-1 text-xs text-brand-text-secondary">
             {formData.expertise_areas.length}/5 areas added
           </div>
         </div>
 
         {/* Form Actions */}
-        <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
+        <div className="flex justify-end space-x-3 pt-4 border-t border-gray-700">
           <button
             type="button"
             onClick={onCancel}
-            className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+            className="px-4 py-2 text-brand-text-secondary bg-gray-700 rounded-md hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-brand-purple"
             disabled={isLoading}
           >
             Cancel
@@ -236,7 +236,7 @@ const ProfileForm = ({ profile, onSave, onCancel, isLoading }) => {
           <button
             type="submit"
             disabled={isLoading}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-blue-400 flex items-center space-x-2"
+            className="px-4 py-2 bg-brand-purple text-white rounded-md hover:bg-brand-button-grad-to disabled:opacity-50 flex items-center space-x-2 focus:outline-none focus:ring-2 focus:ring-brand-purple"
           >
             <Save className="w-4 h-4" />
             <span>{isLoading ? 'Saving...' : 'Save Profile'}</span>

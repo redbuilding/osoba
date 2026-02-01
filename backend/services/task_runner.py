@@ -200,6 +200,9 @@ async def _run_task(task_id: str):
             logger.info(f"Task {task_id} step {i} result: {ok}")
             if not ok:
                 logger.error(f"Task {task_id} step {i} failed verification, stopping execution")
+                # Mark task failed centrally to avoid later status flips
+                update_task(task_id, {"status": "FAILED", "error": f"Step {i} failed"})
+                await progress_bus.publish(task_id, {"type": "TASK_STATUS", "task_id": task_id, "status": "FAILED", "error": f"Step {i} failed"})
                 # Get the step details for debugging
                 step = steps[i]
                 logger.error(f"Failed step details: tool={step.get('tool')}, success_criteria={step.get('success_criteria')}")
@@ -333,7 +336,8 @@ async def _verify_success(success_criteria: str, normalized_output: Dict[str, An
 
 async def _execute_step(task_id: str, idx: int, step: Dict[str, Any]):
     logger.info(f"Executing step {idx} for task {task_id}: {step.get('tool', 'unknown')}")
-    set_step_status(task_id, idx, {"status": "RUNNING", "started_at": datetime.now(timezone.utc)})
+    # Mark step as running and clear any previous error
+    set_step_status(task_id, idx, {"status": "RUNNING", "error": None, "started_at": datetime.now(timezone.utc)})
     await progress_bus.publish(task_id, {"type": "STEP_STATUS", "task_id": task_id, "index": idx, "status": "RUNNING"})
 
     tool = step.get("tool")
@@ -428,16 +432,17 @@ async def _execute_step(task_id: str, idx: int, step: Dict[str, Any]):
         if not verified:
             raise RuntimeError("Verification failed for step output")
 
-        set_step_status(task_id, idx, {"status": "COMPLETED", "outputs": norm, "ended_at": datetime.now(timezone.utc)})
+        # Clear any prior error and set outputs on success
+        set_step_status(task_id, idx, {"status": "COMPLETED", "error": None, "outputs": norm, "ended_at": datetime.now(timezone.utc)})
         await progress_bus.publish(task_id, {"type": "STEP_STATUS", "task_id": task_id, "index": idx, "status": "COMPLETED"})
         # Record elapsed seconds for this step
         elapsed = int(time.time() - step_started)
         increment_usage(task_id, "seconds_elapsed", max(elapsed, 0))
         return True
     except Exception as e:
+        # Mark only the step as failed here; task status is decided by the orchestrator
         set_step_status(task_id, idx, {"status": "FAILED", "error": str(e), "ended_at": datetime.now(timezone.utc)})
         await progress_bus.publish(task_id, {"type": "STEP_STATUS", "task_id": task_id, "index": idx, "status": "FAILED", "error": str(e)})
-        update_task(task_id, {"status": "FAILED", "error": f"Step {idx} failed: {e}"})
         return False
 
 

@@ -7,7 +7,7 @@ import {
   removeProviderSettings 
 } from '../services/api';
 
-const SettingsModal = ({ isOpen, onClose, onSettingsUpdate }) => {
+const SettingsModal = ({ isOpen, onClose, onSettingsUpdate, embedded = false }) => {
   const [providers, setProviders] = useState([]);
   const [apiKeys, setApiKeys] = useState({});
   const [showKeys, setShowKeys] = useState({});
@@ -173,22 +173,10 @@ const SettingsModal = ({ isOpen, onClose, onSettingsUpdate }) => {
     return null;
   };
 
-  if (!isOpen) return null;
+  if (!isOpen && !embedded) return null;
 
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
-      <div className="bg-brand-surface-bg border border-gray-700 rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden">
-        <div className="flex items-center justify-between p-6 border-b border-gray-700 bg-black/20">
-          <h2 className="text-xl font-semibold text-brand-text-primary">Provider Settings</h2>
-          <button
-            onClick={onClose}
-            className="p-1 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-purple"
-            aria-label="Close settings"
-          >
-            <X className="w-5 h-5 text-brand-text-secondary" />
-          </button>
-        </div>
-        
+  const content = (
+    <>
         <div className="p-6 overflow-y-auto max-h-[60vh]">
           {error && (
             <div className="mb-4 p-3 bg-brand-surface-bg border border-gray-700 text-brand-alert-red rounded">
@@ -275,7 +263,32 @@ const SettingsModal = ({ isOpen, onClose, onSettingsUpdate }) => {
             ))}
           </div>
         </div>
-        
+    </>
+  );
+
+  if (embedded) {
+    // Render panel content only (no overlay/header/footer) for embedded usage
+    return (
+      <div className="w-full">
+        {content}
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
+      <div className="bg-brand-surface-bg border border-gray-700 rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden">
+        <div className="flex items-center justify-between p-6 border-b border-gray-700 bg-black/20">
+          <h2 className="text-xl font-semibold text-brand-text-primary">Provider Settings</h2>
+          <button
+            onClick={onClose}
+            className="p-1 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-purple"
+            aria-label="Close settings"
+          >
+            <X className="w-5 h-5 text-brand-text-secondary" />
+          </button>
+        </div>
+        {content}
         <div className="flex justify-end p-6 border-t border-gray-700 bg-black/20">
           <button
             onClick={onClose}

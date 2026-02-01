@@ -45,6 +45,16 @@ async def chat_with_provider(messages: List[Dict[str, str]], model_name: str,
             "temperature": 1.0 / repeat_penalty if repeat_penalty > 0 else 1.0
         }
 
+        # Model-specific param normalization (e.g., OpenAI gpt-5 disallows temperature ≠ 1)
+        try:
+            effective_model = clean_model or str(full_model)
+            if provider_id == 'openai':
+                # For gpt-5 family (excluding 5.1), temperature must be exactly 1 (or omitted)
+                if effective_model.startswith('gpt-5') and not effective_model.startswith('gpt-5.1'):
+                    request_params['temperature'] = 1.0
+        except Exception:
+            pass
+
         # Add provider-specific parameters
         await _add_provider_params(request_params, provider_id, config, user_id)
 
@@ -89,6 +99,15 @@ async def stream_chat_with_provider(messages: List[Dict[str, str]], model_name: 
             "stream": True,
             "temperature": 1.0 / repeat_penalty if repeat_penalty > 0 else 1.0
         }
+
+        # Model-specific param normalization (e.g., OpenAI gpt-5 disallows temperature ≠ 1)
+        try:
+            effective_model = clean_model or str(full_model)
+            if provider_id == 'openai':
+                if effective_model.startswith('gpt-5') and not effective_model.startswith('gpt-5.1'):
+                    request_params['temperature'] = 1.0
+        except Exception:
+            pass
 
         # Add provider-specific parameters
         await _add_provider_params(request_params, provider_id, config, user_id)
