@@ -87,6 +87,11 @@ async def get_conversation_context(user_id: str = "default") -> str:
                 
             summary = conv.get("summary", "")
             title = conv.get("title", "Untitled")
+            conv_id = str(conv.get("_id", ""))
+            
+            # Generate summary if missing
+            if not summary and conv_id:
+                summary = await _generate_and_store_summary(conv_id)
             
             if summary:
                 conv_context = f"{title}: {summary}"
@@ -115,18 +120,68 @@ def generate_conversation_summary(conversation_data: Dict[str, Any]) -> str:
         if not messages:
             return ""
         
-        # Simple summary generation - take key points from messages
+        # Hybrid approach: include user messages + summarized assistant responses
         summary_parts = []
         for msg in messages[-5:]:  # Last 5 messages for context
             content = msg.get("content", "")
-            if len(content) > 100:
-                content = content[:100] + "..."
-            if content and msg.get("role") == "user":
-                summary_parts.append(content)
+            if not content:
+                continue
+                
+            if msg.get("role") == "user":
+                # Include full user message (truncated)
+                user_content = content[:100] + "..." if len(content) > 100 else content
+                summary_parts.append(user_content)
+            elif msg.get("role") == "assistant":
+                # Extract key solutions/outcomes from assistant response
+                solution_summary = _extract_assistant_key_points(content)
+                if solution_summary:
+                    summary_parts.append(f"Solved: {solution_summary}")
         
         return " | ".join(summary_parts)[:200]  # Limit summary length
     except Exception as e:
         logger.error(f"Error generating conversation summary: {e}")
+        return ""
+
+def _extract_assistant_key_points(content: str) -> str:
+    """Extract key points from assistant responses for summary."""
+    try:
+        # Look for common solution patterns
+        content_lower = content.lower()
+        
+        # Extract code-related solutions
+        if "```" in content:
+            return "provided code example"
+        
+        # Extract tool/library recommendations
+        tools = ["pandas", "numpy", "matplotlib", "seaborn", "requests", "fastapi", "react", "python", "javascript", "sql"]
+        mentioned_tools = [tool for tool in tools if tool in content_lower]
+        if mentioned_tools:
+            return f"use {', '.join(mentioned_tools[:2])}"
+        
+        # Extract action words that indicate solutions
+        action_patterns = [
+            ("install", "installation steps"),
+            ("configure", "configuration help"),
+            ("create", "creation guide"),
+            ("fix", "troubleshooting"),
+            ("debug", "debugging help"),
+            ("optimize", "optimization tips"),
+            ("deploy", "deployment guide")
+        ]
+        
+        for pattern, description in action_patterns:
+            if pattern in content_lower:
+                return description
+        
+        # Extract first sentence as fallback (truncated)
+        first_sentence = content.split('.')[0].strip()
+        if len(first_sentence) > 50:
+            first_sentence = first_sentence[:47] + "..."
+        
+        return first_sentence if first_sentence else ""
+        
+    except Exception as e:
+        logger.error(f"Error extracting assistant key points: {e}")
         return ""
 
 def format_context_for_system_prompt(context: Dict[str, Any]) -> str:
@@ -146,4 +201,31 @@ def format_context_for_system_prompt(context: Dict[str, Any]) -> str:
         return ""
     except Exception as e:
         logger.error(f"Error formatting context for system prompt: {e}")
+        return ""
+
+async def _generate_and_store_summary(conv_id: str) -> str:
+    """Generate summary for a conversation and store it in the database."""
+    try:
+        # Get full conversation with messages
+        conversation = get_conversation_by_id(conv_id)
+        if not conversation:
+            return ""
+        
+        # Generate summary using existing function
+        summary = generate_conversation_summary(conversation)
+        if not summary:
+            return ""
+        
+        # Store summary in database
+        from db.crud import update_conversation_summary
+        success = update_conversation_summary(conv_id, summary)
+        if success:
+            logger.info(f"Generated and stored summary for conversation {conv_id}")
+            return summary
+        else:
+            logger.error(f"Failed to store summary for conversation {conv_id}")
+            return ""
+            
+    except Exception as e:
+        logger.error(f"Error generating and storing summary for {conv_id}: {e}")
         return ""

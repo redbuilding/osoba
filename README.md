@@ -1,6 +1,6 @@
 # 🔍 🤖 🌐 OhSee
 
-A powerful, modern UI that integrates local and hosted LLMs with intelligent web search and content extraction, SQL, YouTube transcript analysis, HubSpot actions, Python data analysis — and a Codex MCP server for safe code scaffolding — all via the Model Context Protocol (MCP). Features include provider settings, multi‑provider model picking, streaming chat, persistent conversations, a robust Tasks system, and Scheduled tasks with timezone‑aware timing.
+A powerful, modern UI that integrates local and hosted LLMs with intelligent web search and content extraction, SQL, YouTube transcript analysis, HubSpot actions, Python data analysis — and a Codex MCP server for safe code scaffolding — all via the Model Context Protocol (MCP). Features include personalized AI assistance through user profiles and conversation context, provider settings, multi‑provider model picking, streaming chat, persistent conversations, a robust Tasks system, and Scheduled tasks with timezone‑aware timing.
 
 ## Overview
 
@@ -37,6 +37,9 @@ This architecture demonstrates how MCP enables local models to access external t
 - 🧠 **Smart Web Search**: Intelligent web search with automatic content extraction from top results. Goes beyond search snippets to fetch and analyze full webpage content using advanced extraction techniques.
 - 🔎 **URL Prioritization**: Smart ranking of search results based on relevance scoring, including title/snippet matching, domain authority, and search position weighting.
 - 🤖 **Polite Web Crawling**: Respects robots.txt, implements rate limiting, and uses proper User-Agent identification for ethical content extraction.
+- 👤 **User Profile & Context**: Configure personal information (role, expertise, projects) and pin conversations for contextual AI assistance. The AI understands your background and can reference previous work for personalized responses.
+- 📌 **Conversation Pinning**: Select specific conversations to include as context for future chats, enabling the AI to build upon previous discussions and maintain continuity across sessions.
+- 🎯 **Personalized AI Responses**: AI adapts its communication style and suggestions based on your profile information and pinned conversation history for more relevant assistance.
 - 💾 **Persistent Conversations**: Chat history is saved in MongoDB, allowing users to resume conversations.
 - 🧠 **Multi‑Provider LLMs**: Ollama (local), plus OpenAI, Anthropic, Google, OpenRouter, Groq, SambaNova — with a Settings screen for API keys and a unified model picker.
 - 🔌 **MCP integration**: Backend manages multiple MCP tools (web, SQL, YouTube, HubSpot, Python) as background services.
@@ -226,10 +229,12 @@ Optional (enable additional tools):
 -   Use the chat interface to send messages; responses stream live with indicators when tools run.
 -   Click the ✨ Tool Selector to enable one of: Smart Web Search, Database, YouTube, HubSpot, Python, Codex (requires OpenAI configured).
 -   Use Settings (header) to configure provider API keys and unlock non‑Ollama models and Codex.
+-   **Configure User Profile**: In Settings → User Profile, add your role, expertise areas, current projects, and communication preferences for personalized AI assistance.
+-   **Pin Conversations**: Hover over conversations in the sidebar and click the pin button to include them as context for future chats.
 -   For YouTube: paste a video URL. The transcript is fetched and saved to the conversation for follow-ups.
 -   For HubSpot: click “Connect HubSpot” to complete OAuth, then describe the email to create/update.
 -   For Python: upload a CSV file when prompted; follow-up questions reuse the loaded DataFrame for advanced analysis including filtering, grouping, outlier detection, statistical testing, and visualization.
--   Manage conversations using the sidebar (create new, select, rename, delete).
+-   Manage conversations using the sidebar (create new, select, rename, delete, pin for context).
 
 ### Long‑Running Tasks (Plan & Execute)
 
@@ -302,6 +307,44 @@ The Python MCP server provides comprehensive data analysis capabilities through 
   - Returns base64-encoded images for web display
 
 All tools maintain session state through an in-memory DataFrame store, enabling complex multi-step analytical workflows within a single conversation.
+
+## User Profile & Contextual AI Assistance
+
+The application provides personalized AI assistance through user profiles and conversation context management:
+
+### User Profile Configuration
+- **Personal Information**: Configure your role, expertise areas, current projects, and communication preferences
+- **Contextual Understanding**: The AI understands your background and adapts responses accordingly
+- **Settings Integration**: Access via Settings → User Profile for easy configuration
+
+### Conversation Context System
+- **Selective Pinning**: Choose specific conversations to include as context for future chats
+- **Visual Controls**: Pin/unpin conversations directly from the sidebar with intuitive controls
+- **Automatic Summaries**: System automatically generates summaries for pinned conversations when needed
+- **Hybrid Summary Approach**: Captures both user questions and assistant solutions for complete context
+- **Context Continuity**: AI can reference previous problems AND solutions for coherent assistance
+- **Smart Limits**: Context size is managed automatically to prevent token overflow (800 character limit)
+- **Persistent Storage**: Generated summaries are stored and reused to avoid regeneration
+
+### Personalized AI Responses
+The AI combines your profile information with pinned conversation context to provide:
+- **Relevant Suggestions**: Recommendations based on your role and current projects
+- **Appropriate Complexity**: Technical depth matching your expertise level
+- **Consistent Context**: Ability to reference previous work and maintain conversation continuity
+- **Solution Awareness**: Knows what approaches were already tried and can build upon them
+- **Adaptive Communication**: Response style tailored to your preferences
+
+### Profile vs AI Configuration
+- **User Profile**: Information about YOU (role, projects, preferences) - helps AI understand who it's talking to
+- **AI Profile**: Configuration of the AI's behavior and personality - defines how the AI should act
+- **Combined Effect**: Creates personalized interactions where the AI knows both who you are and how it should respond
+
+### Technical Implementation
+- **Automatic Summary Generation**: When conversations are pinned, summaries are generated on-demand from the last 5 messages
+- **Hybrid Summary Format**: Includes both user questions and key assistant solutions (e.g., "User question | Solved: pandas, matplotlib")
+- **Smart Solution Extraction**: Identifies code examples, tool recommendations, and solution patterns from assistant responses
+- **User Isolation**: Conversations are filtered by user to prevent cross-user context leakage
+- **Performance Optimization**: Summaries are generated once and stored for reuse across multiple chats
 
 ## Smart Web Search & Content Extraction
 

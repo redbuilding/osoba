@@ -91,7 +91,7 @@ def get_pinned_conversations(user_id: str = "default", limit: int = 5) -> List[D
     """Get conversations pinned for context by user."""
     collection = get_conversations_collection()
     cursor = collection.find(
-        {"pinned_for_context": True},
+        {"pinned_for_context": True, "user_id": user_id},
         {"messages": 0, "youtube_transcript": 0}
     ).sort("updated_at", -1).limit(limit)
     return list(cursor)
