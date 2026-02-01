@@ -101,8 +101,8 @@ Optional (enable additional tools):
 
 1.  **Clone the repository:**
     ```bash
-    git clone https://github.com/redbuilding/ollama-chat-with-mcp.git
-    cd ollama-chat-with-mcp
+    git clone https://github.com/redbuilding/ohsee.git
+    cd ohsee
     ```
 
 2.  **Set up Backend:**
@@ -327,7 +327,8 @@ The application provides personalized AI assistance through user profiles and co
 - **Automatic Summaries**: System automatically generates summaries for pinned conversations when needed
 - **Hybrid Summary Approach**: Captures both user questions and assistant solutions for complete context
 - **Context Continuity**: AI can reference previous problems AND solutions for coherent assistance
-- **Smart Limits**: Context size is managed automatically to prevent token overflow (800 character limit)
+- **Smart Limits**: Context is budgeted to ~2700 characters total (200 profile + up to 2500
+across pinned summaries)
 - **Persistent Storage**: Generated summaries are stored and reused to avoid regeneration
 
 ### Personalized AI Responses
