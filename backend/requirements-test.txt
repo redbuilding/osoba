@@ -1,9 +1,0 @@
-# requirements-test.txt for testing test_server_python.py
-pytest
-pytest-asyncio
-mcp
-pandas
-numpy
-matplotlib
-seaborn
-pytest-asyncio
