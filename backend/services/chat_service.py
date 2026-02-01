@@ -16,6 +16,7 @@ from db.mongodb import get_conversations_collection
 from services.mcp_service import app_state, submit_mcp_request, wait_mcp_response
 from services.llm_service import get_default_ollama_model
 from services.provider_service import chat_with_provider, stream_chat_with_provider
+from services.profile_service import get_system_prompt_for_user
 from auth_hubspot import get_valid_token, SESSION_COOKIE_NAME
 
 logger = get_logger("chat_service")
@@ -480,6 +481,27 @@ Your JSON response:
 ```
 """
 
+    async def _inject_profile_system_prompt(self):
+        """
+        Inject system prompt from active AI profile as the first message in conversation history.
+        Only applies to main chat conversations, not tasks.
+        """
+        try:
+            # Skip profile injection for task conversations or if already has system message
+            if self.llm_history and self.llm_history[0].get("role") == "system":
+                return
+            
+            # Get system prompt for user's active profile
+            system_prompt = await get_system_prompt_for_user("default")  # TODO: Use actual user_id when auth is implemented
+            
+            if system_prompt:
+                logger.debug(f"Injecting profile system prompt for conv {self.conv_id}")
+                # Insert system message at the beginning of conversation history
+                self.llm_history.insert(0, {"role": "system", "content": system_prompt})
+        except Exception as e:
+            logger.error(f"Error injecting profile system prompt: {e}")
+            # Don't fail the conversation if profile injection fails
+
     def _inject_persistent_context(self):
         """
         If a transcript or dataframe is attached to the convo, and we are NOT in the process
@@ -518,6 +540,8 @@ Your JSON response:
 
     async def _run_pipeline(self):
         await self._initialize_conversation()
+        # Inject profile system prompt FIRST, before any other context
+        await self._inject_profile_system_prompt()
         # Persistent context must be injected BEFORE tool handling,
         # as it might re-enable a tool flag (e.g. for Python follow-ups)
         self._inject_persistent_context()

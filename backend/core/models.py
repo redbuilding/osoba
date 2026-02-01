@@ -26,6 +26,7 @@ class ChatPayload(BaseModel):
     conversation_id: Optional[str] = None
     model_name: Optional[str] = None
     provider: Optional[str] = None  # New field for provider selection
+    profile_id: Optional[str] = None  # New field for AI profile selection
     repeat_penalty: Optional[float] = None
 
 class ChatResponse(BaseModel):
@@ -33,6 +34,7 @@ class ChatResponse(BaseModel):
     chat_history: List[ChatMessage]
     model_name: Optional[str] = None
     provider: Optional[str] = None  # New field for provider information
+    profile_id: Optional[str] = None  # New field for AI profile information
 
 class ConversationListItem(BaseModel):
     id: str = Field(alias="_id")
@@ -42,6 +44,7 @@ class ConversationListItem(BaseModel):
     message_count: int
     model_name: Optional[str] = None
     provider: Optional[str] = None  # New field for provider information
+    profile_id: Optional[str] = None  # New field for AI profile information
 
     class Config:
         populate_by_name = True

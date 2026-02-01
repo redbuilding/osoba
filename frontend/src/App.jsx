@@ -12,6 +12,7 @@ import ConversationSidebar from "./components/ConversationSidebar";
 import ToolSelector from "./components/ToolSelector";
 import TasksInspector from "./components/TasksInspector";
 import SettingsModal from "./components/SettingsModal";
+import SettingsPage from "./pages/SettingsPage";
 import ModelPickerModal from "./components/ModelPickerModal";
 import useKeyboardShortcuts from "./hooks/useKeyboardShortcuts";
 import CodexRunCard from "./components/CodexRunCard";
@@ -31,6 +32,8 @@ import {
   readCodexFile,
   getAllModels,
   getProviders,
+  getProfiles,
+  getActiveProfile,
   deleteConversation,
   renameConversation,
   getHubspotAuthStatus,
@@ -59,6 +62,7 @@ import {
   ListTodo,
   Settings,
   Sparkles,
+  User,
 } from "lucide-react";
 
 // MCP service names
@@ -109,6 +113,10 @@ const App = () => {
   const [selectedProvider, setSelectedProvider] = useState("ollama");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isModelPickerOpen, setIsModelPickerOpen] = useState(false);
+
+  // AI Profiles
+  const [activeProfile, setActiveProfile] = useState(null);
+  const [profiles, setProfiles] = useState([]);
 
   // Layout
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -290,9 +298,28 @@ const App = () => {
     }
   }, []);
 
+  /* --------------------------------------------------------------------- */
+  /*  AI Profiles                                                          */
+  /* --------------------------------------------------------------------- */
+  const fetchProfiles = useCallback(async () => {
+    try {
+      const [profilesData, activeProfileData] = await Promise.all([
+        getProfiles(),
+        getActiveProfile()
+      ]);
+      setProfiles(profilesData.profiles || []);
+      setActiveProfile(activeProfileData.profile || null);
+    } catch (err) {
+      console.error("Failed to fetch profiles:", err);
+      setProfiles([]);
+      setActiveProfile(null);
+    }
+  }, []);
+
   useEffect(() => {
     if (dbConnected) {
       fetchConversationsList();
+      fetchProfiles();
     } else {
       setConversations([]);
       setIsConversationsLoading(false);
@@ -302,7 +329,7 @@ const App = () => {
         );
       }
     }
-  }, [dbConnected, fetchConversationsList, conversationsError]);
+  }, [dbConnected, fetchConversationsList, fetchProfiles, conversationsError]);
 
   /* --------------------------------------------------------------------- */
   /*  Load messages for a conversation                                     */
@@ -361,6 +388,8 @@ const App = () => {
   const handleSettingsUpdate = () => {
     // Refresh provider status or models if needed
     // This could trigger a re-fetch of provider models
+    // Also refresh profiles when settings are updated
+    fetchProfiles();
   };
 
   /* --------------------------------------------------------------------- */
@@ -791,6 +820,14 @@ const App = () => {
               <ListTodo size={14} /> Tasks{activeTasksCount ? ` (${activeTasksCount})` : ""}
             </button>
 
+            {/* Profile selector */}
+            {activeProfile && (
+              <div className="flex items-center gap-1 px-2 py-1 text-xs rounded bg-blue-700 text-white">
+                <User size={14} />
+                <span>{activeProfile.name}</span>
+              </div>
+            )}
+
             {/* Settings button */}
             <button
               onClick={() => setIsSettingsOpen(true)}
@@ -892,12 +929,12 @@ const App = () => {
         onHubspotConnect={handleHubspotConnect}
       />
 
-      {/* Settings modal */}
-      <SettingsModal
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-        onSettingsUpdate={handleSettingsUpdate}
-      />
+      {/* Settings page */}
+      {isSettingsOpen && (
+        <SettingsPage
+          onClose={() => setIsSettingsOpen(false)}
+        />
+      )}
 
       {/* Model Picker Modal */}
       <ModelPickerModal

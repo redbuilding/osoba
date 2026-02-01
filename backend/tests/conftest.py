@@ -112,6 +112,69 @@ def mock_provider_service():
 
 
 @pytest.fixture
+def mock_profile_service():
+    """Mock profile service for testing AI profile functionality."""
+    mock = AsyncMock()
+    
+    # Sample profile data
+    sample_profile = {
+        "_id": "507f1f77bcf86cd799439013",
+        "name": "Test Assistant",
+        "communication_style": "professional",
+        "expertise_areas": ["AI", "Technology"],
+        "user_id": "default",
+        "is_active": True,
+        "created_at": datetime.now(timezone.utc),
+        "updated_at": datetime.now(timezone.utc)
+    }
+    
+    mock.get_profiles_for_user = AsyncMock(return_value=[sample_profile])
+    mock.get_profile_by_id_service = AsyncMock(return_value=sample_profile)
+    mock.get_active_profile_service = AsyncMock(return_value=sample_profile)
+    mock.create_profile_service = AsyncMock(return_value="507f1f77bcf86cd799439013")
+    mock.update_profile_service = AsyncMock(return_value=True)
+    mock.delete_profile_service = AsyncMock(return_value=True)
+    mock.set_active_profile_service = AsyncMock(return_value=True)
+    mock.get_system_prompt_for_user = AsyncMock(return_value="You are Test Assistant, an AI assistant with a professional communication style. Your areas of expertise include: AI, Technology. Maintain a formal, business-appropriate tone. Be concise and direct.")
+    mock.generate_system_prompt = MagicMock(return_value="Generated system prompt")
+    
+    return mock
+
+
+@pytest.fixture
+def mock_profiles_collection(mock_mongodb):
+    """Mock profiles collection with sample data."""
+    collection = mock_mongodb.ai_profiles
+    
+    # Insert sample profiles
+    sample_profiles = [
+        {
+            "_id": ObjectId("507f1f77bcf86cd799439013"),
+            "name": "Professional Assistant",
+            "communication_style": "professional",
+            "expertise_areas": ["Business", "Technology"],
+            "user_id": "default",
+            "is_active": True,
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc)
+        },
+        {
+            "_id": ObjectId("507f1f77bcf86cd799439014"),
+            "name": "Creative Helper",
+            "communication_style": "creative",
+            "expertise_areas": ["Art", "Writing"],
+            "user_id": "default",
+            "is_active": False,
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc)
+        }
+    ]
+    
+    collection.insert_many(sample_profiles)
+    return collection
+
+
+@pytest.fixture
 def sample_chat_payload():
     """Sample chat payload for testing."""
     return {

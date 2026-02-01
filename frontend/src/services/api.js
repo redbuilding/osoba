@@ -608,3 +608,100 @@ export const getAllModels = async () => {
     }
   }
 };
+
+// AI Profile Management
+export const getProfiles = async () => {
+  try {
+    const response = await apiClient.get("/profiles");
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching profiles:", error);
+    throw error.response
+      ? error.response.data
+      : new Error("Network error or server unavailable");
+  }
+};
+
+export const getActiveProfile = async () => {
+  try {
+    const response = await apiClient.get("/profiles/active");
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching active profile:", error);
+    throw error.response
+      ? error.response.data
+      : new Error("Network error or server unavailable");
+  }
+};
+
+export const getProfile = async (profileId) => {
+  try {
+    const response = await apiClient.get(`/profiles/${profileId}`);
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching profile:", error);
+    throw error.response
+      ? error.response.data
+      : new Error("Network error or server unavailable");
+  }
+};
+
+export const createProfile = async (profileData) => {
+  try {
+    const response = await apiClient.post("/profiles", profileData);
+    return response.data;
+  } catch (error) {
+    console.error("Error creating profile:", error);
+    throw error.response
+      ? error.response.data
+      : new Error("Network error or server unavailable");
+  }
+};
+
+export const updateProfile = async (profileId, profileData) => {
+  try {
+    const response = await apiClient.put(`/profiles/${profileId}`, profileData);
+    return response.data;
+  } catch (error) {
+    console.error("Error updating profile:", error);
+    throw error.response
+      ? error.response.data
+      : new Error("Network error or server unavailable");
+  }
+};
+
+export const deleteProfile = async (profileId) => {
+  try {
+    const response = await apiClient.delete(`/profiles/${profileId}`);
+    return response.data;
+  } catch (error) {
+    console.error("Error deleting profile:", error);
+    throw error.response
+      ? error.response.data
+      : new Error("Network error or server unavailable");
+  }
+};
+
+export const activateProfile = async (profileId) => {
+  try {
+    const response = await apiClient.post(`/profiles/${profileId}/activate`);
+    return response.data;
+  } catch (error) {
+    console.error("Error activating profile:", error);
+    throw error.response
+      ? error.response.data
+      : new Error("Network error or server unavailable");
+  }
+};
+
+export const deactivateAllProfiles = async () => {
+  try {
+    const response = await apiClient.post("/profiles/deactivate");
+    return response.data;
+  } catch (error) {
+    console.error("Error deactivating profiles:", error);
+    throw error.response
+      ? error.response.data
+      : new Error("Network error or server unavailable");
+  }
+};
