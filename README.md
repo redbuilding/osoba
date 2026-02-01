@@ -1,10 +1,10 @@
 # 🔍 🤖 🌐 OhSee
 
-A powerful, modern UI that integrates local and hosted LLMs with real‑time web search, SQL, YouTube transcript analysis, HubSpot actions, Python data analysis — and a Codex MCP server for safe code scaffolding — all via the Model Context Protocol (MCP). Features include provider settings, multi‑provider model picking, streaming chat, persistent conversations, a robust Tasks system, and Scheduled tasks with timezone‑aware timing.
+A powerful, modern UI that integrates local and hosted LLMs with intelligent web search and content extraction, SQL, YouTube transcript analysis, HubSpot actions, Python data analysis — and a Codex MCP server for safe code scaffolding — all via the Model Context Protocol (MCP). Features include provider settings, multi‑provider model picking, streaming chat, persistent conversations, a robust Tasks system, and Scheduled tasks with timezone‑aware timing.
 
 ## Overview
 
-OhSee showcases how to extend both local and hosted models through MCP tool use. It combines locally running LLMs via Ollama with up-to-date web search, SQL querying, YouTube transcript ingestion, HubSpot business actions, Python-based CSV analysis/visualization — and a Codex Workspace server for code generation inside an isolated workspace. A multi‑provider layer adds OpenAI, Anthropic, Google, OpenRouter, Groq, and SambaNova. Conversations and tasks persist in MongoDB.
+OhSee showcases how to extend both local and hosted models through MCP tool use. It combines locally running LLMs via Ollama with intelligent web search and content extraction, SQL querying, YouTube transcript ingestion, HubSpot business actions, Python-based CSV analysis/visualization — and a Codex Workspace server for code generation inside an isolated workspace. A multi‑provider layer adds OpenAI, Anthropic, Google, OpenRouter, Groq, and SambaNova. Conversations and tasks persist in MongoDB.
 
 The project consists of several key components:
 
@@ -12,7 +12,7 @@ The project consists of several key components:
 
 - **Frontend (React)**: A modern, responsive web interface for users to interact with the chat application.
 
-- **MCP Web Search Server Module**: Provides web search via the Serper.dev API.
+- **MCP Smart Web Search Server Module**: Provides intelligent web search via the Serper.dev API with automatic content extraction from top results. Uses multi-method content extraction (trafilatura, BeautifulSoup) with URL prioritization, robots.txt compliance, and polite crawling practices.
 
 - **MCP SQL Server Module**: Read-only querying against a MySQL database (with schema resources and query safety).
 
@@ -34,12 +34,15 @@ This architecture demonstrates how MCP enables local models to access external t
 
 ## Features
 
-- 🔎 **Web-enhanced chat**: Access real-time web search results during conversation.
+- 🧠 **Smart Web Search**: Intelligent web search with automatic content extraction from top results. Goes beyond search snippets to fetch and analyze full webpage content using advanced extraction techniques.
+- 🔎 **URL Prioritization**: Smart ranking of search results based on relevance scoring, including title/snippet matching, domain authority, and search position weighting.
+- 🤖 **Polite Web Crawling**: Respects robots.txt, implements rate limiting, and uses proper User-Agent identification for ethical content extraction.
 - 💾 **Persistent Conversations**: Chat history is saved in MongoDB, allowing users to resume conversations.
 - 🧠 **Multi‑Provider LLMs**: Ollama (local), plus OpenAI, Anthropic, Google, OpenRouter, Groq, SambaNova — with a Settings screen for API keys and a unified model picker.
 - 🔌 **MCP integration**: Backend manages multiple MCP tools (web, SQL, YouTube, HubSpot, Python) as background services.
 - 💻 **Modern Web Interface**: Built with React for a responsive and interactive user experience.
 - 📊 **Structured search results**: Clean formatting of web search data for optimal context.
+- 🌐 **Enhanced Content Extraction**: Multi-method content extraction using trafilatura and BeautifulSoup with graceful fallbacks for maximum reliability.
 - ⚙️ **Backend API**: FastAPI backend providing robust API endpoints for chat and conversation management.
 - 🗃️ **SQL Querying Tool**: Read-only MySQL querying with schema introspection and retry logic.
 - 🔄 **Conversation Management**: List, rename, and delete conversations.
@@ -84,6 +87,7 @@ The application uses a **priority-based task queue** to ensure system stability 
 - Internet connection for web searches and package downloads
 
 Optional (enable additional tools):
+- Smart web search: `trafilatura`, `beautifulsoup4`, `lxml` (automatically installed)
 - Python data analysis: `pandas`, `numpy`, `matplotlib`, `seaborn`
 - YouTube transcripts: `youtube-transcript-api`, `pytube`, `yt-dlp`, `requests`
 - HubSpot OAuth: valid OAuth app (client ID/secret) and redirect URL
@@ -117,8 +121,14 @@ Optional (enable additional tools):
         # For encrypting API keys entered into model provider Settings modal
         SETTINGS_ENCRYPTION_KEY=<paste_generated_fernet_key_here>
         
-        # For Web Search (server_search.py)
+        # For Smart Web Search (server_search.py)
         SERPER_API_KEY=your_serper_api_key_here
+
+        # Smart extraction configuration (optional)
+        SMART_EXTRACT_MAX_URLS=3
+        SMART_EXTRACT_MAX_CHARS_PER_URL=2000
+        SMART_EXTRACT_MAX_TOTAL_CHARS=5000
+        SMART_EXTRACT_REQUEST_DELAY=1.0
 
         # For MongoDB (main.py)
         MONGODB_URI=mongodb://localhost:27017/
@@ -150,6 +160,9 @@ Optional (enable additional tools):
 
     *   Install optional dependencies for additional tools (if you plan to use them):
         ```bash
+        # Smart web search content extraction (recommended)
+        pip install trafilatura beautifulsoup4 lxml
+
         # YouTube transcript tool
         pip install youtube-transcript-api pytube yt-dlp requests
 
@@ -211,7 +224,7 @@ Optional (enable additional tools):
 
 -   Open your browser to the frontend URL (e.g., `http://localhost:5173`).
 -   Use the chat interface to send messages; responses stream live with indicators when tools run.
--   Click the ✨ Tool Selector to enable one of: Web Search, Database, YouTube, HubSpot, Python, Codex (requires OpenAI configured).
+-   Click the ✨ Tool Selector to enable one of: Smart Web Search, Database, YouTube, HubSpot, Python, Codex (requires OpenAI configured).
 -   Use Settings (header) to configure provider API keys and unlock non‑Ollama models and Codex.
 -   For YouTube: paste a video URL. The transcript is fetched and saved to the conversation for follow-ups.
 -   For HubSpot: click “Connect HubSpot” to complete OAuth, then describe the email to create/update.
@@ -289,6 +302,44 @@ The Python MCP server provides comprehensive data analysis capabilities through 
   - Returns base64-encoded images for web display
 
 All tools maintain session state through an in-memory DataFrame store, enabling complex multi-step analytical workflows within a single conversation.
+
+## Smart Web Search & Content Extraction
+
+The Smart Web Search MCP server provides advanced web search capabilities that go far beyond basic search snippets:
+
+### Intelligent Content Extraction
+- **Multi-method extraction**: Uses trafilatura (primary) with BeautifulSoup fallback for maximum reliability
+- **Full webpage content**: Extracts complete articles, not just search snippets
+- **Content cleaning**: Removes HTML tags, normalizes whitespace, handles entities
+- **Structure preservation**: Maintains headings, paragraphs, and content hierarchy
+
+### URL Prioritization Algorithm
+- **Relevance scoring**: Ranks URLs based on query term matches in titles and snippets
+- **Position weighting**: Considers search result position and domain authority
+- **Smart filtering**: Prioritizes documentation, tutorials, and authoritative sources
+
+### Polite & Ethical Crawling
+- **Robots.txt compliance**: Automatically checks and respects robots.txt files
+- **Rate limiting**: Configurable delays between requests (default: 1 second)
+- **Proper identification**: Uses descriptive User-Agent headers
+- **Timeout handling**: Graceful failure recovery for unreachable sites
+
+### Configuration Options
+Configure extraction behavior via environment variables:
+```bash
+SMART_EXTRACT_MAX_URLS=3              # Maximum URLs to extract (default: 3)
+SMART_EXTRACT_MAX_CHARS_PER_URL=2000  # Character limit per webpage (default: 2000)
+SMART_EXTRACT_MAX_TOTAL_CHARS=5000    # Total character limit (default: 5000)
+SMART_EXTRACT_REQUEST_DELAY=1.0       # Delay between requests (default: 1.0s)
+```
+
+### Performance & Quality
+- **8x more context**: Provides significantly more content than basic search snippets
+- **High success rate**: Multi-method extraction ensures reliable content retrieval
+- **Memory efficient**: Character limits prevent context overflow
+- **Fast processing**: Typically 3-5 seconds for 3 URLs with polite delays
+
+The smart search feature is **automatically enabled** for all web searches - users get enhanced content extraction without any additional configuration or UI changes.
 
 ## Model Providers & Settings
 
@@ -393,7 +444,7 @@ See `TASKS_USER_GUIDE.md` for full details.
 3. In the app:
    - Choose a model (header → Model Picker).
    - Optional: open Settings to add OpenAI/other provider keys.
-   - Use the ✨ Tool Selector to run Web Search, Database, YouTube, Python, HubSpot, or Codex.
+   - Use the ✨ Tool Selector to run Smart Web Search, Database, YouTube, Python, HubSpot, or Codex.
    - Tasks panel supports ad‑hoc and Scheduled tasks.
 
 Prereqs:

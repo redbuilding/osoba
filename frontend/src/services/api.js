@@ -705,3 +705,24 @@ export const deactivateAllProfiles = async () => {
       : new Error("Network error or server unavailable");
   }
 };
+
+// ---------- Artifacts API ----------
+
+export const saveArtifact = async (payload) => {
+  try {
+    const response = await apiClient.post("/artifacts", payload);
+    return response.data;
+  } catch (error) {
+    console.error("Error saving artifact:", error.response ? error.response.data : error.message);
+    throw error.response ? error.response.data : new Error("Network error");
+  }
+};
+
+export const getArtifactCapabilities = async () => {
+  try {
+    const response = await apiClient.get("/artifacts/capabilities");
+    return response.data;
+  } catch (error) {
+    return { html: false, docx: false, pdf: false };
+  }
+};

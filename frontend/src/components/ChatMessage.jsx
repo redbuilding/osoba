@@ -1,5 +1,5 @@
 import React from 'react';
-import { User, Bot, Clipboard, Check, ListTodo, Loader2, Sparkles } from 'lucide-react';
+import { User, Bot, Clipboard, Check, ListTodo, Loader2, Sparkles, Save as SaveIcon } from 'lucide-react';
 import { useCopyToClipboard } from '../hooks/useCopyToClipboard';
 import CodeBlock from './CodeBlock';
 import MarkdownRenderer from './MarkdownRenderer';
@@ -36,7 +36,7 @@ const parseMessageContent = (content) => {
 };
 
 
-const ChatMessage = ({ message, onPromoteToTask, isStreaming = false, assistantName = 'Assistant' }) => {
+const ChatMessage = ({ message, onPromoteToTask, onSaveMessage, isStreaming = false, assistantName = 'Assistant' }) => {
   const { role, content, is_html, indicator, type } = message;
   const isUser = role === 'user';
   const [copied, copy] = useCopyToClipboard();
@@ -158,6 +158,17 @@ const ChatMessage = ({ message, onPromoteToTask, isStreaming = false, assistantN
             >
               <ListTodo size={14} className={isUser ? "text-gray-300" : "text-brand-text-secondary"} />
               <span className={`ml-1 text-xs ${isUser ? "text-gray-300" : "text-brand-text-secondary"}`}>Task</span>
+            </button>
+          )}
+          {!isUser && typeof onSaveMessage === 'function' && (
+            <button
+              onClick={() => onSaveMessage(contentToCopy, assistantName)}
+              className="flex items-center text-xs p-1 rounded hover:bg-opacity-20 hover:bg-gray-500"
+              aria-label="Save message to file"
+              title="Save to file"
+            >
+              <SaveIcon size={14} className="text-brand-text-secondary" />
+              <span className="ml-1 text-xs text-brand-text-secondary">Save</span>
             </button>
           )}
         </div>

@@ -19,8 +19,9 @@ from services.task_runner import start_task_dispatcher
 from services.task_scheduler import scheduler
 from services.template_initializer import initialize_default_templates
 from db.mongodb import mongo_client
-from api import chat, conversations, status, tasks, scheduled_tasks, providers, codex, profiles
+from api import chat, conversations, status, tasks, scheduled_tasks, providers, codex, profiles, artifacts
 from auth_hubspot import router as hubspot_auth_router
+from services.artifact_service import _artifacts_root_abs
 
 logger = get_logger("mcp_backend_main")
 
@@ -71,8 +72,23 @@ app.include_router(scheduled_tasks.router)
 app.include_router(providers.router)
 app.include_router(profiles.router)
 app.include_router(codex.router)
+app.include_router(artifacts.router)
 
 # --- Static Files Hosting ---
+# Note: Mount more specific prefixes (e.g., /artifacts) BEFORE mounting the root "/" static app
+# to avoid the root mount catching prefixed paths first.
+
+# Artifacts mount first so it takes precedence over "/"
+try:
+    artifacts_dir = str(_artifacts_root_abs())
+    if not os.path.exists(artifacts_dir):
+        os.makedirs(artifacts_dir, exist_ok=True)
+    logger.info(f"Mounting artifacts directory at /artifacts -> {artifacts_dir}")
+    app.mount("/artifacts", StaticFiles(directory=artifacts_dir, html=False), name="artifacts_static")
+except Exception as e:
+    logger.error(f"Failed to mount artifacts directory: {e}")
+
+# Frontend static at root
 frontend_dist_path = os.path.join(BASE_DIR, '..', 'frontend', 'dist')
 if os.path.exists(frontend_dist_path):
     logger.info(f"Serving static files from: {frontend_dist_path}")

@@ -11,3 +11,10 @@ mcp
 fastmcp
 croniter
 cryptography
+jinja2
+markdown
+python-docx
+playwright
+trafilatura>=1.6.0
+beautifulsoup4>=4.12.0
+lxml>=4.9.0

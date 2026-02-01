@@ -52,3 +52,7 @@ TASK_DISPATCH_INTERVAL_MS = int(os.getenv('TASK_DISPATCH_INTERVAL_MS', '2000'))
 
 # Debug / logging flags
 CODEX_DEBUG = os.getenv('CODEX_DEBUG', 'false').lower() == 'true'
+
+# Artifacts configuration
+# Root directory to write artifacts (relative to repo root by default)
+ARTIFACTS_ROOT = os.getenv('ARTIFACTS_ROOT', 'artifacts')

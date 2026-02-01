@@ -5,6 +5,8 @@ import TaskTemplateSelector from "./TaskTemplateSelector";
 import ScheduledTasksPanel from "./ScheduledTasksPanel";
 import RightPanel from "./RightPanel";
 import ModelPickerModal from "./ModelPickerModal";
+import SaveArtifactModal from "./SaveArtifactModal";
+import { BACKEND_URL } from "../services/api";
 
 const StatusPill = ({ status }) => {
   const color = {
@@ -136,7 +138,7 @@ const DataTable = ({ columns, rows }) => {
   );
 };
 
-const TaskDetailInline = ({ taskId, onClose, onTaskDeleted }) => {
+const TaskDetailInline = ({ taskId, onClose, onTaskDeleted, onSaveAll }) => {
   const [detail, setDetail] = useState(null);
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -276,6 +278,7 @@ const TaskDetailInline = ({ taskId, onClose, onTaskDeleted }) => {
         <div className="flex items-center gap-1 ml-2">
           <StatusPill status={detail.status} />
           <button onClick={handleCopyTask} className="p-1 bg-gray-700 rounded hover:bg-gray-600" title="Copy Task Results"><Copy size={14}/></button>
+          <button onClick={() => onSaveAll && onSaveAll(detail)} className="p-1 bg-brand-purple rounded hover:bg-brand-button-grad-to text-white" title="Save all steps to file"><FileText size={14}/></button>
           {!isCompleted && !isFailed && !isCanceled && (
             <>
               <button onClick={handlePause} className="p-1 bg-gray-700 rounded hover:bg-gray-600" title="Pause"><Pause size={14}/></button>
@@ -372,6 +375,7 @@ const TasksInspector = ({ isOpen, onClose, initialGoal = "", conversationId = nu
   const [showScheduled, setShowScheduled] = useState(false);
   const [taskModel, setTaskModel] = useState(null);
   const [isModelModalOpen, setIsModelModalOpen] = useState(false);
+  const [saveModal, setSaveModal] = useState({ open: false, taskId: null, title: '' });
 
   const fetchTasks = async () => {
     setLoading(true);
@@ -487,7 +491,9 @@ const TasksInspector = ({ isOpen, onClose, initialGoal = "", conversationId = nu
         </div>
 
         {/* Task Detail */}
-        {selectedId && <TaskDetailInline taskId={selectedId} onClose={() => setSelectedId(null)} onTaskDeleted={() => { fetchTasks(); setSelectedId(null); }} />}
+        {selectedId && <TaskDetailInline taskId={selectedId} onClose={() => setSelectedId(null)} onTaskDeleted={() => { fetchTasks(); setSelectedId(null); }} onSaveAll={(detail) => {
+          setSaveModal({ open: true, taskId: detail.id, title: detail.title });
+        }} />}
       </div>
       
       {/* Template Selector Modal */}
@@ -508,13 +514,31 @@ const TasksInspector = ({ isOpen, onClose, initialGoal = "", conversationId = nu
       />
 
       {/* Model Picker for direct task */}
-      <ModelPickerModal
+  <ModelPickerModal
         isOpen={isModelModalOpen}
         onClose={() => setIsModelModalOpen(false)}
         onSelectModel={(fullName) => { setTaskModel(fullName); setIsModelModalOpen(false); }}
         currentModel={taskModel}
         onOpenSettings={() => { /* Settings modal owned by App; skip here */ }}
       />
+      {/* Save Artifact Modal for task runs */}
+      {saveModal.open && (
+        <SaveArtifactModal
+          isOpen={saveModal.open}
+          onClose={() => setSaveModal({ open: false, taskId: null, title: '' })}
+          sourceType={'task_run'}
+          taskId={saveModal.taskId}
+          defaultTitle={saveModal.title}
+          onSaved={(res) => {
+            try {
+              const url = `${BACKEND_URL}/artifacts/${res.relative_path}`;
+              window.dispatchEvent(new CustomEvent('oc-toast', { detail: { message: 'Task artifact saved', url, linkLabel: 'Open' } }));
+            } catch (e) {
+              console.log('Saved task artifact:', res);
+            }
+          }}
+        />
+      )}
     </RightPanel>
   );
 };

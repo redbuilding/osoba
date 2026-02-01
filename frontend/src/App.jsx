@@ -7,6 +7,7 @@ import React, {
   useMemo,
 } from "react";
 import ChatMessage from "./components/ChatMessage";
+import SaveArtifactModal from "./components/SaveArtifactModal";
 import ChatInput from "./components/ChatInput";
 import ConversationSidebar from "./components/ConversationSidebar";
 import ToolSelector from "./components/ToolSelector";
@@ -17,6 +18,7 @@ import ModelPickerModal from "./components/ModelPickerModal";
 import useKeyboardShortcuts from "./hooks/useKeyboardShortcuts";
 import CodexRunCard from "./components/CodexRunCard";
 import FileViewerModal from "./components/FileViewerModal";
+import ToastContainer from "./components/ToastContainer";
 import {
   sendMessage, // still used for legacy / fall‑back
   streamMessage, // ✨ NEW – SSE streaming
@@ -113,6 +115,9 @@ const App = () => {
   const [selectedProvider, setSelectedProvider] = useState("ollama");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isModelPickerOpen, setIsModelPickerOpen] = useState(false);
+  // Save Artifact modal
+  const [saveModalOpen, setSaveModalOpen] = useState(false);
+  const [saveSource, setSaveSource] = useState(null); // { type: 'message'|'task_run', content?, title?, profile? }
 
   // AI Profiles
   const [activeProfile, setActiveProfile] = useState(null);
@@ -858,6 +863,15 @@ const App = () => {
                   setPromotedGoal(goalText || "");
                   setIsTasksOpen(true);
                 }}
+                onSaveMessage={(contentToSave, assistantNameLocal) => {
+                  setSaveSource({
+                    type: 'message',
+                    content: contentToSave,
+                    title: (contentToSave || '').split('\n')[0]?.slice(0, 60) || 'Message',
+                    profile: activeProfile?.name || assistantNameLocal || '',
+                  });
+                  setSaveModalOpen(true);
+                }}
               />
             ))}
 
@@ -959,6 +973,29 @@ const App = () => {
         fetchManifest={getCodexManifest}
         fetchFile={readCodexFile}
       />
+
+      {/* Save Artifact Modal */}
+      {saveModalOpen && (
+        <SaveArtifactModal
+          isOpen={saveModalOpen}
+          onClose={() => { setSaveModalOpen(false); setSaveSource(null); }}
+          sourceType={saveSource?.type}
+          content={saveSource?.content}
+          defaultTitle={saveSource?.title}
+          profileName={saveSource?.profile}
+          onSaved={(res) => {
+            try {
+              const url = `${BACKEND_URL}/artifacts/${res.relative_path}`;
+              window.dispatchEvent(new CustomEvent('oc-toast', { detail: { message: 'Artifact saved', url, linkLabel: 'Open' } }));
+            } catch (e) {
+              console.log('Saved artifact:', res);
+            }
+          }}
+        />
+      )}
+
+      {/* Toasts */}
+      <ToastContainer />
     </div>
   );
 };

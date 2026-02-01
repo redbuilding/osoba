@@ -38,7 +38,7 @@ class AppState:
             WEB_SEARCH_SERVICE_NAME: MCPServiceConfig(
                 name=WEB_SEARCH_SERVICE_NAME,
                 script_name="server_search.py",
-                required_tools=["web_search"]
+                required_tools=["web_search", "smart_search_extract", "image_search", "news_search"]
             ),
             MYSQL_DB_SERVICE_NAME: MCPServiceConfig(
                 name=MYSQL_DB_SERVICE_NAME,

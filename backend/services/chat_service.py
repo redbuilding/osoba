@@ -166,21 +166,89 @@ class ChatProcessor:
     async def _handle_search(self):
         if not app_state.mcp_service_ready.get(WEB_SEARCH_SERVICE_NAME):
             return self._set_error("⚠️ Web search is currently unavailable.")
-        logger.info(f"[CHAT_SVC] Web search for: '{self.user_msg_content}'")
+        logger.info(f"[CHAT_SVC] Smart web search for: '{self.user_msg_content}'")
         try:
-            req_id = await submit_mcp_request(WEB_SEARCH_SERVICE_NAME, "tool", {"tool": "web_search", "params": {"query": self.user_msg_content}})
-            resp = await wait_mcp_response(WEB_SEARCH_SERVICE_NAME, req_id, timeout=90)
+            # Use smart_search_extract for enhanced content extraction
+            req_id = await submit_mcp_request(WEB_SEARCH_SERVICE_NAME, "tool", {
+                "tool": "smart_search_extract", 
+                "params": {
+                    "query": self.user_msg_content,
+                    "max_urls": 3,
+                    "max_chars_per_url": 2000,
+                    "max_total_chars": 5000
+                }
+            })
+            resp = await wait_mcp_response(WEB_SEARCH_SERVICE_NAME, req_id, timeout=120)  # Longer timeout for extraction
             if resp.get("status") == "error": raise Exception(resp.get("error", "MCP tool error"))
 
             results = extract_json_from_response(resp.get("data")[0].get("content") if resp.get("data") else {})
             if results.get("status") == "error": raise Exception(results.get("message", "Parse error"))
 
-            summary = format_search_results_for_prompt(results, self.user_msg_content)
-            self._add_indicator(f"<div class='search-indicator-custom'><b>🔍 Web Search:</b> Results for \"{self.user_msg_content}\" were used.</div>")
-            self.prompt_for_llm = f"Based on web search results for '{self.user_msg_content}':\n{summary}\n\nPlease answer the user's original question: '{self.user_msg_content}'"
+            # Format smart extraction results for LLM context
+            summary = self._format_smart_search_results(results, self.user_msg_content)
+            self._add_indicator(f"<div class='search-indicator-custom'><b>🧠 Smart Search:</b> Extracted content from {len(results.get('extracted_content', []))} webpages for \"{self.user_msg_content}\".</div>")
+            self.prompt_for_llm = f"Based on smart web search and content extraction for '{self.user_msg_content}':\n{summary}\n\nPlease answer the user's original question: '{self.user_msg_content}'"
         except Exception as e:
-            logger.error(f"[CHAT_SVC] Web search failed: {e}", exc_info=True)
-            self._set_error(f"⚠️ Web search failed: {str(e)}")
+            logger.error(f"[CHAT_SVC] Smart web search failed: {e}", exc_info=True)
+            self._set_error(f"⚠️ Smart web search failed: {str(e)}")
+
+    def _format_smart_search_results(self, results_data: dict, query: str) -> str:
+        """Format smart search extraction results for LLM context"""
+        if not isinstance(results_data, dict) or results_data.get("status") == "error":
+            return f"Smart search for '{query}': {results_data.get('message', 'Error or no valid results structure.')}"
+        
+        formatted_parts = []
+        
+        # Add search summary
+        search_summary = results_data.get('search_summary', {})
+        if search_summary:
+            total_results = search_summary.get('total_results', 0)
+            formatted_parts.append(f"Found {total_results} search results for '{query}'")
+        
+        # Add extracted content from webpages
+        extracted_content = results_data.get('extracted_content', [])
+        if extracted_content:
+            formatted_parts.append("\n--- EXTRACTED WEBPAGE CONTENT ---")
+            for i, content in enumerate(extracted_content, 1):
+                if content.get('status') == 'success' and content.get('content'):
+                    title = content.get('title', 'Untitled')
+                    url = content.get('url', 'Unknown URL')
+                    webpage_content = content.get('content', '')
+                    method = content.get('extraction_method', 'unknown')
+                    
+                    formatted_parts.append(f"\n{i}. {title}")
+                    formatted_parts.append(f"   Source: {url}")
+                    formatted_parts.append(f"   Extraction: {method}")
+                    formatted_parts.append(f"   Content:\n{webpage_content}")
+                elif content.get('status') == 'error':
+                    title = content.get('title', 'Untitled')
+                    url = content.get('url', 'Unknown URL')
+                    error = content.get('error', 'Unknown error')
+                    formatted_parts.append(f"\n{i}. {title} (EXTRACTION FAILED)")
+                    formatted_parts.append(f"   Source: {url}")
+                    formatted_parts.append(f"   Error: {error}")
+        
+        # Add extraction statistics
+        extraction_stats = results_data.get('extraction_stats', {})
+        if extraction_stats:
+            urls_processed = extraction_stats.get('urls_processed', 0)
+            successful = extraction_stats.get('successful_extractions', 0)
+            total_chars = extraction_stats.get('total_chars_extracted', 0)
+            formatted_parts.append(f"\n--- EXTRACTION SUMMARY ---")
+            formatted_parts.append(f"URLs processed: {urls_processed}, Successful: {successful}, Total content: {total_chars} characters")
+        
+        # Fallback to basic search results if no extracted content
+        if not extracted_content:
+            organic_results = results_data.get('organic_results', [])
+            if organic_results:
+                formatted_parts.append("\n--- SEARCH RESULTS (NO CONTENT EXTRACTED) ---")
+                for i, result in enumerate(organic_results[:3], 1):
+                    title = result.get('title', 'N/A')
+                    snippet = result.get('snippet', 'N/A')
+                    link = result.get('link', 'N/A')
+                    formatted_parts.append(f"{i}. {title}\n   {snippet}\n   Source: {link}")
+        
+        return "\n".join(formatted_parts) if formatted_parts else f"Smart search for '{query}' returned no usable results."
 
     async def _handle_database(self):
         if not app_state.mcp_service_ready.get(MYSQL_DB_SERVICE_NAME):
