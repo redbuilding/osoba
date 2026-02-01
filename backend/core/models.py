@@ -45,6 +45,8 @@ class ConversationListItem(BaseModel):
     model_name: Optional[str] = None
     provider: Optional[str] = None  # New field for provider information
     profile_id: Optional[str] = None  # New field for AI profile information
+    pinned_for_context: Optional[bool] = False  # New field for conversation pinning
+    summary: Optional[str] = None  # New field for conversation summary
 
     class Config:
         populate_by_name = True

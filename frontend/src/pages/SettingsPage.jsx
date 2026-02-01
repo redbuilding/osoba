@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import SettingsSidebar from '../components/SettingsSidebar';
 import ProfileManager from '../components/ProfileManager';
 import SettingsModal from '../components/SettingsModal';
+import UserProfileSettings from '../components/UserProfileSettings';
 
 const SettingsPage = ({ onClose }) => {
   const [activeSection, setActiveSection] = useState('profiles');
@@ -26,6 +27,20 @@ const SettingsPage = ({ onClose }) => {
     switch (activeSection) {
       case 'profiles':
         return <ProfileManager />;
+      case 'user-profile':
+        return (
+          <div>
+            <div className="mb-6">
+              <h2 className="text-2xl font-semibold text-brand-text-primary">User Profile</h2>
+              <p className="text-brand-text-secondary mt-1">
+                Configure your personal information and preferences for better AI assistance.
+              </p>
+            </div>
+            <div className="bg-brand-surface-bg rounded-lg border border-gray-700 p-6">
+              <UserProfileSettings onProfileUpdate={() => {}} />
+            </div>
+          </div>
+        );
       case 'providers':
         return (
           <div>
@@ -90,6 +105,7 @@ const SettingsPage = ({ onClose }) => {
             <div className="flex items-center space-x-4">
               <h1 className="text-xl font-semibold text-brand-text-primary">
                 {activeSection === 'profiles' && 'AI Profiles'}
+                {activeSection === 'user-profile' && 'User Profile'}
                 {activeSection === 'providers' && 'Model Providers'}
                 {activeSection === 'appearance' && 'Appearance'}
               </h1>

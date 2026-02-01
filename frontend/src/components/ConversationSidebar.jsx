@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { PlusSquare, MessageSquare, Loader2, AlertTriangle, Trash2, Pencil, Check, X, Wifi, Server, Share2, Youtube, FileCode, Database, Sparkles } from 'lucide-react';
 import SidebarSearch from './SidebarSearch';
+import ConversationPinButton from './ConversationPinButton';
 
 const MCPStatusIndicator = ({ isReady, name }) => (
   <div className="flex items-center justify-between text-xs text-brand-text-secondary">
@@ -27,6 +28,7 @@ const ConversationSidebar = ({
   onNewChat,
   onDeleteConversation,
   onRenameConversation,
+  onPinConversation, // New prop for pinning functionality
   isLoading,
   dbConnected,
   conversationsError,
@@ -209,6 +211,11 @@ const ConversationSidebar = ({
                     </div>
                     {!isEditingThis && !isCollapsed && (
                       <div className="absolute top-1/2 right-1 transform -translate-y-1/2 flex items-center opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-150 z-10">
+                        <ConversationPinButton
+                          conversationId={conv.id}
+                          isPinned={conv.pinned_for_context || false}
+                          onPinToggle={onPinConversation}
+                        />
                         <button
                           onClick={(e) => handleEditClick(e, conv)}
                           className="p-1.5 rounded-md text-brand-text-secondary hover:text-brand-blue hover:bg-gray-600"

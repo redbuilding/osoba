@@ -551,7 +551,7 @@ Your JSON response:
 
     async def _inject_profile_system_prompt(self):
         """
-        Inject system prompt from active AI profile as the first message in conversation history.
+        Inject system prompt from active AI profile and conversation context as the first message in conversation history.
         Only applies to main chat conversations, not tasks.
         """
         try:
@@ -562,10 +562,25 @@ Your JSON response:
             # Get system prompt for user's active profile
             system_prompt = await get_system_prompt_for_user("default")  # TODO: Use actual user_id when auth is implemented
             
+            # Get additional context from pinned conversations
+            from services.context_service import get_user_context, format_context_for_system_prompt
+            user_context = await get_user_context("default")
+            context_prompt = format_context_for_system_prompt(user_context)
+            
+            # Combine profile and context prompts
+            combined_prompt = ""
             if system_prompt:
-                logger.debug(f"Injecting profile system prompt for conv {self.conv_id}")
+                combined_prompt = system_prompt
+            if context_prompt:
+                if combined_prompt:
+                    combined_prompt += "\n\n" + context_prompt
+                else:
+                    combined_prompt = context_prompt
+            
+            if combined_prompt:
+                logger.debug(f"Injecting enhanced system prompt for conv {self.conv_id}")
                 # Insert system message at the beginning of conversation history
-                self.llm_history.insert(0, {"role": "system", "content": system_prompt})
+                self.llm_history.insert(0, {"role": "system", "content": combined_prompt})
         except Exception as e:
             logger.error(f"Error injecting profile system prompt: {e}")
             # Don't fail the conversation if profile injection fails

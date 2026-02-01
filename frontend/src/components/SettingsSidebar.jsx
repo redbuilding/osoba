@@ -1,5 +1,5 @@
 import React from 'react';
-import { Settings, User, Key, Palette } from 'lucide-react';
+import { Settings, User, Key, Palette, UserCircle } from 'lucide-react';
 
 const SettingsSidebar = ({ activeSection, onSectionChange }) => {
   const sections = [
@@ -8,6 +8,12 @@ const SettingsSidebar = ({ activeSection, onSectionChange }) => {
       label: 'AI Profiles',
       icon: User,
       description: 'Manage your AI assistants'
+    },
+    {
+      id: 'user-profile',
+      label: 'User Profile',
+      icon: UserCircle,
+      description: 'Your personal information'
     },
     {
       id: 'providers',
@@ -66,7 +72,7 @@ const SettingsSidebar = ({ activeSection, onSectionChange }) => {
       
       <div className="p-4 border-t border-gray-700">
         <div className="text-xs text-brand-text-secondary">
-          Settings are saved automatically
+          Remember to save your changes
         </div>
       </div>
     </div>

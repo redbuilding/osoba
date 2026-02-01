@@ -19,7 +19,8 @@ from services.task_runner import start_task_dispatcher
 from services.task_scheduler import scheduler
 from services.template_initializer import initialize_default_templates
 from db.mongodb import mongo_client
-from api import chat, conversations, status, tasks, scheduled_tasks, providers, codex, profiles, artifacts
+from api import chat, conversations, status, tasks, scheduled_tasks, providers, codex, profiles, artifacts, user_context
+from api.user_context import router as user_context_router
 from auth_hubspot import router as hubspot_auth_router
 from services.artifact_service import _artifacts_root_abs
 
@@ -73,6 +74,7 @@ app.include_router(providers.router)
 app.include_router(profiles.router)
 app.include_router(codex.router)
 app.include_router(artifacts.router)
+app.include_router(user_context_router)
 
 # --- Static Files Hosting ---
 # Note: Mount more specific prefixes (e.g., /artifacts) BEFORE mounting the root "/" static app

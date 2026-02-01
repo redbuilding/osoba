@@ -69,3 +69,46 @@ def rename_conversation_by_id(conv_id: str, new_title: str) -> Optional[Dict[str
         return None
 
     return collection.find_one({"_id": obj_id})
+
+def pin_conversation_for_context(conv_id: str, user_id: str = "default", pinned: bool = True) -> bool:
+    """Pin or unpin a conversation for context use."""
+    if not ObjectId.is_valid(conv_id):
+        return False
+    
+    collection = get_conversations_collection()
+    obj_id = ObjectId(conv_id)
+    
+    update_result = collection.update_one(
+        {"_id": obj_id},
+        {"$set": {
+            "pinned_for_context": pinned,
+            "updated_at": datetime.now(timezone.utc)
+        }}
+    )
+    return update_result.matched_count > 0
+
+def get_pinned_conversations(user_id: str = "default", limit: int = 5) -> List[Dict[str, Any]]:
+    """Get conversations pinned for context by user."""
+    collection = get_conversations_collection()
+    cursor = collection.find(
+        {"pinned_for_context": True},
+        {"messages": 0, "youtube_transcript": 0}
+    ).sort("updated_at", -1).limit(limit)
+    return list(cursor)
+
+def update_conversation_summary(conv_id: str, summary: str) -> bool:
+    """Update the summary of a conversation."""
+    if not ObjectId.is_valid(conv_id):
+        return False
+    
+    collection = get_conversations_collection()
+    obj_id = ObjectId(conv_id)
+    
+    update_result = collection.update_one(
+        {"_id": obj_id},
+        {"$set": {
+            "summary": summary,
+            "updated_at": datetime.now(timezone.utc)
+        }}
+    )
+    return update_result.matched_count > 0

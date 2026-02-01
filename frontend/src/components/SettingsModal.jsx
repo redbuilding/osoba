@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { X, Eye, EyeOff, Check, AlertCircle, Loader2 } from 'lucide-react';
+import { X, Eye, EyeOff, Check, AlertCircle, Loader2, Settings, User } from 'lucide-react';
 import { 
   getProviders, 
   getUserSettings, 
   saveProviderSettings, 
   removeProviderSettings 
 } from '../services/api';
+import UserProfileSettings from './UserProfileSettings';
 
 const SettingsModal = ({ isOpen, onClose, onSettingsUpdate, embedded = false }) => {
+  const [activeTab, setActiveTab] = useState('providers');
   const [providers, setProviders] = useState([]);
   const [apiKeys, setApiKeys] = useState({});
   const [showKeys, setShowKeys] = useState({});
@@ -177,13 +179,40 @@ const SettingsModal = ({ isOpen, onClose, onSettingsUpdate, embedded = false }) 
 
   const content = (
     <>
-        <div className="p-6 overflow-y-auto max-h-[60vh]">
-          {error && (
-            <div className="mb-4 p-3 bg-brand-surface-bg border border-gray-700 text-brand-alert-red rounded">
-              {error}
-            </div>
-          )}
-          
+      {/* Tab Navigation */}
+      <div className="flex border-b border-gray-700 bg-black/10">
+        <button
+          onClick={() => setActiveTab('providers')}
+          className={`flex items-center space-x-2 px-6 py-3 text-sm font-medium transition-colors duration-200
+            ${activeTab === 'providers' 
+              ? 'text-brand-purple border-b-2 border-brand-purple bg-brand-purple/10' 
+              : 'text-brand-text-secondary hover:text-brand-text-primary hover:bg-gray-700/50'
+            }`}
+        >
+          <Settings className="w-4 h-4" />
+          <span>Providers</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('profile')}
+          className={`flex items-center space-x-2 px-6 py-3 text-sm font-medium transition-colors duration-200
+            ${activeTab === 'profile' 
+              ? 'text-brand-purple border-b-2 border-brand-purple bg-brand-purple/10' 
+              : 'text-brand-text-secondary hover:text-brand-text-primary hover:bg-gray-700/50'
+            }`}
+        >
+          <User className="w-4 h-4" />
+          <span>Profile</span>
+        </button>
+      </div>
+
+      <div className="p-6 overflow-y-auto max-h-[60vh]">
+        {error && (
+          <div className="mb-4 p-3 bg-brand-surface-bg border border-gray-700 text-brand-alert-red rounded">
+            {error}
+          </div>
+        )}
+        
+        {activeTab === 'providers' && (
           <div className="space-y-6">
             {providers.map((provider) => (
               <div key={provider.id} className="border border-gray-700 rounded-lg p-4 bg-brand-surface-bg">
@@ -262,7 +291,12 @@ const SettingsModal = ({ isOpen, onClose, onSettingsUpdate, embedded = false }) 
               </div>
             ))}
           </div>
-        </div>
+        )}
+        
+        {activeTab === 'profile' && (
+          <UserProfileSettings onProfileUpdate={onSettingsUpdate} />
+        )}
+      </div>
     </>
   );
 
@@ -279,7 +313,9 @@ const SettingsModal = ({ isOpen, onClose, onSettingsUpdate, embedded = false }) 
     <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
       <div className="bg-brand-surface-bg border border-gray-700 rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden">
         <div className="flex items-center justify-between p-6 border-b border-gray-700 bg-black/20">
-          <h2 className="text-xl font-semibold text-brand-text-primary">Provider Settings</h2>
+          <h2 className="text-xl font-semibold text-brand-text-primary">
+            {activeTab === 'providers' ? 'Provider Settings' : 'User Profile'}
+          </h2>
           <button
             onClick={onClose}
             className="p-1 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-purple"

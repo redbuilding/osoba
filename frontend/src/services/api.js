@@ -726,3 +726,59 @@ export const getArtifactCapabilities = async () => {
     return { html: false, docx: false, pdf: false };
   }
 };
+
+// ---------- User Context API ----------
+
+export const getUserContext = async () => {
+  try {
+    const response = await apiClient.get("/user-context/profile");
+    return response.data;
+  } catch (error) {
+    console.error("Error getting user context:", error);
+    throw error.response
+      ? error.response.data
+      : new Error("Network error or server unavailable");
+  }
+};
+
+export const pinConversation = async (conversationId, pinned = true) => {
+  try {
+    const response = await apiClient.post("/user-context/pin-conversation", {
+      conversation_id: conversationId,
+      pinned: pinned
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error pinning conversation:", error);
+    throw error.response
+      ? error.response.data
+      : new Error("Network error or server unavailable");
+  }
+};
+
+export const getPinnedConversations = async () => {
+  try {
+    const response = await apiClient.get("/user-context/pinned-conversations");
+    return response.data;
+  } catch (error) {
+    console.error("Error getting pinned conversations:", error);
+    throw error.response
+      ? error.response.data
+      : new Error("Network error or server unavailable");
+  }
+};
+
+export const updateConversationSummary = async (conversationId, summary) => {
+  try {
+    const response = await apiClient.post("/user-context/conversation-summary", {
+      conversation_id: conversationId,
+      summary: summary
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error updating conversation summary:", error);
+    throw error.response
+      ? error.response.data
+      : new Error("Network error or server unavailable");
+  }
+};

@@ -4,6 +4,7 @@ from db.profiles_crud import (
     create_profile, update_profile, delete_profile, set_active_profile
 )
 from core.profile_models import AIProfile, ProfileCreatePayload, ProfileUpdatePayload
+from core.user_context_models import UserProfile, UserProfileCreatePayload, UserProfileUpdatePayload
 from core.config import get_logger
 
 logger = get_logger("profile_service")
@@ -16,6 +17,8 @@ def generate_system_prompt(profile_data: Dict[str, Any]) -> str:
     name = profile_data.get("name")
     communication_style = profile_data.get("communication_style")
     expertise_areas = profile_data.get("expertise_areas", [])
+    role = profile_data.get("role")
+    current_projects = profile_data.get("current_projects")
     
     # If no name or style, return empty (no profile data)
     if not name and not communication_style:
@@ -29,9 +32,17 @@ def generate_system_prompt(profile_data: Dict[str, Any]) -> str:
         f"You are {name}, an AI assistant with a {communication_style} communication style."
     ]
     
+    # Add role information
+    if role:
+        prompt_parts.append(f"The user's role is: {role}.")
+    
     if expertise_areas:
         expertise_str = ", ".join(expertise_areas)
         prompt_parts.append(f"Your areas of expertise include: {expertise_str}.")
+    
+    # Add current projects context
+    if current_projects:
+        prompt_parts.append(f"The user is currently working on: {current_projects}.")
     
     # Add style-specific instructions
     style_instructions = {

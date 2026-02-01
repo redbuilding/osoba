@@ -20,14 +20,28 @@ settings_collection = None
 profiles_collection = None
 
 def create_search_indexes():
-    """Create text indexes for conversation search."""
+    """Create text indexes for conversation search and context queries."""
     if conversations_collection is None:
         return
     try:
+        # Text search indexes
         conversations_collection.create_index([
             ("messages.content", "text"),
             ("title", "text")
         ])
+        
+        # Context-related indexes for efficient queries
+        conversations_collection.create_index([
+            ("pinned_for_context", 1),
+            ("updated_at", -1)
+        ])
+        
+        # User-specific context queries
+        conversations_collection.create_index([
+            ("user_id", 1),
+            ("pinned_for_context", 1)
+        ])
+        
         logger.info("Created search indexes for conversations")
     except Exception as e:
         logger.error(f"Error creating search indexes: {e}")
