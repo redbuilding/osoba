@@ -17,6 +17,7 @@ from services.mcp_service import app_state, submit_mcp_request, wait_mcp_respons
 from services.llm_service import get_default_ollama_model
 from services.provider_service import chat_with_provider, stream_chat_with_provider
 from services.profile_service import get_system_prompt_for_user
+import db.user_profiles_crud as user_profiles_crud
 from auth_hubspot import get_valid_token, SESSION_COOKIE_NAME
 
 logger = get_logger("chat_service")
@@ -559,23 +560,60 @@ Your JSON response:
             if self.llm_history and self.llm_history[0].get("role") == "system":
                 return
             
-            # Get system prompt for user's active profile
-            system_prompt = await get_system_prompt_for_user("default")  # TODO: Use actual user_id when auth is implemented
-            
-            # Get additional context from pinned conversations
-            from services.context_service import get_user_context, format_context_for_system_prompt
-            user_context = await get_user_context("default")
-            context_prompt = format_context_for_system_prompt(user_context)
-            
-            # Combine profile and context prompts
-            combined_prompt = ""
+            user_id = "default"  # TODO: Use actual user_id when auth is implemented
+            # Assistant persona (AI Profile)
+            system_prompt = await get_system_prompt_for_user(user_id)
+
+            # User context (User Profile + pinned conversations)
+            from services.context_service import get_user_context
+            user_context = await get_user_context(user_id)
+
+            # Build Human User section from User Profile
+            user_profile = user_profiles_crud.get_user_profile(user_id)
+            human_section = ""
+            if user_profile:
+                name = user_profile.get("name") or "the user"
+                lines = [
+                    "=== Human User ===",
+                    f"You are assisting {name} (the human)."
+                ]
+                if user_profile.get("role"):
+                    lines.append(f"- Role: {user_profile['role']}")
+                expertise = user_profile.get("expertise_areas") or []
+                if expertise:
+                    lines.append(f"- Expertise: {', '.join(expertise)}")
+                if user_profile.get("current_projects"):
+                    lines.append(f"- Current Projects: {user_profile['current_projects']}")
+                if user_profile.get("communication_style"):
+                    lines.append(f"- Preferred communication: {user_profile['communication_style']}")
+                human_section = "\n".join(lines)
+
+            # Build Conversation Context section
+            conv_section = ""
+            conv_ctx = user_context.get("conversation_context") if isinstance(user_context, dict) else ""
+            if conv_ctx:
+                conv_section = "=== Conversation Context ===\n" + conv_ctx
+
+            # Build Assistant Persona section
+            persona_section = ""
             if system_prompt:
-                combined_prompt = system_prompt
-            if context_prompt:
-                if combined_prompt:
-                    combined_prompt += "\n\n" + context_prompt
-                else:
-                    combined_prompt = context_prompt
+                persona_section = "=== Assistant Persona ===\n" + system_prompt
+
+            # Interaction Guidelines
+            name_for_guidelines = (user_profile.get("name") if user_profile else None) or "the user"
+            guidelines = [
+                "=== Interaction Guidelines ===",
+                "- Your purpose is to help your user succeed.",
+                f"- Greet {name_for_guidelines} and tailor explanations to their role and expertise.",
+                "- Ask clarifying questions if uncertain.",
+                "- Provide concise, actionable steps; expand on request.",
+                "- Keep identities distinct; do not claim the user's background.",
+            ]
+            guidelines_section = "\n".join(guidelines)
+
+            # Combine sections
+            sections = [s for s in [persona_section, human_section, conv_section, guidelines_section] if s]
+            combined_prompt = "\n\n".join(sections)
             
             if combined_prompt:
                 logger.debug(f"Injecting enhanced system prompt for conv {self.conv_id}")

@@ -824,3 +824,35 @@ export const generateChatSummary = async (conversationId) => {
     throw error.response ? error.response.data : new Error("Network error or server unavailable");
   }
 };
+
+// ---------- User Profile API ----------
+
+export const getUserProfile = async () => {
+  try {
+    const response = await apiClient.get("/user-profile");
+    return response.data; // { success, profile }
+  } catch (error) {
+    console.error("Error getting user profile:", error);
+    throw error.response ? error.response.data : new Error("Network error or server unavailable");
+  }
+};
+
+export const saveUserProfile = async (profile) => {
+  try {
+    const response = await apiClient.put("/user-profile", profile);
+    return response.data; // { success, profile }
+  } catch (error) {
+    console.error("Error saving user profile:", error);
+    throw error.response ? error.response.data : new Error("Network error or server unavailable");
+  }
+};
+
+export const deleteUserProfile = async () => {
+  try {
+    const response = await apiClient.delete("/user-profile");
+    return response.data; // { success }
+  } catch (error) {
+    console.error("Error deleting user profile:", error);
+    throw error.response ? error.response.data : new Error("Network error or server unavailable");
+  }
+};

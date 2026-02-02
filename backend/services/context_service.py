@@ -2,6 +2,7 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime, timezone
 from db.crud import get_conversation_by_id, get_all_conversations
 import db.profiles_crud as profiles_crud
+import db.user_profiles_crud as user_profiles_crud
 from core.config import get_logger
 
 logger = get_logger("context_service")
@@ -74,7 +75,9 @@ async def get_user_context(user_id: str = "default") -> Dict[str, Any]:
 async def get_profile_context(user_id: str = "default") -> str:
     """Generate profile context string for system prompt injection."""
     try:
-        profile = profiles_crud.get_active_profile(user_id)
+        # Use only the explicit User Profile for user context.
+        # If none exists, return empty context (assistant persona is handled separately).
+        profile = user_profiles_crud.get_user_profile(user_id)
         if not profile:
             return ""
         
@@ -339,20 +342,20 @@ def _extract_assistant_key_points(content: str) -> str:
         return ""
 
 def format_context_for_system_prompt(context: Dict[str, Any]) -> str:
-    """Format user context for injection into system prompt."""
+    """Format user context for display or debugging.
+
+    Note: The main chat injection now composes sections directly. This function
+    remains for the /api/user-context endpoint and debugging.
+    """
     try:
-        prompt_parts = []
-        
-        if context.get("profile_context"):
-            prompt_parts.append(f"User Context: {context['profile_context']}")
-        
-        if context.get("conversation_context"):
-            prompt_parts.append(f"Previous Conversations: {context['conversation_context']}")
-        
-        if prompt_parts:
-            return "Context Information: " + " | ".join(prompt_parts)
-        
-        return ""
+        sections: list[str] = []
+        profile_ctx = context.get("profile_context")
+        if profile_ctx:
+            sections.append("=== Human User ===\n" + profile_ctx)
+        conv_ctx = context.get("conversation_context")
+        if conv_ctx:
+            sections.append("=== Conversation Context ===\n" + conv_ctx)
+        return "\n\n".join(sections)
     except Exception as e:
         logger.error(f"Error formatting context for system prompt: {e}")
         return ""

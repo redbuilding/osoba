@@ -18,6 +18,7 @@ scheduled_tasks_collection = None
 templates_collection = None
 settings_collection = None
 profiles_collection = None
+user_profiles_collection = None
 
 def create_search_indexes():
     """Create text indexes for conversation search and context queries."""
@@ -56,6 +57,7 @@ try:
     templates_collection = db["task_templates"]
     settings_collection = db["user_settings"]
     profiles_collection = db["ai_profiles"]
+    user_profiles_collection = db["user_profiles"]
     create_search_indexes()
     logger.info(f"Successfully connected to MongoDB: {MONGODB_URI}")
 except ConnectionFailure:
@@ -92,3 +94,8 @@ def get_profiles_collection():
     if profiles_collection is None:
         raise RuntimeError("MongoDB is not available.")
     return profiles_collection
+
+def get_user_profiles_collection():
+    if user_profiles_collection is None:
+        raise RuntimeError("MongoDB is not available.")
+    return user_profiles_collection
