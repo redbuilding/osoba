@@ -67,6 +67,9 @@ function processCompleteMarkdown(content) {
   processed = processed.replace(/^## (.*$)/gm, '<h2>$1</h2>');
   processed = processed.replace(/^# (.*$)/gm, '<h1>$1</h1>');
   
+  // Horizontal rules
+  processed = processed.replace(/^\s*(---|\*\*\*|___)\s*$/gm, '<hr />');
+  
   // Bold and italic
   processed = processed.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
   processed = processed.replace(/\*(.*?)\*/g, '<em>$1</em>');
@@ -79,9 +82,17 @@ function processCompleteMarkdown(content) {
   // Inline code
   processed = processed.replace(/`([^`]+)`/g, '<code>$1</code>');
   
-  // Lists
-  processed = processed.replace(/^\* (.+$)/gm, '<li>$1</li>');
-  processed = processed.replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>');
+  // Unordered lists
+  processed = wrapListBlocks(processed, /\n?\*\s+.+/g, /^\*\s+(.+)$/gm, 'ul');
+  
+  // Ordered lists (e.g., 1. item)
+  processed = wrapListBlocks(processed, /\n?\d+\.\s+.+/g, /^(\d+)\.\s+(.+)$/gm, 'ol');
+  
+  // Tables (GitHub-Flavored Markdown)
+  processed = processed.replace(/((?:^\|.*\n)+)(?:^\s*$|^$)/gm, (block) => {
+    const html = renderMarkdownTable(block.trim());
+    return html || block; // fallback to original if not a valid table
+  });
   
   // Line breaks
   processed = processed.replace(/\n\n/g, '</p><p>');
@@ -95,6 +106,10 @@ function processCompleteMarkdown(content) {
   processed = processed.replace(/(<\/pre>)<\/p>/g, '$1');
   processed = processed.replace(/<p>(<ul>)/g, '$1');
   processed = processed.replace(/(<\/ul>)<\/p>/g, '$1');
+  processed = processed.replace(/<p>(<ol>)/g, '$1');
+  processed = processed.replace(/(<\/ol>)<\/p>/g, '$1');
+  processed = processed.replace(/<p>(<table>)/g, '$1');
+  processed = processed.replace(/(<\/table>)<\/p>/g, '$1');
   
   return processed;
 }
@@ -117,6 +132,10 @@ function processMarkdownLine(line) {
   if (processed.startsWith('* ')) {
     return `<li>${processed.slice(2)}</li>`;
   }
+  if (/^\d+\.\s+/.test(processed)) {
+    const text = processed.replace(/^\d+\.\s+/, '');
+    return `<li>${text}</li>`;
+  }
   
   // Bold and italic
   processed = processed.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
@@ -132,6 +151,81 @@ function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
+}
+
+// Wrap contiguous list item blocks into <ul> or <ol>
+function wrapListBlocks(input, blockDetector, itemRegex, listTag) {
+  // Split by double newlines to work with paragraphs/blocks
+  const blocks = input.split(/\n\n/);
+  const out = blocks.map(block => {
+    if (!block.match(itemRegex)) return block;
+
+    // If the block contains at least one list item, transform each matching line
+    const lines = block.split('\n');
+    let inList = false;
+    let buf = '';
+    let result = '';
+
+    for (const line of lines) {
+      if (itemRegex.test(line)) {
+        if (!inList) {
+          inList = true;
+          buf = '';
+        }
+        const m = line.match(itemRegex);
+        const itemText = listTag === 'ol' && m && m[2] ? m[2] : (m && m[1]) ? m[1] : line.replace(/^\*\s+/, '');
+        buf += `<li>${itemText}</li>`;
+      } else {
+        if (inList) {
+          result += `<${listTag}>${buf}</${listTag}>\n`;
+          inList = false;
+          buf = '';
+        }
+        result += line + '\n';
+      }
+    }
+    if (inList) {
+      result += `<${listTag}>${buf}</${listTag}>`;
+    }
+    return result.trim();
+  });
+  return out.join('\n\n');
+}
+
+// Detect and render a GFM-style markdown table block to HTML
+function renderMarkdownTable(block) {
+  const lines = block.split('\n').filter(l => l.trim().length > 0);
+  if (lines.length < 2) return null;
+  if (!lines[0].trim().startsWith('|')) return null;
+  if (!lines[1].trim().startsWith('|')) return null;
+
+  // Parse rows by splitting on pipes, trimming, dropping first/last empty
+  const parseRow = (line) => line
+    .split('|')
+    .map(c => c.trim())
+    .filter((_, idx, arr) => !(idx === 0 && arr[idx] === '') && !(idx === arr.length - 1 && arr[idx] === ''));
+
+  const headerCells = parseRow(lines[0]);
+  const separatorCells = parseRow(lines[1]);
+
+  // Validate separator row like | --- | :---: | ---: |
+  const sepValid = separatorCells.length >= headerCells.length && separatorCells.every(cell => /^:?-{3,}:?$/.test(cell));
+  if (!sepValid) return null;
+
+  const headerHtml = headerCells.map(h => `<th>${escapeHtml(h)}</th>`).join('');
+  const bodyRows = [];
+  for (let i = 2; i < lines.length; i++) {
+    const line = lines[i];
+    if (!line.trim().startsWith('|')) break;
+    const cells = parseRow(line);
+    // Allow row to be shorter; missing cells become empty
+    const padded = Array.from({ length: headerCells.length }, (_, idx) => cells[idx] || '');
+    const cellsHtml = padded.map(c => `<td>${escapeHtml(c).replace(/\n/g, '<br/>')}</td>`).join('');
+    bodyRows.push(`<tr>${cellsHtml}</tr>`);
+  }
+
+  const tableHtml = `<table><thead><tr>${headerHtml}</tr></thead><tbody>${bodyRows.join('')}</tbody></table>`;
+  return tableHtml;
 }
 
 export default MarkdownRenderer;

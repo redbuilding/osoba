@@ -71,3 +71,32 @@
 .markdown-content em {
   font-style: italic;
 }
+
+/* Tables */
+.markdown-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1em 0;
+  font-size: 0.95em;
+}
+
+.markdown-content th,
+.markdown-content td {
+  border: 1px solid #374151;
+  padding: 0.5em 0.6em;
+  vertical-align: top;
+}
+
+.markdown-content thead th {
+  background-color: #111827;
+  color: #e5e7eb;
+  font-weight: 600;
+}
+
+.markdown-content tbody tr:nth-child(odd) {
+  background-color: #0b1220;
+}
+
+.markdown-content tbody tr:nth-child(even) {
+  background-color: #0f172a;
+}
