@@ -143,6 +143,7 @@ const TaskDetailInline = ({ taskId, onClose, onTaskDeleted, onSaveAll }) => {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState({});
+  const [descExpanded, setDescExpanded] = useState(false);
   
   const toggle = useCallback((i) => setExpanded((e) => ({ ...e, [i]: !e[i] })), []);
 
@@ -295,7 +296,27 @@ const TaskDetailInline = ({ taskId, onClose, onTaskDeleted, onSaveAll }) => {
       {detail.model_name && (
         <div className="text-[11px] text-brand-text-secondary mb-2">Model: {detail.model_name}</div>
       )}
-      <div className="text-xs text-brand-text-secondary mb-3">{detail.goal}</div>
+      {/* Collapsible task description */}
+      {typeof detail.goal === 'string' && detail.goal.trim().length > 0 && (
+        <div className="mb-3">
+          <div
+            className={
+              `text-xs text-brand-text-secondary whitespace-pre-wrap break-words ` +
+              (descExpanded ? '' : 'max-h-24 overflow-hidden')
+            }
+          >
+            {detail.goal}
+          </div>
+          {detail.goal.length > 240 && (
+            <button
+              className="mt-1 text-[11px] text-brand-purple hover:underline"
+              onClick={() => setDescExpanded((v) => !v)}
+            >
+              {descExpanded ? 'Show less' : 'Show more'}
+            </button>
+          )}
+        </div>
+      )}
       <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
         {steps.map((s, i) => {
           // Derive a stable status when step.status is temporarily missing

@@ -33,7 +33,7 @@ const RightPanel = ({
           </div>
 
           {/* Panel Content */}
-          <div className="flex-1 overflow-hidden">
+          <div className="flex-1 overflow-y-auto min-h-0">
             {children}
           </div>
         </>

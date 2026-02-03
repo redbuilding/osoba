@@ -255,6 +255,50 @@ Monitor these event types in the live stream:
 4. **Set Context**: Provide background information that helps the task planner
 5. **Use Constraints**: Mention time periods, data ranges, or specific focus areas
 
+## Prompting and Success Criteria Tips
+
+When tasks generate artifacts (e.g., code bundles), be explicit in your instructions and success criteria so verification focuses on the deliverable rather than incidental files.
+
+- Be explicit about ancillary files: If the system or a tool creates a standard review/readme file (e.g., "read-for-review"), explicitly allow it and state it is not an extra deliverable.
+- Prefer content-based success over file counts: Define success by the presence and quality of the target artifact, not by "exactly one file produced."
+- Specify exact filenames: Name the required artifact precisely to avoid ambiguity.
+- Allow extra housekeeping files when appropriate: Make clear that verification should ignore known ancillary files.
+- If you truly need a single artifact only: Explicitly instruct the system to avoid generating any review/readme documents.
+
+### Step Instruction Examples
+
+Example: iOS Swift demo with bundled code
+
+```
+Create a basic SwiftUI iOS demo and write all Swift code into a single combined text file named ios_demo.txt at the workspace root. The system may also create a standard "read-for-review" document; leave it in place and do not treat it as an extra deliverable.
+```
+
+If you require a single artifact only:
+
+```
+Create a basic SwiftUI iOS demo and write all Swift code into a single combined text file named ios_demo.txt at the workspace root. Do not generate any review/readme documents; only create ios_demo.txt.
+```
+
+### Success Criteria Examples
+
+Content-focused criteria (recommended):
+
+```
+Success if a file named ios_demo.txt exists at the workspace root, is non-empty, and contains SwiftUI app scaffolding (e.g., "import SwiftUI", an "@main" App, and a ContentView). Ignore any standard review/readme files (e.g., files containing "read-for-review" in the name).
+```
+
+Strict single-artifact criteria (use only when necessary):
+
+```
+Success if and only if ios_demo.txt exists at the workspace root and no other files are created. The file must include SwiftUI app scaffolding ("import SwiftUI", "@main" App, ContentView).
+```
+
+### Notes for Codex/MCP-based Steps
+
+- Some tools (e.g., Codex) may generate a standard review or summary document alongside your target artifact.
+- To avoid false negatives in verification, specify that such housekeeping files are allowed and should be ignored by success checks.
+- Prefer verifiable content signals (key strings/structures in the file) instead of requiring an exact artifact count.
+
 ### Resource Management
 
 1. **Monitor Active Tasks**: Keep track of running tasks to avoid resource conflicts
