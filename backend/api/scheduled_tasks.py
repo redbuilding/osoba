@@ -1,9 +1,10 @@
 from typing import List
 from datetime import datetime, timezone
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Request
 from core.models import (
-    ScheduledTaskPayload, ScheduledTaskSummary, 
-    TaskTemplate, TaskFromTemplatePayload, TaskCreatePayload
+    ScheduledTaskPayload, ScheduledTaskSummary,
+    TaskTemplate, TaskFromTemplatePayload, TaskCreatePayload,
+    PromptImprovePayload, PromptImproveResponse
 )
 from db import scheduled_tasks_crud, templates_crud
 from services.task_scheduler import scheduler
@@ -12,11 +13,15 @@ from core.providers import extract_provider_from_model
 from services.template_engine import template_engine
 from db.tasks_crud import create_task
 from data.default_templates import get_default_templates
-from core.config import get_logger
+from core.config import get_logger, ENABLE_PROMPT_IMPROVER, IMPROVER_RATE_LIMIT_PER_MIN
+from services.telemetry import record_event
 import croniter
 
 router = APIRouter()
 logger = get_logger("api_scheduled_tasks")
+
+# Simple in-memory rate limiter: global bucket per-process
+_improver_calls: list[float] = []
 
 # Scheduled Tasks endpoints
 @router.post("/api/scheduled-tasks", response_model=dict)
@@ -62,6 +67,11 @@ async def create_scheduled_task(payload: ScheduledTaskPayload):
         # Create scheduled task
         task_data = payload.model_dump()
         task_id = await scheduler.schedule_task(task_data)
+        try:
+            accepted = bool((payload.planner_hints or {}).get('manifest') or (payload.planner_hints or {}).get('step_plan'))
+            record_event("improver.accept", {"with_hints": accepted})
+        except Exception:
+            pass
         
         return {"id": task_id, "message": "Scheduled task created successfully"}
     except HTTPException:
@@ -69,6 +79,153 @@ async def create_scheduled_task(payload: ScheduledTaskPayload):
     except Exception as e:
         logger.error(f"Error creating scheduled task: {e}")
         raise HTTPException(status_code=500, detail="Error creating scheduled task")
+
+
+@router.post("/api/scheduled-tasks/improve-instruction", response_model=PromptImproveResponse)
+async def improve_scheduled_instruction(payload: PromptImprovePayload, request: Request):
+    """Improve a Scheduled Task instruction and return improved text + planner hints.
+
+    Does not mutate any server state. Uses the selected model if provided, otherwise a sensible default.
+    """
+    if not ENABLE_PROMPT_IMPROVER:
+        record_event("improver.disabled", {})
+        raise HTTPException(status_code=404, detail="Prompt improver disabled")
+
+    # Global rate limit (per-process). Optimistic and simple.
+    try:
+        import time
+        now = time.time()
+        window = 60.0
+        # prune
+        while _improver_calls and now - _improver_calls[0] > window:
+            _improver_calls.pop(0)
+        if len(_improver_calls) >= max(IMPROVER_RATE_LIMIT_PER_MIN, 1):
+            record_event("improver.rate_limited", {"limit": IMPROVER_RATE_LIMIT_PER_MIN})
+            raise HTTPException(status_code=429, detail="Too many improv requests; please retry shortly")
+        _improver_calls.append(now)
+    except HTTPException:
+        raise
+    except Exception:
+        pass
+    # Validate mode
+    mode = (payload.mode or "Clarify").strip().lower()
+    mode = mode if mode in {"clarify", "expand", "tighten", "translate"} else "clarify"
+
+    # Resolve/validate model if provided
+    model_name = payload.model_name
+    if model_name:
+        try:
+            provider_id, clean = extract_provider_from_model(model_name)
+            status_info = await get_provider_status(provider_id)
+            if provider_id != 'ollama' and not status_info.get('configured'):
+                raise HTTPException(status_code=400, detail=f"Provider '{provider_id}' not configured")
+            models_by_provider = await get_available_models_by_provider()
+            allowed = set(models_by_provider.get(provider_id, []))
+            if provider_id != 'ollama':
+                ok = (model_name in allowed) or (clean in {m.split('/',1)[1] if '/' in m else m for m in allowed})
+            else:
+                ok = clean in allowed or model_name in allowed
+            if not ok:
+                raise HTTPException(status_code=400, detail=f"Model '{model_name}' not available for provider '{provider_id}'")
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Invalid model: {e}")
+
+    # Build improvement prompt
+    objectives = {
+        "clarify": "Clarify and disambiguate without changing intent.",
+        "expand": "Expand with necessary specifics, inputs/outputs, acceptance criteria.",
+        "tighten": "Tighten and simplify; remove redundancy while keeping details needed to execute.",
+        "translate": f"Translate to {payload.language or 'English'} while preserving structure and intent.",
+    }
+    mode_line = objectives.get(mode, objectives["clarify"])
+
+    # Planner-aware output contract
+    json_contract = {
+        "type": "object",
+        "required": ["improved_text", "manifest", "step_plan"],
+        "properties": {
+            "improved_text": {"type": "string"},
+            "manifest": {"type": "object"},
+            "step_plan": {"type": "array"},
+            "warnings": {"type": "array", "items": {"type": "string"}}
+        }
+    }
+
+    system = (
+        "You are a task instruction improver for an orchestrated, multi-step planner.\n"
+        "Output strict JSON only, no prose.\n"
+        "Goals: preserve user intent, remove ambiguity, and produce a compact contracts manifest.\n"
+        "The manifest lists stable identifiers (files, selectors, sections, routes, schema keys) and rules that later steps must follow.\n"
+        "For the step_plan, propose 3–8 steps aligned to our toolset (llm.generate, web_search, python.*, codex.run), referencing manifest keys.\n"
+        "Do not invent identifiers that aren't in the manifest; if necessary, add them explicitly to the manifest and reference them consistently.\n"
+    )
+    user = (
+        f"Task type: {payload.task_type or 'scheduled'}\n"
+        f"Mode: {mode}\n"
+        f"Instruction (draft):\n{payload.draft_text}\n\n"
+        f"Context hints (optional, free-form):\n{(payload.context_hints or {})}\n\n"
+        "Constraints:\n"
+        "- Keep identifiers stable; list them under manifest.identifiers with clear categories.\n"
+        "- Specify outputs and acceptance criteria.\n"
+        "- If HTML/CSS is implied, align classes/IDs; if ToC/report is implied, ensure sections match.\n"
+        "- Avoid provider-specific tokens or secrets.\n"
+        f"JSON schema (guidance): {__import__('json').dumps(json_contract)}\n"
+        "Return only JSON with keys: improved_text, manifest, step_plan, warnings?\n"
+    )
+
+    # Choose model: provided or default
+    try:
+        from services.llm_service import get_default_ollama_model
+        resolved_model = model_name or await get_default_ollama_model()
+    except Exception:
+        resolved_model = model_name or "llama3.1"
+
+    try:
+        from services.provider_service import chat_with_provider
+        record_event("improver.request", {"mode": mode, "model": resolved_model})
+        raw = await chat_with_provider([
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ], resolved_model)
+        data = raw and __import__('json').loads(raw)
+        if not data or not isinstance(data, dict):
+            raise RuntimeError("Model did not return JSON object")
+        # Minimal normalization
+        resp = PromptImproveResponse(
+            improved_text=str(data.get("improved_text") or payload.draft_text),
+            manifest=data.get("manifest") or {},
+            step_plan=data.get("step_plan") or [],
+            warnings=data.get("warnings") or None,
+        )
+        try:
+            manifest_size = len(resp.manifest or {})
+            step_count = len(resp.step_plan or [])
+            record_event("improver.success", {
+                "mode": mode,
+                "model": resolved_model,
+                "manifest_keys": manifest_size,
+                "steps": step_count,
+                "draft_len": len(payload.draft_text or ""),
+                "improved_len": len(resp.improved_text or ""),
+            })
+        except Exception:
+            pass
+        return resp
+    except HTTPException:
+        raise
+    except Exception as e:
+        # Do not log full draft; only the error message
+        logger.error(f"Improver call failed: {e.__class__.__name__}: {e}")
+        record_event("improver.failure", {"mode": mode, "error": type(e).__name__})
+        # Be optimistic: return the draft with empty hints
+        return PromptImproveResponse(
+            improved_text=payload.draft_text,
+            manifest={},
+            step_plan=[],
+            warnings=[f"Improver failed: {e}"]
+        )
 
 @router.post("/api/scheduled-tasks/{task_id}/run", response_model=dict)
 async def run_scheduled_task_now(task_id: str, payload: dict | None = None):

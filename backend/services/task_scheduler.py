@@ -159,6 +159,7 @@ class TaskScheduler:
                 "conversation_id": scheduled_task.get("conversation_id"),
                 "model_name": scheduled_task.get("model_name") or scheduled_task.get("ollama_model_name"),
                 "budget": scheduled_task.get("budget"),
+                "planner_hints": scheduled_task.get("planner_hints"),
                 "status": "PLANNING",
                 "created_at": datetime.now(timezone.utc),
                 "updated_at": datetime.now(timezone.utc),

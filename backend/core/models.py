@@ -143,6 +143,9 @@ class ScheduledTaskPayload(BaseModel):
     template_id: Optional[str] = None
     model_name: Optional[str] = None
     budget: Optional[dict] = None
+    # Optional planner hints produced by the AI improver
+    # Expected keys: { manifest?: dict, step_plan?: list }
+    planner_hints: Optional[Dict[str, Any]] = None
 
 class ScheduledTaskSummary(BaseModel):
     id: str = Field(alias="_id")
@@ -190,3 +193,21 @@ class TaskFromTemplatePayload(BaseModel):
     parameters: Dict[str, str]  # Values for placeholders
     conversation_id: Optional[str] = None
     model_name: Optional[str] = None
+
+############################
+# Prompt Improver models
+############################
+
+class PromptImprovePayload(BaseModel):
+    draft_text: str
+    task_type: str = "scheduled"
+    model_name: Optional[str] = None
+    mode: Optional[str] = None  # Clarify | Expand | Tighten | Translate
+    language: Optional[str] = None
+    context_hints: Optional[Dict[str, Any]] = None
+
+class PromptImproveResponse(BaseModel):
+    improved_text: str
+    manifest: Dict[str, Any] = {}
+    step_plan: List[Dict[str, Any]] = []
+    warnings: Optional[List[str]] = None

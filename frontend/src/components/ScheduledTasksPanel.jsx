@@ -7,6 +7,7 @@ import {
   runScheduledTaskNow
 } from '../services/api';
 import ModelPickerModal from './ModelPickerModal';
+import { improveScheduledInstruction } from "../services/api";
 
 const ScheduledTasksPanel = ({ isOpen, onClose }) => {
   const [scheduledTasks, setScheduledTasks] = useState([]);
@@ -16,6 +17,34 @@ const ScheduledTasksPanel = ({ isOpen, onClose }) => {
   const [isModelModalOpen, setIsModelModalOpen] = useState(false);
   const [formModel, setFormModel] = useState(null);
   const [runOverrideForId, setRunOverrideForId] = useState(null);
+
+  // Improve-with-AI state
+  const [isImproveOpen, setIsImproveOpen] = useState(false);
+  const [improveMode, setImproveMode] = useState('Clarify');
+  const [improveLoading, setImproveLoading] = useState(false);
+  const [improveError, setImproveError] = useState('');
+  const [improvedText, setImprovedText] = useState('');
+  const [improvedHints, setImprovedHints] = useState(null); // { manifest, step_plan }
+  const [improveWarnings, setImproveWarnings] = useState([]);
+
+  const analyzeHints = (text, hints) => {
+    const warns = [];
+    if (!hints || (!hints.manifest && !hints.step_plan)) {
+      warns.push('No planner hints returned.');
+    }
+    const manifest = hints?.manifest || {};
+    const ids = manifest.identifiers || manifest.selectors || manifest.sections || null;
+    if (manifest && Object.keys(manifest).length === 0) {
+      warns.push('Manifest is empty; downstream steps may drift.');
+    }
+    if (Array.isArray(hints?.step_plan) && hints.step_plan.length === 0) {
+      warns.push('No step plan provided; planner will infer steps.');
+    }
+    if (text && formData.goal && text.length > formData.goal.length * 2.5) {
+      warns.push('Improved instruction is much longer than original; consider tightening.');
+    }
+    return warns;
+  };
 
   const [formData, setFormData] = useState({
     name: '',
@@ -118,6 +147,7 @@ const ScheduledTasksPanel = ({ isOpen, onClose }) => {
         goal: formData.goal,
         model_name: formModel || null,
         schedule: schedulePayload,
+        planner_hints: improvedHints || null,
       });
 
       setFormData({
@@ -137,6 +167,7 @@ const ScheduledTasksPanel = ({ isOpen, onClose }) => {
       });
       setShowCreateForm(false);
       setFormModel(null);
+      setImprovedHints(null);
       fetchScheduledTasks();
     } catch (error) {
       setError(error.response?.data?.detail || 'Failed to create scheduled task');
@@ -467,6 +498,26 @@ const ScheduledTasksPanel = ({ isOpen, onClose }) => {
 
                 <div className="mb-4">
                   <label className="block text-sm font-medium mb-1 text-brand-text-primary">Goal</label>
+                  {/* Improve with AI toolbar */}
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="text-brand-text-secondary">Prompt helper:</span>
+                      {['Clarify','Expand','Tighten','Translate'].map(m => (
+                        <button key={m} type="button" onClick={() => setImproveMode(m)}
+                          className={`px-2 py-1 rounded ${improveMode===m? 'bg-brand-purple text-white':'bg-gray-700 text-brand-text-secondary hover:bg-gray-600'}`}>{m}</button>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                      onClick={() => setIsImproveOpen(true)}
+                      className="px-3 py-1 text-xs rounded bg-brand-purple hover:bg-brand-button-grad-to text-white"
+                      title="Improve with AI"
+                    >
+                      Improve with AI
+                    </button>
+                    </div>
+                  </div>
                   <textarea
                     value={formData.goal}
                     onChange={(e) => setFormData(prev => ({ ...prev, goal: e.target.value }))}
@@ -590,6 +641,190 @@ const ScheduledTasksPanel = ({ isOpen, onClose }) => {
           </div>
         </div>
       </div>
+      {/* Improve with AI Modal */}
+      {isImproveOpen && (
+        <div className="fixed inset-0 z-[90]">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setIsImproveOpen(false)} />
+          <div className="absolute inset-0 flex items-center justify-center p-4">
+            <div className="w-full max-w-5xl bg-brand-surface-bg border border-gray-700 rounded-xl shadow-2xl overflow-hidden">
+              <div className="flex items-center justify-between p-3 border-b border-gray-700 bg-black/20">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-semibold text-brand-text-primary">Improve Instruction</h3>
+                  <span className="text-xs text-brand-text-secondary">Mode: {improveMode}</span>
+                </div>
+                <button className="p-1 rounded hover:bg-gray-700" onClick={() => setIsImproveOpen(false)} aria-label="Close">
+                  <X className="w-5 h-5 text-brand-text-secondary" />
+                </button>
+              </div>
+              <div className="p-3 bg-brand-main-bg">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2 text-xs">
+                    {['Clarify','Expand','Tighten','Translate'].map(m => (
+                      <button key={m} type="button" onClick={() => setImproveMode(m)}
+                        className={`px-2 py-1 rounded ${improveMode===m? 'bg-brand-purple text-white':'bg-gray-700 text-brand-text-secondary hover:bg-gray-600'}`}>{m}</button>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      className="px-2 py-1 text-xs rounded bg-gray-700 hover:bg-gray-600 text-white"
+                      onClick={() => setIsModelModalOpen(true)}
+                    >
+                      {formModel ? `Model: ${formModel}` : 'Choose Model'}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={improveLoading || !formData.goal?.trim()}
+                      onClick={async () => {
+                        setImproveError('');
+                        setImproveLoading(true);
+                        try {
+                          const resp = await improveScheduledInstruction({
+                            draft_text: formData.goal,
+                            model_name: formModel,
+                            mode: improveMode,
+                            language: null,
+                            context_hints: { schedule: formData.scheduleType === 'simple' ? formData.simpleSchedule : { cron: formData.cron_expression } }
+                          });
+                          const nextText = resp.improved_text || '';
+                          const nextHints = { manifest: resp.manifest || {}, step_plan: resp.step_plan || [] };
+                          setImprovedText(nextText);
+                          setImprovedHints(nextHints);
+                          setImproveWarnings(analyzeHints(nextText, nextHints));
+                        } catch (e) {
+                          setImproveError(e?.response?.data?.detail || 'Failed to improve prompt');
+                        } finally {
+                          setImproveLoading(false);
+                        }
+                      }}
+                      className="px-3 py-1 text-xs rounded bg-brand-purple hover:bg-brand-button-grad-to text-white disabled:opacity-50"
+                    >
+                        {improveLoading ? 'Working…' : 'Generate'}
+                    </button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <div className="text-xs text-brand-text-secondary mb-1">Current instruction</div>
+                    <textarea
+                      value={formData.goal}
+                      onChange={(e)=>setFormData(prev=>({...prev, goal: e.target.value}))}
+                      rows={12}
+                      className="w-full px-3 py-2 border border-gray-700 rounded-md text-sm bg-brand-surface-bg text-brand-text-primary focus:outline-none focus:ring-2 focus:ring-brand-purple"
+                    />
+                  </div>
+                  <div>
+                    <div className="text-xs text-brand-text-secondary mb-1">Improved suggestion</div>
+                    <textarea
+                      value={improvedText}
+                      onChange={(e)=>setImprovedText(e.target.value)}
+                      rows={12}
+                      placeholder={improveLoading ? 'Generating…' : ''}
+                      className="w-full px-3 py-2 border border-gray-700 rounded-md text-sm bg-brand-surface-bg text-brand-text-primary focus:outline-none focus:ring-2 focus:ring-brand-purple"
+                    />
+                    {/* Hints preview and warnings */}
+                    {(improvedHints || improveWarnings.length > 0) && (
+                      <div className="mt-2 p-2 border border-gray-700 rounded bg-black/20">
+                        <div className="text-xs text-brand-text-secondary mb-1">Planner hints</div>
+                        {improvedHints?.manifest && (
+                          <div className="text-[11px] text-brand-text-secondary mb-1 overflow-auto max-h-24">
+                            <pre className="whitespace-pre-wrap break-words">{JSON.stringify(improvedHints.manifest, null, 2)}</pre>
+                          </div>
+                        )}
+                        {Array.isArray(improvedHints?.step_plan) && improvedHints.step_plan.length > 0 && (
+                          <div className="text-[11px] text-brand-text-secondary mb-1">
+                            Steps: {improvedHints.step_plan.length}
+                          </div>
+                        )}
+                        {improveWarnings.length > 0 && (
+                          <ul className="text-[11px] text-brand-alert-red list-disc pl-4">
+                            {improveWarnings.map((w,i)=>(<li key={i}>{w}</li>))}
+                          </ul>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                {improveError && (
+                  <div className="mt-2 p-2 border border-red-800 bg-red-950/40 rounded">
+                    <div className="text-xs text-brand-alert-red mb-2">{improveError}</div>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        disabled={improveLoading}
+                        onClick={async () => {
+                          setImproveError('');
+                          setImproveLoading(true);
+                          try {
+                            const resp = await improveScheduledInstruction({
+                              draft_text: formData.goal,
+                              model_name: formModel,
+                              mode: improveMode,
+                              language: null,
+                              context_hints: { schedule: formData.scheduleType === 'simple' ? formData.simpleSchedule : { cron: formData.cron_expression } }
+                            });
+                            const nextText = resp.improved_text || '';
+                            const nextHints = { manifest: resp.manifest || {}, step_plan: resp.step_plan || [] };
+                            setImprovedText(nextText);
+                            setImprovedHints(nextHints);
+                            setImproveWarnings(analyzeHints(nextText, nextHints));
+                          } catch (e) {
+                            setImproveError(e?.response?.data?.detail || 'Failed to improve prompt');
+                          } finally {
+                            setImproveLoading(false);
+                          }
+                        }}
+                        className="px-3 py-1 text-xs rounded bg-brand-purple hover:bg-brand-button-grad-to text-white disabled:opacity-50"
+                      >
+                        Try again
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setImproveError(''); setImprovedText(''); setImprovedHints(null); setImproveWarnings([]); }}
+                        className="px-3 py-1 text-xs rounded bg-gray-700 hover:bg-gray-600 text-white"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+                )}
+                <div className="mt-3 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard?.writeText(improvedText || '').catch(()=>{});
+                    }}
+                    className="px-3 py-1 text-xs rounded bg-gray-700 hover:bg-gray-600 text-white"
+                  >
+                    Copy
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setImprovedText(''); setImprovedHints(null); setImproveWarnings([]); }}
+                    className="px-3 py-1 text-xs rounded bg-gray-700 hover:bg-gray-600 text-white"
+                  >
+                    Clear
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (improvedText) {
+                        setFormData(prev=>({...prev, goal: improvedText}));
+                        // keep hints for submission
+                        setIsImproveOpen(false);
+                      }
+                    }}
+                    className="px-3 py-1 text-xs rounded bg-brand-purple hover:bg-brand-button-grad-to text-white"
+                    disabled={!improvedText}
+                  >
+                    Replace
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Shared Model Picker for create form or run override */}
       <ModelPickerModal
         isOpen={isModelModalOpen}

@@ -173,6 +173,23 @@ Set up recurring tasks that run automatically:
 - `0 9 1 * *` - First day of every month at 9 AM
 - `0 */6 * * *` - Every 6 hours
 
+#### Improve with AI (Prompt Helper)
+
+- What it does: Improves your Scheduled Task instruction and generates planner hints (a contracts manifest and a suggested step skeleton) to keep multi‑step execution consistent across files and steps.
+- Where: In the Scheduled Tasks modal, above the Goal field, click “Improve with AI”.
+- Modes: Clarify, Expand, Tighten, Translate. These affect style and specificity; they always preserve user intent.
+- Model: Reuses the standard model picker. If no model is selected, a default is used.
+- Output: Side‑by‑side view of Current vs Improved. You can Copy or Replace. If you Replace, planner hints are kept with the form and sent when you create the scheduled task.
+- Consistency: The manifest lists stable identifiers (files, sections, selectors, routes, schema), which the planner and each step consume to avoid drift (e.g., CSS selectors mismatching HTML, ToC sections not written).
+
+Feature flags and limits:
+- Enable/disable: `ENABLE_PROMPT_IMPROVER=true|false` (default true)
+- Rate limit: `IMPROVER_RATE_LIMIT_PER_MIN` (default 20 per minute, per backend process)
+
+Notes:
+- The helper is optimistic: warnings are non‑blocking; you can accept or edit the improvement.
+- Planner hints are used during planning and injected into each step’s prompt for context.
+
 ### Budget Controls
 
 Control task resource usage by setting budgets when creating tasks:

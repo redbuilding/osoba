@@ -388,6 +388,23 @@ export const runScheduledTaskNow = async (taskId, modelName = null) => {
   }
 };
 
+export const improveScheduledInstruction = async ({ draft_text, model_name = null, mode = 'Clarify', language = null, context_hints = null }) => {
+  try {
+    const response = await apiClient.post(`/scheduled-tasks/improve-instruction`, {
+      draft_text,
+      model_name,
+      mode,
+      language,
+      context_hints,
+      task_type: 'scheduled'
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error improving instruction:", error);
+    throw error;
+  }
+};
+
 // ---------- Templates API ----------
 
 export const listTemplates = async (category = null) => {

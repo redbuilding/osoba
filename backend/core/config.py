@@ -56,3 +56,7 @@ CODEX_DEBUG = os.getenv('CODEX_DEBUG', 'false').lower() == 'true'
 # Artifacts configuration
 # Root directory to write artifacts (relative to repo root by default)
 ARTIFACTS_ROOT = os.getenv('ARTIFACTS_ROOT', 'artifacts')
+
+# Prompt improver feature flag and limits
+ENABLE_PROMPT_IMPROVER = os.getenv('ENABLE_PROMPT_IMPROVER', 'true').lower() == 'true'
+IMPROVER_RATE_LIMIT_PER_MIN = int(os.getenv('IMPROVER_RATE_LIMIT_PER_MIN', '20'))
