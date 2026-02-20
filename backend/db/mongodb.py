@@ -19,6 +19,7 @@ templates_collection = None
 settings_collection = None
 profiles_collection = None
 user_profiles_collection = None
+heartbeat_insights_collection = None
 
 def create_search_indexes():
     """Create text indexes for conversation search and context queries."""
@@ -58,6 +59,7 @@ try:
     settings_collection = db["user_settings"]
     profiles_collection = db["ai_profiles"]
     user_profiles_collection = db["user_profiles"]
+    heartbeat_insights_collection = db["heartbeat_insights"]
     create_search_indexes()
     logger.info(f"Successfully connected to MongoDB: {MONGODB_URI}")
 except ConnectionFailure:
@@ -99,3 +101,9 @@ def get_user_profiles_collection():
     if user_profiles_collection is None:
         raise RuntimeError("MongoDB is not available.")
     return user_profiles_collection
+
+def get_heartbeat_insights_collection():
+    """Get the heartbeat insights collection."""
+    if heartbeat_insights_collection is None:
+        raise RuntimeError("MongoDB is not available.")
+    return heartbeat_insights_collection

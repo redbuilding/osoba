@@ -3,6 +3,7 @@ import SettingsSidebar from '../components/SettingsSidebar';
 import ProfileManager from '../components/ProfileManager';
 import SettingsModal from '../components/SettingsModal';
 import UserProfileSettings from '../components/UserProfileSettings';
+import GoalsEditor from '../components/GoalsEditor';
 
 const SettingsPage = ({ onClose }) => {
   const [activeSection, setActiveSection] = useState('profiles');
@@ -39,6 +40,18 @@ const SettingsPage = ({ onClose }) => {
             <div className="bg-brand-surface-bg rounded-lg border border-gray-700 p-6">
               <UserProfileSettings onProfileUpdate={() => {}} />
             </div>
+          </div>
+        );
+      case 'goals':
+        return (
+          <div>
+            <div className="mb-6">
+              <h2 className="text-2xl font-semibold text-brand-text-primary">Goals & Priorities</h2>
+              <p className="text-brand-text-secondary mt-1">
+                Define your goals and priorities for proactive AI assistance.
+              </p>
+            </div>
+            <GoalsEditor userId="default" />
           </div>
         );
       case 'providers':

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Settings, User, Key, Palette, UserCircle } from 'lucide-react';
+import { Settings, User, Key, Palette, UserCircle, Target } from 'lucide-react';
 
 const SettingsSidebar = ({ activeSection, onSectionChange }) => {
   const sections = [
@@ -14,6 +14,12 @@ const SettingsSidebar = ({ activeSection, onSectionChange }) => {
       label: 'User Profile',
       icon: UserCircle,
       description: 'Your personal information'
+    },
+    {
+      id: 'goals',
+      label: 'Goals & Priorities',
+      icon: Target,
+      description: 'Define your objectives'
     },
     {
       id: 'providers',

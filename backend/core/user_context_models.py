@@ -12,6 +12,7 @@ class UserProfile(BaseModel):
     expertise_areas: List[str] = Field(max_items=5, default_factory=list)
     current_projects: Optional[str] = Field(None, max_length=500)
     preferred_tools: List[str] = Field(max_items=10, default_factory=list)
+    goals_document: Optional[str] = Field(None, max_length=2000)
     user_id: str = "default"
     is_active: bool = False
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -29,6 +30,7 @@ class UserProfileCreatePayload(BaseModel):
     expertise_areas: List[str] = Field(max_items=5, default_factory=list)
     current_projects: Optional[str] = Field(None, max_length=500)
     preferred_tools: List[str] = Field(max_items=10, default_factory=list)
+    goals_document: Optional[str] = Field(None, max_length=2000)
 
 class UserProfileUpdatePayload(BaseModel):
     """Payload for updating an existing user profile."""
@@ -38,6 +40,7 @@ class UserProfileUpdatePayload(BaseModel):
     expertise_areas: Optional[List[str]] = Field(None, max_items=5)
     current_projects: Optional[str] = Field(None, max_length=500)
     preferred_tools: Optional[List[str]] = Field(None, max_items=10)
+    goals_document: Optional[str] = Field(None, max_length=2000)
     is_active: Optional[bool] = None
 
 class ConversationContext(BaseModel):

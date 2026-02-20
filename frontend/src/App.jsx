@@ -16,6 +16,7 @@ import TasksInspector from "./components/TasksInspector";
 import SettingsModal from "./components/SettingsModal";
 import SettingsPage from "./pages/SettingsPage";
 import ModelPickerModal from "./components/ModelPickerModal";
+import ProactiveInsightsPanel from "./components/ProactiveInsightsPanel";
 import useKeyboardShortcuts from "./hooks/useKeyboardShortcuts";
 import CodexRunCard from "./components/CodexRunCard";
 import FileViewerModal from "./components/FileViewerModal";
@@ -906,6 +907,9 @@ const App = () => {
             >
               <ListTodo size={14} /> Tasks{activeTasksCount ? ` (${activeTasksCount})` : ""}
             </button>
+
+            {/* Proactive Insights */}
+            <ProactiveInsightsPanel userId="default" />
 
             {/* Settings button */}
             <button
