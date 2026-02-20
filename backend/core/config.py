@@ -1,23 +1,28 @@
 import logging
 import os
-from datetime import datetime
+from logging.handlers import RotatingFileHandler
 
 # --- Directory Setup ---
 # Assumes this file is in backend/core, so we go up two levels to get the project root
 # and then into backend/. This makes paths more reliable.
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# --- Logging Setup ---
+# --- Logging Setup with Rotation ---
 os.makedirs(os.path.join(BASE_DIR, 'logs'), exist_ok=True)
+log_file = os.path.join(BASE_DIR, 'logs', 'mcp_backend.log')
+rotating_handler = RotatingFileHandler(
+    log_file,
+    maxBytes=5*1024*1024,  # 5MB per file
+    backupCount=3  # Keep 3 backup files (total 20MB max)
+)
+rotating_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler(os.path.join(BASE_DIR, 'logs', f"mcp_backend_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log")),
-        logging.StreamHandler()
-    ]
+    handlers=[rotating_handler, logging.StreamHandler()]
 )
-# Create a logger for the application
+
 def get_logger(name: str):
     logger = logging.getLogger(name)
     logger.setLevel(logging.INFO)

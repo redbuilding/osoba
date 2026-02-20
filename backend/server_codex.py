@@ -99,6 +99,9 @@ DEFAULT_ALLOWED_EXTS = {
     ".jpeg",
     ".svg",
     ".ico",
+    ".py",
+    ".yaml",
+    ".toml",
 }
 DEFAULT_BLOCK_DOTFILES = True
 DEFAULT_ALLOWED_DOTFILES = {".gitignore", ".DS_Store"}  # add more if you want
@@ -818,6 +821,28 @@ async def run_codex_task(
         f"state={'completed' if task_ok else 'failed'}, duration_ms={finished-started}"
     )
 
+    # Enrich error message with policy context (top 3 violation types)
+    if not task_ok and policy_result:
+        try:
+            vio = (policy_result or {}).get("violations") or []
+            top_types = []
+            seen = set()
+            for v in vio:
+                t = v.get("type")
+                if t and t not in seen:
+                    top_types.append(t)
+                    seen.add(t)
+                if len(top_types) >= 3:
+                    break
+            if top_types:
+                extra = ", ".join(top_types)
+                if error_message:
+                    error_message = f"{error_message} | policy violations: {extra}"
+                else:
+                    error_message = f"policy violations: {extra}"
+        except Exception:
+            pass
+
     run_id = str(uuid.uuid4())
     return {
         "status": "success" if task_ok else "failed",
@@ -1048,6 +1073,28 @@ async def _run_job_async(run_id: str, workspace_id: str, instruction: str, model
             error_message = None
             if CODEX_DEBUG:
                 script_logger.info(f"[CODEX] run_id={run_id} accepting success by outputs: produced={produced}")
+    except Exception:
+        pass
+
+    # Enrich error with violation summary when failing
+    try:
+        if not task_ok and policy_result:
+            vio = (policy_result or {}).get("violations") or []
+            top_types = []
+            seen = set()
+            for v in vio:
+                t = v.get("type")
+                if t and t not in seen:
+                    top_types.append(t)
+                    seen.add(t)
+                if len(top_types) >= 3:
+                    break
+            if top_types:
+                extra = ", ".join(top_types)
+                if error_message:
+                    error_message = f"{error_message} | policy violations: {extra}"
+                else:
+                    error_message = f"policy violations: {extra}"
     except Exception:
         pass
 

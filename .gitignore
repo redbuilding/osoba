@@ -1,0 +1,22 @@
+.env
+logs/
+*.log
+__pycache__/
+.ropeproject/
+node_modules/
+.pytest_cache/
+.codex_workspaces/
+
+# OS files
+.DS_Store
+**/.DS_Store
+
+# Aider files
+.aider*
+**/.aider*
+
+# Project-specific ignores
+archive/
+backups/
+artifacts/
+frontend/dist/
