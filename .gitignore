@@ -6,6 +6,7 @@ __pycache__/
 node_modules/
 .pytest_cache/
 .codex_workspaces/
+.gitignore
 
 # OS files
 .DS_Store
@@ -20,3 +21,14 @@ archive/
 backups/
 artifacts/
 frontend/dist/
+scripts/
+*.mov
+future_thoughts.txt
+llm-db-accuracy.txt
+test.csv
+mcp/
+docs/
+notes.txt
+
+# Kiro files
+.kiro*
