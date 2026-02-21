@@ -257,6 +257,8 @@ Optional (enable additional tools):
 - **Encryption Key**: Set `SETTINGS_ENCRYPTION_KEY` in `backend/.env` to a stable Fernet key. Without it, provider API keys are lost on every restart.
 - **MongoDB**: The default connection uses no authentication. For sensitive data, enable MongoDB authentication and use a connection string with credentials.
 - **Provider API Keys**: Keys are encrypted at rest with Fernet and never returned by the API. Keep your `.env` file secure and out of version control.
+- **MySQL Queries**: Queries are validated as read-only SELECT statements and automatically limited to 1000 rows. Connection and read timeouts prevent runaway queries.
+- **CSV Uploads**: Uploads are capped at 50 MB decoded size, and the in-memory DataFrame store is limited to 10 datasets (oldest evicted first).
 
 ## Usage
 

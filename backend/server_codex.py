@@ -680,6 +680,8 @@ async def run_codex_task(
     env = os.environ.copy()
     env["HOME"] = str(home_dir)
     env["USERPROFILE"] = str(home_dir)
+    # SEC-008: The API key is visible in /proc/<pid>/environ to same-user processes.
+    # Acceptable for single-user localhost. For hardening, consider passing via stdin.
     if openai_api_key:
         # Inject only for subprocess
         env["OPENAI_API_KEY"] = openai_api_key
@@ -904,6 +906,7 @@ async def _run_job_async(run_id: str, workspace_id: str, instruction: str, model
     env = os.environ.copy()
     env["HOME"] = str(home_dir)
     env["USERPROFILE"] = str(home_dir)
+    # SEC-008: See note in _run_codex_sync about env key visibility.
     if openai_api_key:
         env["OPENAI_API_KEY"] = openai_api_key
 

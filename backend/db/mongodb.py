@@ -51,6 +51,11 @@ def create_search_indexes():
 try:
     mongo_client = MongoClient(MONGODB_URI)
     mongo_client.admin.command('ping')
+    if '@' not in MONGODB_URI:
+        logger.warning(
+            "MongoDB connection has no authentication. "
+            "For sensitive data, enable MongoDB auth and use a URI with credentials."
+        )
     db = mongo_client[MONGODB_DATABASE_NAME]
     conversations_collection = db[MONGODB_COLLECTION_NAME]
     tasks_collection = db[MONGODB_TASKS_COLLECTION_NAME]

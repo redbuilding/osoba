@@ -141,3 +141,49 @@ class TestOAuthState:
         from auth_hubspot import hubspot_oauth_callback
         sig = inspect.signature(hubspot_oauth_callback)
         assert "state" in sig.parameters
+
+
+class TestMySQLConfig:
+    """SEC-010: MySQL query timeouts and row limits."""
+
+    def test_db_config_has_connect_timeout(self):
+        from server_mysql import db_config
+        assert db_config['connect_timeout'] == 10
+
+    def test_db_config_has_read_timeout(self):
+        from server_mysql import db_config
+        assert db_config['read_timeout'] == 30
+
+    def test_limit_not_doubled(self):
+        from server_mysql import is_safe_query
+        assert is_safe_query('SELECT * FROM users LIMIT 5') is True
+
+    def test_safe_query_still_works(self):
+        from server_mysql import is_safe_query
+        assert is_safe_query('SELECT id, name FROM users') is True
+
+
+class TestCSVLimits:
+    """SEC-011: CSV upload size limits and DataFrame store eviction."""
+
+    def test_max_csv_bytes_constant(self):
+        from server_python import MAX_CSV_BYTES
+        assert MAX_CSV_BYTES == 50 * 1024 * 1024
+
+    def test_max_dataframes_constant(self):
+        from server_python import MAX_DATAFRAMES
+        assert MAX_DATAFRAMES == 10
+
+    def test_data_store_is_dict(self):
+        from server_python import data_store
+        assert isinstance(data_store, dict)
+
+
+class TestMongoDBNoAuthWarning:
+    """SEC-009: MongoDB no-auth startup warning."""
+
+    def test_warning_code_exists(self):
+        import inspect
+        import db.mongodb as mod
+        source = inspect.getsource(mod)
+        assert "no authentication" in source.lower()

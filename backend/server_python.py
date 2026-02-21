@@ -18,6 +18,8 @@ matplotlib.use('Agg')
 
 # In-memory "database" to store dataframes between tool calls
 data_store: Dict[str, DataFrame] = {}
+MAX_CSV_BYTES = 50 * 1024 * 1024  # 50 MB decoded limit
+MAX_DATAFRAMES = 10  # Max DataFrames in memory
 
 # Initialize the MCP server using FastMCP
 mcp = FastMCP(
@@ -42,11 +44,15 @@ async def load_csv(csv_b64: str) -> str:
 
     try:
         csv_bytes = base64.b64decode(csv_b64)
+        if len(csv_bytes) > MAX_CSV_BYTES:
+            return f"Error: CSV too large ({len(csv_bytes)} bytes). Maximum is {MAX_CSV_BYTES} bytes (50 MB)."
         csv_file = io.BytesIO(csv_bytes)
         df = pd.read_csv(csv_file)
 
         df_id = str(uuid.uuid4())
         data_store[df_id] = df
+        while len(data_store) > MAX_DATAFRAMES:
+            del data_store[next(iter(data_store))]
 
         return f"Successfully loaded dataframe with ID: {df_id}. Columns: {df.columns.tolist()}, Shape: {df.shape}"
     except Exception as e:

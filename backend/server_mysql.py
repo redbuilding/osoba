@@ -20,7 +20,9 @@ db_config = {
     'host': os.getenv('DB_HOST', 'localhost'),
     'user': os.getenv('DB_USER', 'root'),
     'password': os.getenv('DB_PASSWORD', ''), # Default to empty password if not set
-    'database': os.getenv('DB_NAME', 'sample_db') # Use 'sample_db' if not set
+    'database': os.getenv('DB_NAME', 'sample_db'), # Use 'sample_db' if not set
+    'connect_timeout': 10,
+    'read_timeout': 30,
 }
 
 # --- Database Connection Helper ---
@@ -148,6 +150,10 @@ def execute_sql_query_tool(query: str) -> str:
     print(f"Received query for execution: {query}", file=sys.stderr)
     if not is_safe_query(query):
         return json.dumps({"error": "Query rejected for safety reasons. Only read-only SELECT queries without comments or modifying keywords are allowed."})
+
+    # SEC-010: Auto-append LIMIT to prevent unbounded result sets
+    if not re.search(r'\blimit\b', query.lower()):
+        query = query.rstrip().rstrip(';') + ' LIMIT 1000'
 
     connection = create_connection()
     # create_connection now returns an error dict if failed
