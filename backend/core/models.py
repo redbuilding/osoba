@@ -28,6 +28,8 @@ class ChatPayload(BaseModel):
     provider: Optional[str] = None  # New field for provider selection
     profile_id: Optional[str] = None  # New field for AI profile selection
     repeat_penalty: Optional[float] = None
+    inject_docs: Optional[bool] = False  # New field for documentation injection
+    remove_docs: Optional[bool] = False  # New field for documentation removal
 
 class ChatResponse(BaseModel):
     conversation_id: str
@@ -47,6 +49,7 @@ class ConversationListItem(BaseModel):
     profile_id: Optional[str] = None  # New field for AI profile information
     pinned_for_context: Optional[bool] = False  # New field for conversation pinning
     summary: Optional[str] = None  # New field for conversation summary
+    docs_injected: Optional[bool] = False  # New field for documentation injection status
 
     class Config:
         populate_by_name = True

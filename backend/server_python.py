@@ -226,6 +226,12 @@ async def query_dataframe(df_id: str, query_string: str) -> str:
     if df_id not in data_store:
         return f"Error: Dataframe with ID {df_id} not found."
 
+    # Validate query expression to prevent code injection (SEC-001)
+    from utils.query_validator import validate_query_expression
+    is_valid, error = validate_query_expression(query_string)
+    if not is_valid:
+        return f"Error: Unsafe query expression rejected: {error}"
+
     try:
         filtered_df = data_store[df_id].query(query_string)
         new_df_id = str(uuid.uuid4())
@@ -245,10 +251,11 @@ async def filter_dataframe(df_id: str, condition: str) -> str:
     if df_id not in data_store:
         return f"Error: Dataframe with ID {df_id} not found."
     
-    # Basic validation to prevent code injection
-    dangerous_keywords = ['import', 'exec', 'eval', '__', 'open', 'file']
-    if any(keyword in condition.lower() for keyword in dangerous_keywords):
-        return "Error: Invalid condition contains potentially dangerous operations"
+    # Validate query expression to prevent code injection (SEC-001)
+    from utils.query_validator import validate_query_expression
+    is_valid, error = validate_query_expression(condition)
+    if not is_valid:
+        return f"Error: Unsafe filter condition rejected: {error}"
     
     try:
         filtered_df = data_store[df_id].query(condition)

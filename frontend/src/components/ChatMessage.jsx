@@ -1,5 +1,6 @@
 import React from 'react';
 import { User, Bot, Clipboard, Check, ListTodo, Loader2, Sparkles, Save as SaveIcon } from 'lucide-react';
+import DOMPurify from 'dompurify';
 import { useCopyToClipboard } from '../hooks/useCopyToClipboard';
 import CodeBlock from './CodeBlock';
 import MarkdownRenderer from './MarkdownRenderer';
@@ -106,11 +107,11 @@ const ChatMessage = ({ message, onPromoteToTask, onSaveMessage, isStreaming = fa
 
         {/* Show indicator separately if present */}
         {indicator && (
-          <div className="mb-2" dangerouslySetInnerHTML={{ __html: indicator }} />
+          <div className="mb-2" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(indicator) }} />
         )}
 
         {is_html ? (
-          <div className="prose prose-sm prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: content }} />
+          <div className="prose prose-sm prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(content) }} />
         ) : (
           <div className="markdown-content">
             {messageParts.length > 0 ? (

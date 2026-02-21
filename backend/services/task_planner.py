@@ -10,16 +10,63 @@ from services.llm_service import get_default_ollama_model
 logger = get_logger("task_planner")
 
 ALLOWED_TASK_TOOLS = [
-    "web_search",
-    "execute_sql_query_tool",
-    "get_youtube_transcript",
-    "python.load_csv",
-    "python.get_head",
-    "python.get_descriptive_statistics",
-    "python.create_plot",
-    "python.query_dataframe",
-    "llm.generate",
-    "codex.run",
+    # Web Search MCP (4 tools)
+    "web_search",                    # Basic search
+    "smart_search_extract",          # Smart extraction (chat uses this by default!)
+    "image_search",                  # Image-specific search
+    "news_search",                   # News-specific search
+    
+    # MySQL Database MCP (1 tool)
+    "execute_sql_query_tool",        # Read-only SQL queries
+    
+    # YouTube MCP (1 tool)
+    "get_youtube_transcript",        # Transcript extraction
+    
+    # Python Analysis MCP (17 tools)
+    # Data Loading
+    "python.load_csv",               # Load CSV from base64
+    
+    # Data Inspection
+    "python.get_head",               # First N rows
+    "python.get_data_info",          # DataFrame metadata
+    "python.get_descriptive_statistics",  # Statistical summary
+    "python.get_value_counts",       # Frequency analysis
+    "python.get_correlation_matrix", # Correlation analysis
+    
+    # Data Cleaning
+    "python.check_missing_values",   # Identify missing data
+    "python.handle_missing_values",  # Handle missing data (drop/fill/interpolate)
+    "python.detect_outliers",        # Outlier detection (IQR/Z-score)
+    "python.convert_data_types",     # Type conversion (datetime/category/numeric)
+    
+    # Data Transformation
+    "python.rename_columns",         # Rename columns
+    "python.drop_columns",           # Remove columns
+    "python.filter_dataframe",       # Filter rows by condition
+    "python.group_and_aggregate",    # Group by and aggregate
+    
+    # Data Analysis
+    "python.query_dataframe",        # Advanced querying
+    "python.perform_hypothesis_test", # Statistical testing (t-test/correlation/chi-square)
+    
+    # Visualization
+    "python.create_plot",            # Create plots (scatter/histogram/bar/box)
+    
+    # HubSpot Business MCP (2 tools)
+    "create_hubspot_marketing_email",  # Create marketing emails
+    "update_hubspot_marketing_email",  # Update marketing emails
+    
+    # Codex Workspace MCP (7 tools)
+    "codex.run",                     # High-level code generation
+    "codex.create_workspace",        # Manual workspace creation
+    "codex.start_codex_run",         # Start run manually
+    "codex.get_codex_run",           # Check run status
+    "codex.read_file",               # Read workspace files
+    "codex.get_manifest",            # Get workspace manifest
+    "codex.cleanup_workspace",       # Manual cleanup
+    
+    # LLM-only (no MCP)
+    "llm.generate",                  # Direct LLM generation
 ]
 
 # Back-compat shim for tests that patch chat_with_ollama directly
@@ -33,12 +80,44 @@ async def chat_with_ollama(messages, model_name, repeat_penalty=1.15):
 
 # Lightweight tool aliasing to keep plans robust across models
 TOOL_ALIASES = {
-    # search variants
+    # Existing search variants
     "search": "web_search",
     "web-search": "web_search",
     "google_search": "web_search",
     "bing_search": "web_search",
-    # generation variants
+    
+    # Smart search variants (NEW)
+    "smart_extract": "smart_search_extract",
+    "smart_search": "smart_search_extract",
+    "extract_content": "smart_search_extract",
+    
+    # Image search variants (NEW)
+    "image": "image_search",
+    "images": "image_search",
+    "picture_search": "image_search",
+    
+    # News search variants (NEW)
+    "news": "news_search",
+    "latest_news": "news_search",
+    
+    # HubSpot variants (NEW)
+    "hubspot_email": "create_hubspot_marketing_email",
+    "create_email": "create_hubspot_marketing_email",
+    "update_email": "update_hubspot_marketing_email",
+    
+    # Python data cleaning variants (NEW)
+    "missing_values": "python.check_missing_values",
+    "outliers": "python.detect_outliers",
+    "clean_data": "python.handle_missing_values",
+    
+    # Python analysis variants (NEW)
+    "correlate": "python.get_correlation_matrix",
+    "correlation": "python.get_correlation_matrix",
+    "hypothesis": "python.perform_hypothesis_test",
+    "ttest": "python.perform_hypothesis_test",
+    "stats_test": "python.perform_hypothesis_test",
+    
+    # Existing generation variants
     "write": "llm.generate",
     "compose": "llm.generate",
     "summarize": "llm.generate",
@@ -60,14 +139,62 @@ def _normalize_tool(name: str | None) -> str | None:
 
 def _tool_catalog_text() -> str:
     return (
+        "## Web Search Tools\n"
         "- web_search(query: string) -> {status, organic_results...}\n"
-        "- execute_sql_query_tool(query: string) -> {columns, rows} (read-only)\n"
+        "- smart_search_extract(query: string, max_urls?: int, max_chars_per_url?: int) -> {extracted_content, search_summary}\n"
+        "- image_search(query: string) -> {status, images...}\n"
+        "- news_search(query: string) -> {status, news_results...}\n"
+        "\n"
+        "## Database Tools\n"
+        "- execute_sql_query_tool(query: string) -> {columns, rows} (read-only SELECT only)\n"
+        "\n"
+        "## YouTube Tools\n"
         "- get_youtube_transcript(youtube_url: string) -> text\n"
-        "- python.load_csv(csv_b64: string) -> text (includes dataframe ID)\n"
-        "- python.get_head(df_id: string, n?: int) -> text\n"
-        "- python.get_descriptive_statistics(df_id: string) -> text\n"
-        "- python.create_plot(df_id: string, plot_type: string, x_col: string, y_col?: string) -> image b64\n"
-        "- python.query_dataframe(df_id: string, query_string: string) -> text (may include new df id)\n"
+        "\n"
+        "## Python Data Analysis Tools\n"
+        "# Data Loading\n"
+        "- python.load_csv(csv_b64: string) -> text (returns dataframe ID)\n"
+        "\n"
+        "# Data Inspection\n"
+        "- python.get_head(df_id: string, n?: int) -> text (first N rows)\n"
+        "- python.get_data_info(df_id: string) -> text (dtypes, memory, non-null counts)\n"
+        "- python.get_descriptive_statistics(df_id: string) -> text (mean, std, min, max, quartiles)\n"
+        "- python.get_value_counts(df_id: string, column_name: string) -> text (frequency counts)\n"
+        "- python.get_correlation_matrix(df_id: string) -> text (correlation between numeric columns)\n"
+        "\n"
+        "# Data Cleaning\n"
+        "- python.check_missing_values(df_id: string) -> text (count of NaN per column)\n"
+        "- python.handle_missing_values(df_id: string, strategy: 'drop'|'fill'|'interpolate', columns?: list, value?: any) -> text\n"
+        "- python.detect_outliers(df_id: string, method: 'iqr'|'zscore', columns?: list) -> text (outlier indices)\n"
+        "- python.convert_data_types(df_id: string, type_map_json: string) -> text (convert column types)\n"
+        "\n"
+        "# Data Transformation\n"
+        "- python.rename_columns(df_id: string, rename_map_json: string) -> text\n"
+        "- python.drop_columns(df_id: string, columns_to_drop: list) -> text\n"
+        "- python.filter_dataframe(df_id: string, condition: string) -> text (pandas query syntax)\n"
+        "- python.group_and_aggregate(df_id: string, group_by: list, agg_functions: string) -> text\n"
+        "\n"
+        "# Data Analysis\n"
+        "- python.query_dataframe(df_id: string, query_string: string) -> text (may return new df_id)\n"
+        "- python.perform_hypothesis_test(df_id: string, test_type: 'ttest'|'correlation'|'chisquare', col1: string, col2?: string) -> text\n"
+        "\n"
+        "# Visualization\n"
+        "- python.create_plot(df_id: string, plot_type: 'scatter'|'histogram'|'bar'|'box', x_col: string, y_col?: string) -> image_b64\n"
+        "\n"
+        "## HubSpot Business Tools\n"
+        "- create_hubspot_marketing_email(email_json: string) -> {status, email_id} (requires OAuth)\n"
+        "- update_hubspot_marketing_email(email_id: string, updates_json: string) -> {status} (requires OAuth)\n"
+        "\n"
+        "## Codex Workspace Tools\n"
+        "- codex.run(instruction: string, model?: string, timeout_seconds?: int) -> {text, artifacts, output_policy} (high-level, requires OpenAI)\n"
+        "- codex.create_workspace(name_hint: string, keep?: bool) -> {workspace_id}\n"
+        "- codex.start_codex_run(workspace_id: string, instruction: string) -> {run_id}\n"
+        "- codex.get_codex_run(run_id: string) -> {status, summary, artifacts}\n"
+        "- codex.read_file(workspace_id: string, relative_path: string) -> text\n"
+        "- codex.get_manifest(workspace_id: string) -> {files, metadata}\n"
+        "- codex.cleanup_workspace(workspace_id: string) -> {status}\n"
+        "\n"
+        "## LLM-only Tools\n"
         "- llm.generate(prompt?: string) -> text (runs local LLM; if prompt omitted, uses step instruction)\n"
     )
 
@@ -113,8 +240,11 @@ def build_planning_prompt(goal: str, allowed_tools: List[str], budget: Dict | No
         f"{manifest_text}"
         f"{step_hint_text}"
         "Constraints: Use only allowed tools; be concise; 3-10 steps; each step has id,title,instruction,tool,params?,success_criteria,max_retries.\n"
-        "Important: Only use python.* tools if the user provides a CSV (python.load_csv must appear before any python.query_dataframe).\n"
+        "Important: Only use python.* tools if the user provides a CSV (python.load_csv must appear before any other python.* tool).\n"
+        "Important: HubSpot tools require OAuth authentication - they will fail if not configured.\n"
+        "Important: Codex tools require OpenAI API key - use llm.generate as fallback if unavailable.\n"
         "Do NOT fabricate dataframe IDs; do not reference 'result of step X' as a dataframe id. When analyzing web_search output, use llm.generate to extract or write content.\n"
+        "For web searches, prefer smart_search_extract over web_search for better content extraction.\n"
         f"JSON schema (for guidance): {json.dumps(schema)}\n"
         "Output ONLY the JSON object. No prose."
     )

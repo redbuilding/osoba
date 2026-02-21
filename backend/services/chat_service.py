@@ -135,6 +135,13 @@ class ChatProcessor:
             self.model_name = conv.get("model_name") or conv.get("ollama_model_name")  # Support both old and new field names
             self.youtube_transcript = conv.get("youtube_transcript")
             self.python_df_id = conv.get("python_df_id")
+            
+            # Handle documentation injection/removal
+            if self.payload.inject_docs:
+                self.collection.update_one({"_id": self.obj_id}, {"$set": {"docs_injected": True}})
+            elif self.payload.remove_docs:
+                self.collection.update_one({"_id": self.obj_id}, {"$set": {"docs_injected": False}})
+            
             for msg in conv.get("messages", []):
                 if 'role' in msg and 'content' in msg:
                     llm_content = msg.get("raw_content_for_llm", msg["content"])
@@ -146,7 +153,14 @@ class ChatProcessor:
 
         if not self.conv_id:
             new_title = f"Chat: {self.user_msg_content[:30]}{'...' if len(self.user_msg_content) > 30 else ''}"
-            new_doc = {"title": new_title, "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc), "messages": [], "model_name": self.model_name}
+            new_doc = {
+                "title": new_title, 
+                "created_at": datetime.now(timezone.utc), 
+                "updated_at": datetime.now(timezone.utc), 
+                "messages": [], 
+                "model_name": self.model_name,
+                "docs_injected": self.payload.inject_docs or False
+            }
             res = self.collection.insert_one(new_doc)
             self.conv_id = str(res.inserted_id)
             self.obj_id = res.inserted_id
@@ -638,6 +652,11 @@ Your JSON response:
             sections = [s for s in [persona_section, human_section, conv_section, memory_section, guidelines_section] if s]
             combined_prompt = "\n\n".join(sections)
             
+            # Add documentation context if injected for this conversation
+            docs_section = await self._get_documentation_context()
+            if docs_section:
+                combined_prompt = combined_prompt + "\n\n" + docs_section if combined_prompt else docs_section
+            
             if combined_prompt:
                 logger.debug(f"Injecting enhanced system prompt for conv {self.conv_id}")
                 # Insert system message at the beginning of conversation history
@@ -645,6 +664,45 @@ Your JSON response:
         except Exception as e:
             logger.error(f"Error injecting profile system prompt: {e}")
             # Don't fail the conversation if profile injection fails
+
+    async def _get_documentation_context(self) -> str:
+        """
+        Get OhSee documentation context if docs are injected for this conversation.
+        Returns empty string if docs not injected or file not found.
+        """
+        try:
+            # Check if docs are injected for this conversation
+            if not self.obj_id:
+                return ""
+            
+            conv = self.collection.find_one({"_id": self.obj_id}, {"docs_injected": 1})
+            if not conv or not conv.get("docs_injected"):
+                return ""
+            
+            # Read README.md from project root
+            from pathlib import Path
+            readme_path = Path(__file__).parent.parent.parent / "README.md"
+            
+            if not readme_path.exists():
+                logger.warning(f"README.md not found at {readme_path}")
+                return ""
+            
+            readme_content = readme_path.read_text(encoding="utf-8")
+            
+            # Format for system prompt
+            docs_section = (
+                "=== OhSee Application Documentation ===\n"
+                "The following is the complete documentation for the OhSee application. "
+                "Use this to answer questions about OhSee features, usage, and configuration.\n\n"
+                f"{readme_content}"
+            )
+            
+            logger.info(f"Injected OhSee documentation context for conv {self.conv_id} (~{len(readme_content)} chars)")
+            return docs_section
+            
+        except Exception as e:
+            logger.error(f"Error loading documentation context: {e}")
+            return ""
 
     def _inject_persistent_context(self):
         """

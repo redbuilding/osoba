@@ -72,6 +72,7 @@ import {
   Settings,
   Sparkles,
   User,
+  BookOpen,
 } from "lucide-react";
 
 // MCP service names
@@ -91,6 +92,7 @@ const App = () => {
   const [activeTool, setActiveTool] = useState(null);
   const [isToolSelectorOpen, setIsToolSelectorOpen] = useState(false);
   const [uploadedCsv, setUploadedCsv] = useState(null); // { filename, data_b64 }
+  const [docsInjected, setDocsInjected] = useState(false); // Documentation injection state
 
   // Service status state
   const [mcpSearchServiceReady, setMcpSearchServiceReady] = useState(false);
@@ -410,11 +412,99 @@ const App = () => {
   };
 
   /* --------------------------------------------------------------------- */
+  /*  Documentation Injection                                              */
+  /* --------------------------------------------------------------------- */
+  const handleInjectDocs = async () => {
+    if (!currentConversationId) {
+      setError("Please start a conversation first before injecting documentation.");
+      return;
+    }
+    
+    try {
+      // Send a special message to inject docs
+      const payload = {
+        user_message: "/docs",
+        chat_history: chatHistory,
+        use_search: false,
+        use_database: false,
+        use_hubspot: false,
+        use_youtube: false,
+        use_python: false,
+        conversation_id: currentConversationId,
+        inject_docs: true,
+        remove_docs: false,
+      };
+      
+      await sendChatMessage(payload);
+      setDocsInjected(true);
+      
+      // Update conversations list to reflect docs_injected status
+      setConversations(prev => prev.map(c => 
+        c.id === currentConversationId ? { ...c, docs_injected: true } : c
+      ));
+      
+      // Add system message to chat
+      const systemMsg = {
+        role: "assistant",
+        content: "✅ OhSee documentation has been added to this conversation. You can now ask questions about OhSee features and usage.",
+        timestamp: new Date().toISOString(),
+      };
+      setChatHistory(prev => [...prev, systemMsg]);
+    } catch (err) {
+      setError(err.detail || err.message || "Failed to inject documentation.");
+    }
+  };
+
+  const handleRemoveDocs = async () => {
+    if (!currentConversationId) return;
+    
+    try {
+      // Send a special message to remove docs
+      const payload = {
+        user_message: "/docs remove",
+        chat_history: chatHistory,
+        use_search: false,
+        use_database: false,
+        use_hubspot: false,
+        use_youtube: false,
+        use_python: false,
+        conversation_id: currentConversationId,
+        inject_docs: false,
+        remove_docs: true,
+      };
+      
+      await sendChatMessage(payload);
+      setDocsInjected(false);
+      
+      // Update conversations list
+      setConversations(prev => prev.map(c => 
+        c.id === currentConversationId ? { ...c, docs_injected: false } : c
+      ));
+      
+      // Add system message to chat
+      const systemMsg = {
+        role: "assistant",
+        content: "✅ OhSee documentation has been removed from this conversation.",
+        timestamp: new Date().toISOString(),
+      };
+      setChatHistory(prev => [...prev, systemMsg]);
+    } catch (err) {
+      setError(err.detail || err.message || "Failed to remove documentation.");
+    }
+  };
+
+  /* --------------------------------------------------------------------- */
   /*  Send / Stream message                                                */
   /* --------------------------------------------------------------------- */
   const handleSendMessage = async (userInput) => {
     /* --- guards -------------------------------------------------------- */
     if (isLoading || isChatHistoryLoading) return;
+
+    // Handle /docs slash command
+    if (typeof userInput === 'string' && userInput.trim() === '/docs') {
+      await handleInjectDocs();
+      return;
+    }
 
     // Use selectedModel for new conversations, maintain backward compatibility
     const modelForThisMsg = currentConversationId ? null : (selectedModel || selectedOllamaModel);
@@ -509,6 +599,8 @@ const App = () => {
       conversation_id: currentConversationId,
       model_name: modelForThisMsg,
       provider: providerForThisMsg,
+      inject_docs: false, // Will be set by handleInjectDocs
+      remove_docs: false, // Will be set by handleRemoveDocs
       // Backward compatibility
       ollama_model_name: selectedProvider === 'ollama' ? modelForThisMsg : null,
     };
@@ -594,6 +686,9 @@ const App = () => {
       setCurrentConversationId(id);
       setActiveTool(null);
       setUploadedCsv(null);
+      // Load docs_injected state from conversation
+      const conv = conversations.find(c => c.id === id);
+      setDocsInjected(conv?.docs_injected || false);
     }
   };
 
@@ -603,6 +698,7 @@ const App = () => {
     setChatHistory([initialWelcomeMessage]);
     setActiveTool(null);
     setUploadedCsv(null);
+    setDocsInjected(false); // Reset docs state for new chat
     setError(null);
     if (availableOllamaModels.length && !selectedOllamaModel) {
       const preferred =
@@ -904,6 +1000,18 @@ const App = () => {
               </div>
             )}
 
+            {/* Docs Active Badge */}
+            {docsInjected && currentConversationId && (
+              <button
+                onClick={handleRemoveDocs}
+                title="Click to remove OhSee documentation from this conversation"
+                className="flex items-center gap-1 px-2 py-1 text-xs rounded bg-brand-purple/20 border border-brand-purple text-brand-purple hover:bg-brand-purple/30 transition-colors duration-200"
+              >
+                <BookOpen size={14} />
+                <span>Docs Active</span>
+              </button>
+            )}
+
             {/* Tasks button */}
             <button
               onClick={() => setIsTasksOpen(true)}
@@ -1007,6 +1115,9 @@ const App = () => {
           onFileChange={handleFileChange}
           uploadedFile={uploadedCsv}
           onClearFile={() => setUploadedCsv(null)}
+          onInjectDocs={handleInjectDocs}
+          docsInjected={docsInjected}
+          currentConversationId={currentConversationId}
         />
       </div>
 

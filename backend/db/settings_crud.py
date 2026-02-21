@@ -13,7 +13,11 @@ ENCRYPTION_KEY = os.getenv('SETTINGS_ENCRYPTION_KEY')
 if not ENCRYPTION_KEY:
     # Generate a key for development - in production this should be set externally
     ENCRYPTION_KEY = Fernet.generate_key().decode()
-    logger.warning("No SETTINGS_ENCRYPTION_KEY found, using generated key. Set this in production!")
+    logger.error(
+        "SETTINGS_ENCRYPTION_KEY is not set! API keys will be lost on restart. "
+        "Generate a stable key with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\" "
+        "Then add SETTINGS_ENCRYPTION_KEY=<key> to your backend/.env file."
+    )
 
 fernet = Fernet(ENCRYPTION_KEY.encode() if isinstance(ENCRYPTION_KEY, str) else ENCRYPTION_KEY)
 

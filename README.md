@@ -66,6 +66,26 @@ This architecture demonstrates how MCP enables local models to access external t
 
 ## Task Execution & Memory Management
 
+### Task System MCP Tool Access
+
+The task system has **full access to all MCP tools** available in the chat interface, enabling autonomous execution of complex workflows:
+
+**Available Tools (33 total)**:
+- **Web Search** (4 tools): Basic search, smart content extraction, image search, news search
+- **Python Data Analysis** (17 tools): Data loading, inspection, cleaning, transformation, statistical analysis, visualization
+- **HubSpot Business** (2 tools): Create/update marketing emails (requires OAuth)
+- **Codex Workspace** (7 tools): Code generation and workspace management (requires OpenAI API key)
+- **Database** (1 tool): Read-only SQL queries
+- **YouTube** (1 tool): Transcript extraction
+- **LLM-only** (1 tool): Direct LLM generation for reasoning steps
+
+**Advanced Task Capabilities**:
+- Research with smart content extraction (full webpage content, not just snippets)
+- Advanced data analysis with outlier detection and statistical hypothesis testing
+- Marketing automation with HubSpot integration
+- Code generation with fine-grained Codex workspace management
+- Multi-step workflows combining search, analysis, and generation
+
 ### Priority Queue System
 The application uses a **priority-based task queue** to ensure system stability and prevent memory overload from multiple LLM instances:
 
@@ -228,6 +248,15 @@ Optional (enable additional tools):
     # or your preferred model like llama3, mistral, etc.
     ```
     You can select the model in the UI, or configure a default via `DEFAULT_OLLAMA_MODEL` in the backend `.env` file.
+
+## Security Considerations
+
+> ⚠️ **OhSee is designed for local, single-user use.** The API has no authentication layer. Never expose port 8000 to untrusted networks (e.g., via ngrok, port forwarding, or binding to `0.0.0.0`).
+
+- **Network Exposure**: The backend binds to `127.0.0.1` by default. Do not change this to `0.0.0.0` unless you understand the risks.
+- **Encryption Key**: Set `SETTINGS_ENCRYPTION_KEY` in `backend/.env` to a stable Fernet key. Without it, provider API keys are lost on every restart.
+- **MongoDB**: The default connection uses no authentication. For sensitive data, enable MongoDB authentication and use a connection string with credentials.
+- **Provider API Keys**: Keys are encrypted at rest with Fernet and never returned by the API. Keep your `.env` file secure and out of version control.
 
 ## Usage
 

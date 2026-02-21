@@ -1,5 +1,6 @@
 import os
 import logging
+import secrets
 import time
 from typing import Dict
 import httpx
@@ -24,6 +25,9 @@ SESSION_COOKIE_NAME = "mcp_chat_session_id"
 # In-memory store for tokens. In a production app, use a database.
 # { session_id: { "access_token": ..., "refresh_token": ..., "expires_at": ... } }
 hubspot_tokens: Dict[str, Dict] = {}
+
+# In-memory store for OAuth state parameters (CSRF protection, SEC-006)
+oauth_states: Dict[str, str] = {}
 
 router = APIRouter()
 
@@ -81,7 +85,7 @@ async def get_valid_token(session_id: str) -> str | None:
 
 # --- API Endpoints ---
 @router.get("/auth/hubspot/connect", summary="Redirect to HubSpot for OAuth consent")
-async def hubspot_connect():
+async def hubspot_connect(request: Request, response: Response):
     """
     Initiates the HubSpot OAuth2 flow by redirecting the user to HubSpot's authorization page.
     """
@@ -90,17 +94,26 @@ async def hubspot_connect():
         logger.error("HUBSPOT_CLIENT_ID or HUBSPOT_REDIRECT_URI is not set.")
         raise HTTPException(status_code=500, detail="HubSpot integration is not configured on the server.")
 
+    # Generate CSRF state parameter (SEC-006)
+    session_id = get_session_id(request, response)
+    state = secrets.token_urlsafe(32)
+    oauth_states[session_id] = state
+
     params = {
         'client_id': HUBSPOT_CLIENT_ID,
         'scope': 'content marketing-email',
         'redirect_uri': REDIRECT_URI,
+        'state': state,
     }
     authorize_url = f"https://app.hubspot.com/oauth/authorize?{httpx.QueryParams(params)}"
     logger.info(f"Redirecting user to HubSpot for OAuth consent. Callback URL: {REDIRECT_URI}")
-    return RedirectResponse(authorize_url)
+    redirect = RedirectResponse(authorize_url)
+    # Ensure session cookie is set so callback can validate state
+    redirect.set_cookie(key=SESSION_COOKIE_NAME, value=session_id, httponly=True, samesite='lax')
+    return redirect
 
 @router.get("/auth/hubspot/oauth-callback", summary="Handle HubSpot OAuth callback")
-async def hubspot_oauth_callback(request: Request, code: str | None = None, error: str | None = None):
+async def hubspot_oauth_callback(request: Request, code: str | None = None, error: str | None = None, state: str | None = None):
     """
     Handles the callback from HubSpot after user consent. Exchanges the authorization
     code for an access token and refresh token.
@@ -115,6 +128,12 @@ async def hubspot_oauth_callback(request: Request, code: str | None = None, erro
         return response
 
     session_id = get_session_id(request, response)
+
+    # Validate CSRF state parameter (SEC-006)
+    expected_state = oauth_states.pop(session_id, None)
+    if not expected_state or expected_state != state:
+        logger.error(f"HubSpot OAuth state mismatch for session {session_id[:8]}...")
+        return response
 
     token_data = {
         'grant_type': 'authorization_code',

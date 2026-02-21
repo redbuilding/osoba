@@ -5,7 +5,9 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Tuple
 
 from core.config import (
+    CODEX_SERVICE_NAME,
     ENABLE_TASKS,
+    HUBSPOT_SERVICE_NAME,
     MYSQL_DB_SERVICE_NAME,
     PYTHON_SERVICE_NAME,
     TASK_DISPATCH_INTERVAL_MS,
@@ -64,14 +66,25 @@ runner_state = RunnerState()
 
 def _resolve_tool(tool: str) -> Tuple[str, str]:
     # returns service_name, tool_name
-    if tool == "web_search":
-        return WEB_SEARCH_SERVICE_NAME, "web_search"
+    # Web Search service tools
+    if tool in ["web_search", "smart_search_extract", "image_search", "news_search"]:
+        return WEB_SEARCH_SERVICE_NAME, tool
+    # MySQL Database service
     if tool == "execute_sql_query_tool":
         return MYSQL_DB_SERVICE_NAME, "execute_sql_query_tool"
+    # YouTube service
     if tool == "get_youtube_transcript":
         return YOUTUBE_SERVICE_NAME, "get_youtube_transcript"
+    # HubSpot service tools
+    if tool in ["create_hubspot_marketing_email", "update_hubspot_marketing_email"]:
+        return HUBSPOT_SERVICE_NAME, tool
+    # Python service tools (handle dot notation)
     if tool.startswith("python."):
         return PYTHON_SERVICE_NAME, tool.split(".", 1)[1]
+    # Codex service tools (handle dot notation)
+    if tool.startswith("codex."):
+        tool_name = tool.split(".", 1)[1]  # Remove "codex." prefix
+        return CODEX_SERVICE_NAME, tool_name
     raise ValueError(f"Unknown tool: {tool}")
 
 
@@ -491,6 +504,11 @@ async def _execute_step(task_id: str, idx: int, step: Dict[str, Any]):
     step_timeout = int(step.get("timeout", TASK_STEP_TIMEOUT_DEFAULT))
     try:
         step_started = time.time()
+        # SEC-007: Enforce tool whitelist at execution time (not just plan time)
+        if tool and not tool.startswith("llm."):
+            from services.task_planner import ALLOWED_TASK_TOOLS
+            if tool not in ALLOWED_TASK_TOOLS:
+                raise RuntimeError(f"Tool '{tool}' not in allowed task whitelist")
         if tool and tool.startswith("llm."):
             # LLM-only step: use instruction or params.prompt to generate text
             task_doc = get_task(task_id) or {}

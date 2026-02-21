@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import DOMPurify from 'dompurify';
 import './markdown.css';
 
 const MarkdownRenderer = ({ content, isStreaming = false }) => {
@@ -15,7 +16,7 @@ const MarkdownRenderer = ({ content, isStreaming = false }) => {
   return (
     <div 
       className="markdown-content"
-      dangerouslySetInnerHTML={{ __html: processedContent }} 
+      dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(processedContent) }} 
     />
   );
 };
