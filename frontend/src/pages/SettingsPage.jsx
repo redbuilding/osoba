@@ -4,6 +4,7 @@ import ProfileManager from '../components/ProfileManager';
 import SettingsModal from '../components/SettingsModal';
 import UserProfileSettings from '../components/UserProfileSettings';
 import GoalsEditor from '../components/GoalsEditor';
+import { MemorySettings } from '../components/memory';
 
 const SettingsPage = ({ onClose }) => {
   const [activeSection, setActiveSection] = useState('profiles');
@@ -94,6 +95,20 @@ const SettingsPage = ({ onClose }) => {
                   Theme customization and appearance settings will be available in a future update.
                 </p>
               </div>
+            </div>
+          </div>
+        );
+      case 'memory':
+        return (
+          <div>
+            <div className="mb-6">
+              <h2 className="text-2xl font-semibold text-brand-text-primary">Semantic Memory</h2>
+              <p className="text-brand-text-secondary mt-1">
+                Manage your conversation memory and semantic search settings.
+              </p>
+            </div>
+            <div className="bg-brand-surface-bg rounded-lg border border-gray-700 p-6">
+              <MemorySettings />
             </div>
           </div>
         );

@@ -18,15 +18,19 @@ from services.mcp_service import start_mcp_services, stop_mcp_services
 from services.task_runner import start_task_dispatcher
 from services.task_scheduler import scheduler
 from services.heartbeat_service import heartbeat_service
+from services.memory_tasks import MemoryTaskService
 from services.template_initializer import initialize_default_templates
 from db.mongodb import mongo_client
-from api import chat, conversations, status, tasks, scheduled_tasks, providers, codex, profiles, artifacts, user_context, summaries, heartbeat
+from api import chat, conversations, status, tasks, scheduled_tasks, providers, codex, profiles, artifacts, user_context, summaries, heartbeat, memory
 from api import user_profile as user_profile_api
 from api.user_context import router as user_context_router
 from auth_hubspot import router as hubspot_auth_router
 from services.artifact_service import _artifacts_root_abs
 
 logger = get_logger("mcp_backend_main")
+
+# Initialize memory task service
+memory_task_service = MemoryTaskService(check_interval=300)  # 5 minutes
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -44,11 +48,14 @@ async def lifespan(app: FastAPI):
     await scheduler.start()
     logger.info("FastAPI Lifespan: Starting heartbeat service...")
     await heartbeat_service.start()
+    logger.info("FastAPI Lifespan: Starting memory task service...")
+    await memory_task_service.start()
     logger.info("FastAPI Lifespan: Starting template initializer...")
     await initialize_default_templates()
     logger.info("FastAPI Lifespan: Startup complete")
     yield
     logger.info("FastAPI Lifespan: Shutting down...")
+    await memory_task_service.stop()
     await heartbeat_service.stop()
     await scheduler.stop()
     await stop_mcp_services()
@@ -83,6 +90,7 @@ app.include_router(user_context_router)
 app.include_router(summaries.router)
 app.include_router(user_profile_api.router)
 app.include_router(heartbeat.router)
+app.include_router(memory.router)
 
 # --- Static Files Hosting ---
 # Note: Mount more specific prefixes (e.g., /artifacts) BEFORE mounting the root "/" static app

@@ -873,3 +873,78 @@ export const deleteUserProfile = async () => {
     throw error.response ? error.response.data : new Error("Network error or server unavailable");
   }
 };
+
+
+// ---------- Semantic Memory API ----------
+
+export const saveConversationToMemory = async (conversationId) => {
+  try {
+    const response = await apiClient.post(`/memory/conversations/${conversationId}/save`);
+    return response.data;
+  } catch (error) {
+    console.error("Error saving conversation to memory:", error);
+    throw error.response ? error.response.data : new Error("Network error or server unavailable");
+  }
+};
+
+export const getMemoryStatus = async (conversationId) => {
+  try {
+    const response = await apiClient.get(`/memory/conversations/${conversationId}/status`);
+    return response.data;
+  } catch (error) {
+    console.error("Error getting memory status:", error);
+    throw error.response ? error.response.data : new Error("Network error or server unavailable");
+  }
+};
+
+export const searchMemory = async (query, limit = 10) => {
+  try {
+    const response = await apiClient.get(`/memory/search`, {
+      params: { q: query, limit }
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error searching memory:", error);
+    throw error.response ? error.response.data : new Error("Network error or server unavailable");
+  }
+};
+
+export const getMemoryStats = async () => {
+  try {
+    const response = await apiClient.get("/memory/stats");
+    return response.data;
+  } catch (error) {
+    console.error("Error getting memory stats:", error);
+    throw error.response ? error.response.data : new Error("Network error or server unavailable");
+  }
+};
+
+export const triggerAutoIndex = async () => {
+  try {
+    const response = await apiClient.post("/memory/auto-index");
+    return response.data;
+  } catch (error) {
+    console.error("Error triggering auto-index:", error);
+    throw error.response ? error.response.data : new Error("Network error or server unavailable");
+  }
+};
+
+export const removeFromMemory = async (conversationId) => {
+  try {
+    const response = await apiClient.delete(`/memory/conversations/${conversationId}`);
+    return response.data;
+  } catch (error) {
+    console.error("Error removing from memory:", error);
+    throw error.response ? error.response.data : new Error("Network error or server unavailable");
+  }
+};
+
+export const clearMemory = async () => {
+  try {
+    const response = await apiClient.delete("/memory/clear");
+    return response.data;
+  } catch (error) {
+    console.error("Error clearing memory:", error);
+    throw error.response ? error.response.data : new Error("Network error or server unavailable");
+  }
+};

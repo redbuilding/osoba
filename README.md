@@ -38,7 +38,10 @@ This architecture demonstrates how MCP enables local models to access external t
 - 🔎 **URL Prioritization**: Smart ranking of search results based on relevance scoring, including title/snippet matching, domain authority, and search position weighting.
 - 🤖 **Polite Web Crawling**: Respects robots.txt, implements rate limiting, and uses proper User-Agent identification for ethical content extraction.
 - 👤 **User Profile & Context**: Configure personal information (role, expertise, projects) and pin conversations for contextual AI assistance. The AI understands your background and can reference previous work for personalized responses.
+- 🎯 **Goals & Priorities**: Define your short-term, medium-term, and long-term goals in a structured document (up to 2000 characters) to help the AI understand your objectives and provide relevant assistance.
+- 🔔 **Proactive Agent Heartbeat**: Background service that periodically reviews your goals, conversations, and tasks to provide AI-generated insights via non-intrusive notifications. Configurable intervals, active hours, and timezone support.
 - 📌 **Conversation Pinning**: Select specific conversations to include as context for future chats, enabling the AI to build upon previous discussions and maintain continuity across sessions.
+- 🧠 **Semantic Memory**: Unlimited conversation storage with intelligent semantic search powered by ChromaDB and nomic-embed-text embeddings. Automatically indexes conversations with 5+ messages, searches by meaning (not keywords), and injects relevant past conversations into new chats. Includes Memory Browser (Ctrl+Shift+M) for searching and managing your conversation history.
 - 🧾 **AI Chat Summaries (On‑Demand)**: Generate concise, LLM‑authored summaries for conversations and use them as the context payload for pinned chats (no heuristics). Summaries are user‑triggered, model‑selectable in Settings, and pinning enforces a cap of 5 chats.
 - 🎯 **Personalized AI Responses**: AI adapts its communication style and suggestions based on your profile information and pinned conversation history for more relevant assistance.
 - 💾 **Persistent Conversations**: Chat history is saved in MongoDB, allowing users to resume conversations.
@@ -81,6 +84,29 @@ The application uses a **priority-based task queue** to ensure system stability 
 - **System Requirements**: Scheduled tasks only run when the system is awake and the application is running
 - **Catch-up Execution**: Overdue tasks execute immediately when the system resumes
 
+### Scheduled Task Reliability
+
+**Catch-up Logic (Default)**:
+When the backend starts after being stopped or the computer wakes from sleep, overdue scheduled tasks execute immediately. Tasks delayed by more than 5 minutes are marked with a warning indicator in the UI showing how late they ran (e.g., "⚠️ Last run: 45m late"). Recurring tasks calculate their next run from the current time to prevent cascading delays.
+
+**Delay Breakdown**:
+The system distinguishes between two types of delays:
+- **System Delay** (sleep): Time the computer was asleep or backend was stopped
+- **Queue Delay** (queued): Time spent waiting for other tasks to complete
+
+The UI shows the breakdown: "⚠️ Last run: 15m late (sleep: 10m, queued: 5m)". This helps you understand whether delays are due to system sleep or task queue congestion. Since only one task executes at a time (for memory safety), tasks may queue behind catch-up tasks after system wake.
+
+**Running as a Service (Optional)**:
+For guaranteed execution and automatic startup, you can run OhSee backend as a system service. This ensures the backend is always running and ready to execute scheduled tasks on time. Setup scripts are provided for macOS (Launch Agent), Linux (systemd), and Windows (NSSM). See `scripts/README.md` for detailed setup instructions.
+
+**Wake Scheduling (Advanced)**:
+On supported systems, you can configure the computer to wake from sleep specifically to run scheduled tasks. This requires administrator/root access and is recommended primarily for desktop machines or when plugged in due to battery impact. Platform-specific instructions:
+- **macOS**: Uses `pmset` to schedule wake events
+- **Linux**: Uses RTC wake (hardware support required)
+- **Windows**: Uses Task Scheduler with wake timers
+
+See `scripts/README.md` for complete wake scheduling setup and troubleshooting.
+
 ## Requirements
 - Python 3.11+
 - Node.js (v18+) and npm/yarn for the frontend
@@ -89,6 +115,10 @@ The application uses a **priority-based task queue** to ensure system stability 
 - MongoDB instance (local or cloud)
 - MySQL server (optional, for the SQL querying tool)
 - Internet connection for web searches and package downloads
+
+**For Semantic Memory:**
+- Ollama with `nomic-embed-text` model: `ollama pull nomic-embed-text`
+- ChromaDB and tiktoken (automatically installed via requirements.txt)
 
 Optional (enable additional tools):
 - Smart web search: `trafilatura`, `beautifulsoup4`, `lxml` (automatically installed)
@@ -231,6 +261,8 @@ Optional (enable additional tools):
 -   Click the ✨ Tool Selector to enable one of: Smart Web Search, Database, YouTube, HubSpot, Python, Codex (requires OpenAI configured).
 -   Use Settings (header) to configure provider API keys and unlock non‑Ollama models and Codex.
 -   **Configure User Profile**: In Settings → User Profile, add your role, expertise areas, current projects, and communication preferences for personalized AI assistance.
+-   **Set Your Goals**: In Settings → Goals & Priorities, define your short-term, medium-term, and long-term goals (up to 2000 characters). The AI will use these goals to provide contextual assistance and proactive insights.
+-   **Enable Proactive Insights**: Configure the heartbeat service in Settings → Goals & Priorities → Heartbeat Settings to receive periodic AI-generated insights about your progress, blockers, and suggestions. Click the bell icon (🔔) in the header to view insights.
 -   **Pin Conversations**: Hover over conversations in the sidebar and click the pin button to include them as context for future chats.
     - If a conversation lacks a summary, you’ll be prompted to generate one before pinning. The UI blocks while the summary is created, then completes the pin.
     - Up to 5 conversations can be pinned. Attempts beyond the cap are blocked and the sidebar shows “X/5 pinned”.
@@ -350,6 +382,270 @@ The AI combines your profile information with pinned conversation context to pro
 - **Smart Solution Extraction**: Identifies code examples, tool recommendations, and solution patterns from assistant responses
 - **User Isolation**: Conversations are filtered by user to prevent cross-user context leakage
 - **Performance Optimization**: Summaries are generated once and stored for reuse across multiple chats
+
+## Semantic Memory System
+
+OhSee features an advanced semantic memory system that provides unlimited conversation storage with intelligent semantic search, going beyond the 5-conversation pinning limit.
+
+### How It Works
+
+**Automatic Indexing:**
+- Conversations with 5+ messages are automatically indexed after 10 minutes of inactivity
+- Uses nomic-embed-text (via Ollama) for local, privacy-preserving embeddings
+- Stores conversation chunks in ChromaDB vector database for semantic search
+- Non-blocking background process ensures no impact on chat performance
+
+**Semantic Search:**
+- Search by meaning, not just keywords - finds conceptually similar conversations
+- Relevance scoring shows how well results match your query (e.g., "87% match")
+- Automatically injects relevant past conversations into new chats
+- Only includes conversations above 60% similarity threshold to avoid noise
+
+**Memory Browser (Ctrl+Shift+M):**
+- Full-text semantic search across all indexed conversations
+- Preview snippets with relevance scores
+- Remove individual conversations from memory
+- Keyboard shortcuts for quick access
+
+### Key Features
+
+**Unlimited Storage:**
+- No artificial limits - store thousands of conversations
+- Intelligent chunking (512 tokens with 50-token overlap) preserves context
+- Automatic cleanup based on retention policies (configurable)
+
+**Smart Context Injection:**
+- Relevant past conversations automatically added to chat context
+- Only the most relevant conversations included (not all indexed conversations)
+- Respects context window limits while maximizing relevance
+
+**Privacy-First:**
+- Local embeddings via Ollama (no external API calls)
+- All data stored locally in ChromaDB
+- No conversation data leaves your machine
+
+### Using Semantic Memory
+
+**Manual Save:**
+- Click "💾 Save to Memory" button (appears for conversations with 5+ messages)
+- Immediately indexes the conversation for future reference
+
+**Automatic Indexing:**
+- Conversations automatically indexed after 5+ messages and 10 minutes idle
+- Background service checks every 5 minutes for eligible conversations
+- No user action required
+
+**Searching Memory:**
+1. Press `Ctrl+Shift+M` to open Memory Browser
+2. Enter your search query (e.g., "Python pandas dataframe")
+3. View results with relevance scores and preview text
+4. Click to view or remove conversations
+
+**Memory Management:**
+- Access Settings → Semantic Memory for statistics and controls
+- View total indexed conversations and storage usage
+- Trigger manual auto-index check
+- Clear all memory (with confirmation)
+
+### Technical Details
+
+**Embedding Model:**
+- nomic-embed-text (768-dimensional embeddings)
+- Runs locally via Ollama
+- No API costs or rate limits
+
+**Vector Database:**
+- ChromaDB for persistent vector storage
+- Efficient similarity search (<100ms for typical queries)
+- Automatic persistence to disk
+
+**Context Integration:**
+- Semantic memory injected after profile context
+- Formatted as "Relevant past conversations" section
+- Includes conversation title, relevance score, and preview text
+
+### Benefits Over Pinning
+
+| Feature | Pinning (5 max) | Semantic Memory |
+|---------|----------------|-----------------|
+| **Capacity** | 5 conversations | Unlimited |
+| **Selection** | Manual | Automatic by relevance |
+| **Search** | None | Semantic search |
+| **Context Efficiency** | All 5 included | Only relevant ones |
+| **Management** | Manual pin/unpin | Auto-indexed |
+
+## Proactive Agent Heartbeat System
+
+The Proactive Agent Heartbeat System is a background service that periodically reviews your goals, conversations, and tasks to provide AI-generated insights via non-intrusive notifications. Think of it as your AI assistant checking in to help you stay on track.
+
+### How It Works
+
+The heartbeat service runs in the background at configurable intervals (default: every 2 hours). During each heartbeat:
+
+1. **Context Gathering**: Collects your goals document, recent conversations, and active tasks
+2. **AI Analysis**: Sends context to your chosen LLM (default: Haiku for cost-effectiveness at ~$0.01/user/day)
+3. **Insight Generation**: AI generates actionable insights, suggestions, or identifies blockers
+4. **Smart Filtering**: Uses "HEARTBEAT_OK" pattern to suppress notifications when everything is on track
+5. **Notification**: Displays insights in the bell icon panel (top-right header)
+
+### Setting Up Your Goals
+
+**1. Navigate to Settings → Goals & Priorities**
+
+**2. Enter Your Goals Document** (up to 2000 characters):
+```
+Example goals document:
+
+SHORT-TERM (This Week):
+- Complete user authentication feature
+- Fix payment processing bug
+- Write API documentation
+
+MEDIUM-TERM (This Month):
+- Launch beta version to 50 users
+- Implement analytics dashboard
+- Optimize database queries
+
+LONG-TERM (This Quarter):
+- Reach 1000 active users
+- Build mobile app
+- Integrate with 3rd-party services
+
+BLOCKERS:
+- Waiting on design mockups for dashboard
+- Need to research payment gateway options
+```
+
+**3. Save Your Goals**
+
+The heartbeat service will now use these goals to provide contextual insights.
+
+### Configuring the Heartbeat
+
+**Access Configuration**: Settings → Goals & Priorities → Heartbeat Settings
+
+**Available Options**:
+- **Enabled**: Turn heartbeat on/off
+- **Interval**: How often to check (e.g., "1h", "2h", "30m")
+- **Active Hours**: Only run during specific hours (e.g., 9 AM - 6 PM)
+- **Timezone**: Your local timezone for active hours
+
+**Recommended Settings**:
+- **Developers**: 2-hour intervals during work hours (9 AM - 6 PM)
+- **Project Managers**: 1-hour intervals during business hours
+- **Researchers**: 3-hour intervals, all day
+- **Cost-Conscious**: 4-hour intervals or disable when not needed
+
+### Using Insights
+
+**1. Check Notifications**: Click the bell icon (🔔) in the header
+   - Badge shows unread insight count
+   - Dropdown panel displays recent insights
+
+**2. Review Insights**: Each insight includes:
+   - **Title**: Quick summary of the insight
+   - **Description**: Detailed suggestion or observation
+   - **Timestamp**: When the insight was generated
+
+**3. Dismiss Insights**: Click "Dismiss" to remove insights you've addressed
+
+**4. Manual Trigger**: Force an immediate heartbeat check:
+   ```bash
+   curl -X POST "http://localhost:8000/api/heartbeat/trigger?user_id=default"
+   ```
+
+### Example Insights
+
+**Progress Check**:
+> **Title**: "Authentication Feature Progress"  
+> **Description**: "You mentioned completing the auth feature this week. The last conversation shows you're working on password reset. Consider testing edge cases before marking complete."
+
+**Blocker Identification**:
+> **Title**: "Design Mockup Blocker"  
+> **Description**: "Your goals mention waiting on design mockups. It's been 3 days since you noted this blocker. Consider reaching out to the design team or creating wireframes yourself."
+
+**Task Suggestion**:
+> **Title**: "API Documentation Reminder"  
+> **Description**: "You have 5 completed tasks related to API endpoints but no documentation tasks. Consider creating a task to document the new endpoints."
+
+**HEARTBEAT_OK (No Notification)**:
+When everything is on track, the AI responds with "HEARTBEAT_OK" and no notification is created, reducing noise.
+
+### Cost Considerations
+
+- **Default Model**: Claude Haiku 4.5 (~$0.25 per 1M input tokens)
+- **Typical Cost**: ~$0.01 per user per day with 2-hour intervals
+- **Context Size**: ~1500 tokens (goals + 3 conversations + 5 tasks)
+- **Daily Heartbeats**: 12 checks/day (2-hour intervals) = ~18K tokens = $0.0045
+
+**Cost Optimization**:
+- Use longer intervals (3-4 hours) to reduce frequency
+- Disable during off-hours with active hours settings
+- Use local Ollama models (free) instead of hosted providers
+- Keep goals document concise
+
+### Privacy & Data
+
+- **Local Processing**: All context stays within your system
+- **No External Storage**: Insights stored only in your MongoDB
+- **User Isolation**: Each user's goals and insights are completely separate
+- **Opt-Out Anytime**: Disable in settings or delete goals document
+
+### Troubleshooting
+
+**No Insights Appearing**:
+1. Check heartbeat is enabled in Settings
+2. Verify you're within active hours
+3. Ensure goals document is saved
+4. Check backend logs for errors
+
+**Too Many Notifications**:
+1. Increase interval (e.g., 2h → 4h)
+2. Adjust active hours to work hours only
+3. Review goals document - be more specific
+
+**Insights Not Relevant**:
+1. Update goals document with current priorities
+2. Add more context about blockers and progress
+3. Pin relevant conversations for better context
+
+### API Reference
+
+**Get Insights**:
+```bash
+GET /api/heartbeat/insights?user_id=default&dismissed=false
+```
+
+**Dismiss Insight**:
+```bash
+POST /api/heartbeat/insights/{insight_id}/dismiss?user_id=default
+```
+
+**Get Configuration**:
+```bash
+GET /api/heartbeat/config?user_id=default
+```
+
+**Update Configuration**:
+```bash
+PUT /api/heartbeat/config?user_id=default
+Content-Type: application/json
+
+{
+  "enabled": true,
+  "interval": "2h",
+  "active_hours": {
+    "start": "09:00",
+    "end": "18:00",
+    "timezone": "America/New_York"
+  }
+}
+```
+
+**Manual Trigger**:
+```bash
+POST /api/heartbeat/trigger?user_id=default
+```
 
 ## Smart Web Search & Content Extraction
 

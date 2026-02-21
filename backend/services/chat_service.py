@@ -593,6 +593,29 @@ Your JSON response:
             conv_ctx = user_context.get("conversation_context") if isinstance(user_context, dict) else ""
             if conv_ctx:
                 conv_section = "=== Conversation Context ===\n" + conv_ctx
+            
+            # Build Semantic Memory Context section
+            memory_section = ""
+            try:
+                from services.semantic_memory_context import build_memory_context
+                # Use first user message as query for semantic search
+                user_query = ""
+                for msg in self.llm_history:
+                    if msg.get("role") == "user":
+                        user_query = msg.get("content", "")
+                        break
+                
+                if user_query:
+                    memory_ctx = await build_memory_context(
+                        query=user_query,
+                        user_id=user_id,
+                        current_conv_id=self.conv_id
+                    )
+                    if memory_ctx:
+                        memory_section = "=== Semantic Memory ===\n" + memory_ctx
+            except Exception as e:
+                logger.error(f"Error building semantic memory context: {e}")
+                # Don't fail if memory context fails
 
             # Build Assistant Persona section
             persona_section = ""
@@ -612,7 +635,7 @@ Your JSON response:
             guidelines_section = "\n".join(guidelines)
 
             # Combine sections
-            sections = [s for s in [persona_section, human_section, conv_section, guidelines_section] if s]
+            sections = [s for s in [persona_section, human_section, conv_section, memory_section, guidelines_section] if s]
             combined_prompt = "\n\n".join(sections)
             
             if combined_prompt:
@@ -680,6 +703,17 @@ Your JSON response:
         msg_to_save = assistant_msg.model_dump(exclude_none=True)
         msg_to_save["raw_content_for_llm"] = raw_content
         self.collection.update_one({"_id": self.obj_id}, {"$push": {"messages": msg_to_save}, "$set": {"updated_at": datetime.now(timezone.utc)}})
+        
+        # Trigger auto-index check if conversation has 5+ messages (non-blocking)
+        try:
+            import asyncio
+            from db.crud import count_messages_in_conversation
+            message_count = count_messages_in_conversation(self.obj_id)
+            if message_count >= 5:
+                from services.conversation_indexing import index_conversation
+                asyncio.create_task(index_conversation(str(self.obj_id)))
+        except Exception as e:
+            logger.error(f"Error triggering auto-index: {e}")
 
     async def process_non_streaming(self) -> ChatResponse:
         await self._run_pipeline()

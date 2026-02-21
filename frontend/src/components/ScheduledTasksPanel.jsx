@@ -577,6 +577,22 @@ const ScheduledTasksPanel = ({ isOpen, onClose }) => {
                           : formatCronExpression(task.schedule?.cron_expression || '')}
                       </span>
                       <span>Runs: {task.run_count || 0}</span>
+                      {task.last_delay_minutes > 5 && (
+                        <span className="text-brand-alert-red flex items-center gap-1" title={
+                          task.last_system_delay_minutes !== undefined && task.last_queue_delay_minutes !== undefined
+                            ? `System delay: ${task.last_system_delay_minutes}m, Queue delay: ${task.last_queue_delay_minutes}m`
+                            : "Last execution was delayed"
+                        }>
+                          ⚠️ Last run: {task.last_delay_minutes}m late
+                          {task.last_system_delay_minutes !== undefined && task.last_queue_delay_minutes !== undefined && (
+                            <span className="text-xs text-brand-text-secondary ml-1">
+                              ({task.last_system_delay_minutes > 0 && `sleep: ${task.last_system_delay_minutes}m`}
+                              {task.last_system_delay_minutes > 0 && task.last_queue_delay_minutes > 0 && ', '}
+                              {task.last_queue_delay_minutes > 0 && `queued: ${task.last_queue_delay_minutes}m`})
+                            </span>
+                          )}
+                        </span>
+                      )}
                       {(task.schedule?.next_run || task.next_run) && (() => {
                         const next = task.schedule?.next_run || task.next_run;
                         const tz = task.schedule?.timezone || 'UTC';

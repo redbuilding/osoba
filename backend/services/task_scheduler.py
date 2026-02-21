@@ -102,7 +102,7 @@ class TaskScheduler:
                 await asyncio.sleep(60)
 
     async def _check_and_execute_due_tasks(self):
-        """Check for and execute due tasks."""
+        """Check for and execute due tasks, including overdue ones (catch-up)."""
         now = datetime.now(timezone.utc)
         
         for task_id, scheduled_task in list(self.scheduled_tasks.items()):
@@ -118,8 +118,18 @@ class TaskScheduler:
                 if next_run > now:
                     continue
                 
-                # Execute the task
-                await self._execute_scheduled_task(task_id, scheduled_task)
+                # Calculate delay for logging/tracking
+                delay_seconds = (now - next_run).total_seconds()
+                delay_minutes = int(delay_seconds / 60)
+                
+                if delay_minutes > 5:
+                    logger.warning(
+                        f"Scheduled task '{scheduled_task.get('name')}' is {delay_minutes} minutes late. "
+                        f"Was scheduled for {next_run}, executing now at {now}."
+                    )
+                
+                # Execute the task (with delay info)
+                await self._execute_scheduled_task(task_id, scheduled_task, delay_minutes)
                 
                 # Update schedule based on type
                 schedule = scheduled_task.get("schedule", {})
@@ -127,11 +137,23 @@ class TaskScheduler:
 
                 next_run_utc = None
                 if s_type == "recurring":
+                    # For recurring tasks, calculate next run from NOW to avoid cascading delays
                     next_run_utc, _ = compute_next_run(schedule, now_utc=now)
+                    
+                    # If we missed multiple runs, log it
+                    if delay_minutes > 60:
+                        logger.info(
+                            f"Recurring task '{scheduled_task.get('name')}' missed window. "
+                            f"Next run scheduled for {next_run_utc}."
+                        )
 
-                # Update database
+                # Update database - store system delay, queue delay will be calculated by runner
                 collection = get_scheduled_tasks_collection()
-                update_patch = {"last_run": now}
+                update_patch = {
+                    "last_run": now,
+                    "last_delay_minutes": delay_minutes,
+                    "last_system_delay_minutes": delay_minutes  # Initial value, queue delay added later
+                }
                 if next_run_utc:
                     update_patch["schedule.next_run"] = next_run_utc
                 if s_type == "once":
@@ -145,17 +167,24 @@ class TaskScheduler:
                 # Update in-memory copy
                 scheduled_task.setdefault("schedule", {})["next_run"] = next_run_utc
                 scheduled_task["last_run"] = now
+                scheduled_task["last_delay_minutes"] = delay_minutes
+                scheduled_task["last_system_delay_minutes"] = delay_minutes
                 scheduled_task["run_count"] = scheduled_task.get("run_count", 0) + 1
                 
             except Exception as e:
                 logger.error(f"Error executing scheduled task {task_id}: {e}")
 
-    async def _execute_scheduled_task(self, task_id: str, scheduled_task: dict):
+    async def _execute_scheduled_task(self, task_id: str, scheduled_task: dict, delay_minutes: int = 0):
         """Execute a scheduled task."""
         try:
+            title = scheduled_task.get("name", scheduled_task["goal"][:50])
+            
+            # Store when task should have run for queue delay calculation
+            scheduled_for = scheduled_task.get("schedule", {}).get("next_run")
+            
             task_data = {
                 "goal": scheduled_task["goal"],
-                "title": scheduled_task.get("name", scheduled_task["goal"][:50]),
+                "title": title,
                 "conversation_id": scheduled_task.get("conversation_id"),
                 "model_name": scheduled_task.get("model_name") or scheduled_task.get("ollama_model_name"),
                 "budget": scheduled_task.get("budget"),
@@ -164,13 +193,25 @@ class TaskScheduler:
                 "created_at": datetime.now(timezone.utc),
                 "updated_at": datetime.now(timezone.utc),
                 "priority": 1,  # Scheduled tasks get highest priority
+                "metadata": {
+                    "scheduled_task_id": task_id,
+                    "scheduled_for": scheduled_for,  # When it should have run
+                    "system_delay_minutes": delay_minutes  # Delay due to system sleep
+                }
             }
             
             new_task_id = create_task(task_data)
-            logger.info(f"Executed scheduled task {scheduled_task['name']}, created task {new_task_id}")
+            
+            if delay_minutes > 5:
+                logger.info(
+                    f"Executed scheduled task '{scheduled_task['name']}' with {delay_minutes}m system delay, "
+                    f"created task {new_task_id}"
+                )
+            else:
+                logger.info(f"Executed scheduled task '{scheduled_task['name']}', created task {new_task_id}")
             
         except Exception as e:
-            logger.error(f"Error executing scheduled task {scheduled_task['name']}: {e}")
+            logger.error(f"Error executing scheduled task '{scheduled_task['name']}': {e}")
 
 # Global scheduler instance
 scheduler = TaskScheduler()

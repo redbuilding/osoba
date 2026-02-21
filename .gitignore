@@ -21,7 +21,6 @@ archive/
 backups/
 artifacts/
 frontend/dist/
-scripts/
 *.mov
 future_thoughts.txt
 llm-db-accuracy.txt

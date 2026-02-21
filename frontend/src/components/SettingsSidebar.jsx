@@ -1,5 +1,5 @@
 import React from 'react';
-import { Settings, User, Key, Palette, UserCircle, Target } from 'lucide-react';
+import { Settings, User, Key, Palette, UserCircle, Target, Brain } from 'lucide-react';
 
 const SettingsSidebar = ({ activeSection, onSectionChange }) => {
   const sections = [
@@ -26,6 +26,12 @@ const SettingsSidebar = ({ activeSection, onSectionChange }) => {
       label: 'Model Providers',
       icon: Key,
       description: 'Configure API keys'
+    },
+    {
+      id: 'memory',
+      label: 'Semantic Memory',
+      icon: Brain,
+      description: 'Conversation memory settings'
     },
     {
       id: 'appearance',

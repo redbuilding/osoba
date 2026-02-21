@@ -126,3 +126,100 @@ def update_conversation_summary(conv_id: str, summary: str) -> bool:
         }}
     )
     return update_result.matched_count > 0
+
+
+def mark_conversation_indexed(conv_id: str, indexed: bool = True) -> bool:
+    """Mark a conversation as indexed to memory.
+    
+    Args:
+        conv_id: Conversation ID
+        indexed: Whether conversation is indexed
+        
+    Returns:
+        True if successful
+    """
+    try:
+        collection = get_conversations_collection()
+    except Exception:
+        return False
+    
+    obj_id = ObjectId(conv_id) if ObjectId.is_valid(conv_id) else conv_id
+    update_data = {
+        "indexed_to_memory": indexed,
+        "updated_at": datetime.now(timezone.utc)
+    }
+    
+    if indexed:
+        update_data["indexed_at"] = datetime.now(timezone.utc)
+    
+    update_result = collection.update_one(
+        {"_id": obj_id},
+        {"$set": update_data}
+    )
+    return update_result.matched_count > 0
+
+
+def get_conversation_indexing_status(conv_id: str) -> Optional[Dict[str, Any]]:
+    """Get indexing status for a conversation.
+    
+    Args:
+        conv_id: Conversation ID
+        
+    Returns:
+        Dictionary with indexing status or None
+    """
+    if not ObjectId.is_valid(conv_id):
+        return None
+    
+    collection = get_conversations_collection()
+    conv = collection.find_one(
+        {"_id": ObjectId(conv_id)},
+        {"indexed_to_memory": 1, "indexed_at": 1, "messages": 1}
+    )
+    
+    if not conv:
+        return None
+    
+    return {
+        "indexed": conv.get("indexed_to_memory", False),
+        "indexed_at": conv.get("indexed_at"),
+        "message_count": len(conv.get("messages", []))
+    }
+
+
+def find_conversations_for_auto_indexing(limit: int = 10) -> List[Dict[str, Any]]:
+    """Find conversations eligible for auto-indexing.
+    
+    Criteria:
+    - 5+ messages
+    - 10+ minutes since last update
+    - Not already indexed
+    
+    Args:
+        limit: Maximum number of conversations to return
+        
+    Returns:
+        List of conversation documents
+    """
+    collection = get_conversations_collection()
+    
+    # Calculate cutoff time (10 minutes ago)
+    from datetime import timedelta
+    cutoff_time = datetime.now(timezone.utc) - timedelta(minutes=10)
+    
+    # Query for eligible conversations
+    cursor = collection.find(
+        {
+            "$and": [
+                {"messages.4": {"$exists": True}},  # At least 5 messages
+                {"updated_at": {"$lt": cutoff_time}},  # 10+ min idle
+                {"$or": [
+                    {"indexed_to_memory": {"$exists": False}},
+                    {"indexed_to_memory": False}
+                ]}
+            ]
+        },
+        {"_id": 1, "title": 1, "updated_at": 1}
+    ).sort("updated_at", -1).limit(limit)
+    
+    return list(cursor)

@@ -21,6 +21,8 @@ import useKeyboardShortcuts from "./hooks/useKeyboardShortcuts";
 import CodexRunCard from "./components/CodexRunCard";
 import FileViewerModal from "./components/FileViewerModal";
 import ToastContainer from "./components/ToastContainer";
+import { MemoryBrowser } from "./components/memory";
+import "./components/memory/MemoryStyles.css";
 import {
   sendMessage, // still used for legacy / fall‑back
   streamMessage, // ✨ NEW – SSE streaming
@@ -133,6 +135,7 @@ const App = () => {
   const [isTasksOpen, setIsTasksOpen] = useState(false);
   const [promotedGoal, setPromotedGoal] = useState("");
   const [fileViewer, setFileViewer] = useState({ open: false, workspaceId: null });
+  const [isMemoryBrowserOpen, setIsMemoryBrowserOpen] = useState(false);
 
   // Refs
   const chatContainerRef = useRef(null);
@@ -379,6 +382,10 @@ const App = () => {
       if (window.focusSidebarSearch) {
         window.focusSidebarSearch();
       }
+    },
+    'ctrl+shift+m': () => {
+      // Toggle memory browser
+      setIsMemoryBrowserOpen(prev => !prev);
     }
   });
 
@@ -1073,6 +1080,12 @@ const App = () => {
           }}
         />
       )}
+
+      {/* Memory Browser */}
+      <MemoryBrowser 
+        isOpen={isMemoryBrowserOpen}
+        onClose={() => setIsMemoryBrowserOpen(false)}
+      />
 
       {/* Toasts */}
       <ToastContainer />

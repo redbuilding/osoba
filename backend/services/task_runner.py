@@ -157,6 +157,52 @@ async def _run_task(task_id: str):
             return
 
         task_start = datetime.now(timezone.utc)
+        
+        # Calculate queue delay for scheduled tasks
+        metadata = doc.get("metadata", {})
+        scheduled_for = metadata.get("scheduled_for")
+        system_delay = metadata.get("system_delay_minutes", 0)
+        scheduled_task_id = metadata.get("scheduled_task_id")
+        
+        if scheduled_for:
+            # Ensure scheduled_for is timezone-aware
+            if hasattr(scheduled_for, 'tzinfo') and scheduled_for.tzinfo is None:
+                scheduled_for = scheduled_for.replace(tzinfo=timezone.utc)
+            
+            # Total delay = time from scheduled_for to now
+            total_delay_seconds = (task_start - scheduled_for).total_seconds()
+            total_delay_minutes = int(total_delay_seconds / 60)
+            
+            # Queue delay = total delay - system delay
+            queue_delay_minutes = max(0, total_delay_minutes - system_delay)
+            
+            # Update metadata with queue delay
+            metadata["queue_delay_minutes"] = queue_delay_minutes
+            metadata["total_delay_minutes"] = total_delay_minutes
+            update_task(task_id, {"metadata": metadata})
+            
+            # Also update the scheduled task record with queue delay
+            if scheduled_task_id and queue_delay_minutes > 0:
+                try:
+                    from db.mongodb import get_scheduled_tasks_collection
+                    from bson import ObjectId
+                    collection = get_scheduled_tasks_collection()
+                    collection.update_one(
+                        {"_id": ObjectId(scheduled_task_id)},
+                        {"$set": {
+                            "last_queue_delay_minutes": queue_delay_minutes,
+                            "last_delay_minutes": total_delay_minutes
+                        }}
+                    )
+                except Exception as e:
+                    logger.warning(f"Could not update scheduled task with queue delay: {e}")
+            
+            if queue_delay_minutes > 5:
+                logger.info(
+                    f"Task {task_id} queued for {queue_delay_minutes}m "
+                    f"(system delay: {system_delay}m, total: {total_delay_minutes}m)"
+                )
+        
         logger.info(f"Task {task_id} current status: {doc.get('status')}")
 
         if doc.get("status") == "PLANNING":

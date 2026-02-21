@@ -287,6 +287,9 @@ async def list_scheduled_tasks():
                 task_dict['next_run'] = sched.get('next_run')
             if 'timezone' in sched:
                 task_dict['timezone'] = sched.get('timezone')
+            # Add delay info if available
+            if 'last_delay_minutes' in task_dict:
+                task_dict['last_delay_minutes'] = task_dict.get('last_delay_minutes', 0)
             result.append(task_dict)
         return result
     except Exception as e:
