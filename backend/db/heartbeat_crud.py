@@ -66,14 +66,6 @@ def get_insight_by_id(insight_id: str, user_id: str = "default") -> Optional[Dic
     except Exception as e:
         logger.error(f"Error getting insight {insight_id}: {e}")
         return None
-            query["dismissed"] = dismissed
-        
-        cursor = collection.find(query).sort("created_at", -1).limit(limit)
-        insights = [_serialize(doc) for doc in cursor]
-        return insights
-    except Exception as e:
-        logger.error(f"Error getting insights for {user_id}: {e}")
-        return []
 
 
 def dismiss_insight(insight_id: str, user_id: str = "default") -> bool:
