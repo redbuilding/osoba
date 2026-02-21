@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Bell, X } from 'lucide-react';
-import { getInsights, dismissInsight } from '../services/heartbeatApi';
+import { Bell, X, CheckCircle } from 'lucide-react';
+import { getInsights, dismissInsight, createTaskFromInsight } from '../services/heartbeatApi';
 
 const ProactiveInsightsPanel = ({ userId = 'default' }) => {
   const [insights, setInsights] = useState([]);
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [creatingTask, setCreatingTask] = useState(null);
   const panelRef = useRef(null);
   const pollIntervalRef = useRef(null);
 
@@ -64,6 +65,21 @@ const ProactiveInsightsPanel = ({ userId = 'default' }) => {
       setInsights(insights.filter(i => i._id !== insightId));
     } catch (error) {
       console.error('Error dismissing insight:', error);
+    }
+  };
+
+  const handleCreateTask = async (insightId) => {
+    try {
+      setCreatingTask(insightId);
+      await createTaskFromInsight(insightId, userId);
+      // Mark insight as having task created
+      setInsights(insights.map(i => 
+        i._id === insightId ? { ...i, taskCreated: true } : i
+      ));
+    } catch (error) {
+      console.error('Error creating task:', error);
+    } finally {
+      setCreatingTask(null);
     }
   };
 
@@ -153,8 +169,31 @@ const ProactiveInsightsPanel = ({ userId = 'default' }) => {
                       <p className="text-sm text-brand-text-secondary">
                         {insight.description}
                       </p>
-                      <div className="text-xs text-brand-text-secondary mt-2">
-                        {formatTimestamp(insight.created_at)}
+                      <div className="flex items-center justify-between mt-3">
+                        <div className="text-xs text-brand-text-secondary">
+                          {formatTimestamp(insight.created_at)}
+                        </div>
+                        
+                        {/* Create Task Button */}
+                        {!insight.taskCreated && (
+                          <button
+                            onClick={() => handleCreateTask(insight._id)}
+                            disabled={creatingTask === insight._id}
+                            className="text-xs px-3 py-1 bg-brand-purple text-white rounded 
+                                     hover:bg-brand-button-grad-to transition-colors
+                                     focus:outline-none focus:ring-2 focus:ring-brand-blue
+                                     disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {creatingTask === insight._id ? 'Creating...' : 'Create Task'}
+                          </button>
+                        )}
+                        
+                        {insight.taskCreated && (
+                          <div className="flex items-center space-x-1 text-xs text-brand-success-green">
+                            <CheckCircle className="w-3 h-3" />
+                            <span>Task Created</span>
+                          </div>
+                        )}
                       </div>
                     </div>
 

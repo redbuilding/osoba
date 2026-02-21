@@ -50,6 +50,24 @@ def get_insights(user_id: str = "default", limit: int = 50, dismissed: Optional[
         if dismissed is not None:
             query["dismissed"] = dismissed
         
+        insights = list(collection.find(query).sort("created_at", -1).limit(limit))
+        return [_serialize(insight) for insight in insights]
+    except Exception as e:
+        logger.error(f"Error getting insights for {user_id}: {e}")
+        return []
+
+
+def get_insight_by_id(insight_id: str, user_id: str = "default") -> Optional[Dict[str, Any]]:
+    """Get a specific insight by ID."""
+    try:
+        collection = get_heartbeat_insights_collection()
+        insight = collection.find_one({"_id": ObjectId(insight_id), "user_id": user_id})
+        return _serialize(insight)
+    except Exception as e:
+        logger.error(f"Error getting insight {insight_id}: {e}")
+        return None
+            query["dismissed"] = dismissed
+        
         cursor = collection.find(query).sort("created_at", -1).limit(limit)
         insights = [_serialize(doc) for doc in cursor]
         return insights

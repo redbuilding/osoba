@@ -5,6 +5,7 @@ import SettingsModal from '../components/SettingsModal';
 import UserProfileSettings from '../components/UserProfileSettings';
 import GoalsEditor from '../components/GoalsEditor';
 import { MemorySettings } from '../components/memory';
+import EnhancedHeartbeatSettings from '../components/EnhancedHeartbeatSettings';
 
 const SettingsPage = ({ onClose }) => {
   const [activeSection, setActiveSection] = useState('profiles');
@@ -110,6 +111,18 @@ const SettingsPage = ({ onClose }) => {
             <div className="bg-brand-surface-bg rounded-lg border border-gray-700 p-6">
               <MemorySettings />
             </div>
+          </div>
+        );
+      case 'heartbeat':
+        return (
+          <div>
+            <div className="mb-6">
+              <h2 className="text-2xl font-semibold text-brand-text-primary">Proactive Heartbeat</h2>
+              <p className="text-brand-text-secondary mt-1">
+                Configure automated insights and task creation from your activity.
+              </p>
+            </div>
+            <EnhancedHeartbeatSettings />
           </div>
         );
       default:

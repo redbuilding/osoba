@@ -1,0 +1,42 @@
+# Heartbeat Tasks
+
+# Define automated heartbeat tasks with schedules and prompts.
+# Format:
+# ## Category Name
+# Schedule: <cron or interval>
+# Enabled: true|false
+# Prompt: <task prompt>
+# Create_Task: true|false (optional, creates tracked task)
+# Context: memory,git,project,system (optional, comma-separated)
+
+## Memory Management
+Schedule: 0 2 * * * 
+Enabled: true
+Prompt: Review semantic memory usage and suggest cleanup if storage exceeds 100MB or 500+ conversations
+Context: memory
+
+## Testing Reminders
+Schedule: 0 9 * * 1
+Enabled: true
+Prompt: Check test coverage and suggest missing tests for recently modified files
+Create_Task: true
+Context: git,project
+
+## Git Status Check
+Schedule: 4h
+Enabled: false
+Prompt: Review uncommitted changes and suggest commits if there are 5+ uncommitted files
+Context: git
+
+## Documentation Updates
+Schedule: 0 10 * * 5
+Enabled: true
+Prompt: Check if README or docs need updates based on recent code changes
+Create_Task: true
+Context: git,project
+
+## System Health
+Schedule: 12h
+Enabled: false
+Prompt: Check disk space and service health, alert if disk usage exceeds 90%
+Context: system

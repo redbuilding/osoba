@@ -67,3 +67,77 @@ export const triggerHeartbeat = async (userId = 'default') => {
     throw error;
   }
 };
+
+export const getContextConfig = async (userId = 'default') => {
+  try {
+    const response = await axios.get(`${API_URL}/heartbeat/context-config`, {
+      params: { user_id: userId }
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching context config:', error);
+    throw error;
+  }
+};
+
+export const updateContextConfig = async (contextSources, userId = 'default') => {
+  try {
+    const response = await axios.put(
+      `${API_URL}/heartbeat/context-config`,
+      contextSources,
+      { params: { user_id: userId } }
+    );
+    return response.data;
+  } catch (error) {
+    console.error('Error updating context config:', error);
+    throw error;
+  }
+};
+
+export const getFileStatus = async () => {
+  try {
+    const response = await axios.get(`${API_URL}/heartbeat/file-status`);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching file status:', error);
+    throw error;
+  }
+};
+
+export const syncFromFile = async (userId = 'default') => {
+  try {
+    const response = await axios.post(`${API_URL}/heartbeat/sync-from-file`, null, {
+      params: { user_id: userId }
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error syncing from file:', error);
+    throw error;
+  }
+};
+
+export const syncToFile = async (userId = 'default') => {
+  try {
+    const response = await axios.post(`${API_URL}/heartbeat/sync-to-file`, null, {
+      params: { user_id: userId }
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error syncing to file:', error);
+    throw error;
+  }
+};
+
+export const createTaskFromInsight = async (insightId, userId = 'default') => {
+  try {
+    const response = await axios.post(
+      `${API_URL}/heartbeat/insights/${insightId}/create-task`,
+      null,
+      { params: { user_id: userId } }
+    );
+    return response.data;
+  } catch (error) {
+    console.error('Error creating task from insight:', error);
+    throw error;
+  }
+};

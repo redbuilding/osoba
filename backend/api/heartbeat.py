@@ -93,3 +93,203 @@ async def trigger_heartbeat_endpoint(user_id: str = "default"):
         return {"status": "success", "message": "Heartbeat triggered"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error triggering heartbeat: {str(e)}")
+
+
+@router.get("/context-config")
+async def get_context_config_endpoint(user_id: str = "default"):
+    """Get context gathering configuration."""
+    try:
+        profile = get_user_profile(user_id)
+        if not profile:
+            return {"context_sources": {
+                "memory": True,
+                "git": True,
+                "project": False,
+                "system": False
+            }}
+        
+        config = profile.get("heartbeat_config", {})
+        context_sources = config.get("context_sources", {
+            "memory": True,
+            "git": True,
+            "project": False,
+            "system": False
+        })
+        return {"context_sources": context_sources}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving context config: {str(e)}")
+
+
+@router.put("/context-config")
+async def update_context_config_endpoint(context_sources: dict, user_id: str = "default"):
+    """Update context gathering configuration."""
+    try:
+        profile = get_user_profile(user_id)
+        if not profile:
+            raise HTTPException(status_code=404, detail="User profile not found")
+        
+        # Get existing config
+        current_config = profile.get("heartbeat_config", {})
+        current_config["context_sources"] = context_sources
+        
+        # Update profile
+        profile["heartbeat_config"] = current_config
+        updated = upsert_user_profile(profile, user_id)
+        
+        if not updated:
+            raise HTTPException(status_code=500, detail="Failed to update context config")
+        
+        return {"status": "success", "context_sources": context_sources}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error updating context config: {str(e)}")
+
+
+@router.post("/insights/{insight_id}/create-task")
+async def create_task_from_insight_endpoint(insight_id: str, user_id: str = "default"):
+    """Convert a heartbeat insight into a tracked task."""
+    try:
+        from db.heartbeat_crud import get_insight_by_id
+        from db.tasks_crud import create_task
+        
+        # Get the insight
+        insight = get_insight_by_id(insight_id, user_id)
+        if not insight:
+            raise HTTPException(status_code=404, detail="Insight not found")
+        
+        # Create task
+        task_data = {
+            "goal": insight.get("title", "Heartbeat Task"),
+            "description": insight.get("description", ""),
+            "user_id": user_id,
+            "metadata": {
+                "source": "heartbeat",
+                "insight_id": insight_id
+            }
+        }
+        
+        task = create_task(task_data)
+        if not task:
+            raise HTTPException(status_code=500, detail="Failed to create task")
+        
+        return {"status": "success", "task_id": str(task.get("_id")), "task": task}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error creating task from insight: {str(e)}")
+
+
+@router.get("/file-status")
+async def get_file_status_endpoint():
+    """Get status of HEARTBEAT.md file"""
+    try:
+        from services.heartbeat_file_parser import get_heartbeat_file_parser
+        
+        parser = get_heartbeat_file_parser()
+        exists = parser.exists()
+        
+        if not exists:
+            return {
+                "exists": False,
+                "file_path": None,
+                "tasks": [],
+                "errors": []
+            }
+        
+        # Parse file
+        tasks = parser.parse()
+        errors = parser.validate(tasks)
+        
+        return {
+            "exists": True,
+            "file_path": parser.file_path,
+            "tasks": tasks,
+            "task_count": len(tasks),
+            "errors": errors,
+            "valid": len(errors) == 0
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error checking file status: {str(e)}")
+
+
+@router.post("/sync-from-file")
+async def sync_from_file_endpoint(user_id: str = "default"):
+    """Sync heartbeat configuration from HEARTBEAT.md file to database"""
+    try:
+        from services.heartbeat_file_parser import get_heartbeat_file_parser
+        
+        parser = get_heartbeat_file_parser()
+        if not parser.exists():
+            raise HTTPException(status_code=404, detail="HEARTBEAT.md file not found")
+        
+        # Parse and validate
+        tasks = parser.parse()
+        errors = parser.validate(tasks)
+        
+        if errors:
+            return {
+                "status": "error",
+                "message": "Validation errors found",
+                "errors": errors
+            }
+        
+        # Update profile with file-based tasks
+        profile = get_user_profile(user_id)
+        if not profile:
+            raise HTTPException(status_code=404, detail="User profile not found")
+        
+        current_config = profile.get("heartbeat_config", {})
+        current_config["file_tasks"] = tasks
+        current_config["file_sync_enabled"] = True
+        
+        profile["heartbeat_config"] = current_config
+        updated = upsert_user_profile(profile, user_id)
+        
+        if not updated:
+            raise HTTPException(status_code=500, detail="Failed to sync configuration")
+        
+        return {
+            "status": "success",
+            "message": f"Synced {len(tasks)} tasks from file",
+            "tasks": tasks
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error syncing from file: {str(e)}")
+
+
+@router.post("/sync-to-file")
+async def sync_to_file_endpoint(user_id: str = "default"):
+    """Sync heartbeat configuration from database to HEARTBEAT.md file"""
+    try:
+        from services.heartbeat_file_parser import get_heartbeat_file_parser
+        
+        # Get current config
+        profile = get_user_profile(user_id)
+        if not profile:
+            raise HTTPException(status_code=404, detail="User profile not found")
+        
+        config = profile.get("heartbeat_config", {})
+        file_tasks = config.get("file_tasks", [])
+        
+        if not file_tasks:
+            raise HTTPException(status_code=400, detail="No file tasks configured")
+        
+        # Write to file
+        parser = get_heartbeat_file_parser()
+        success = parser.write(file_tasks)
+        
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to write file")
+        
+        return {
+            "status": "success",
+            "message": f"Wrote {len(file_tasks)} tasks to {parser.file_path}",
+            "file_path": parser.file_path
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error syncing to file: {str(e)}")

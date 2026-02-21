@@ -6,10 +6,11 @@ from zoneinfo import ZoneInfo
 
 from services.provider_service import chat_with_provider
 from services.context_service import get_user_context
+from services.context_gatherer import get_context_gatherer
 from db.heartbeat_crud import create_insight, count_insights_today
 from db.user_profiles_crud import get_user_profile
 from db.crud import get_all_conversations
-from db.tasks_crud import list_tasks
+from db.tasks_crud import list_tasks, create_task
 from core.config import get_logger
 
 logger = get_logger("heartbeat_service")
@@ -200,23 +201,71 @@ class HeartbeatService:
             
             # Create insight
             insight_data = self._parse_insight(response)
-            created = create_insight(insight_data, user_id)
+            created_insight = create_insight(insight_data, user_id)
             
-            if created:
+            if created_insight:
                 logger.info(f"Created insight for {user_id}: {insight_data['title']}")
+                
+                # Optionally create task if configured
+                create_task_enabled = config.get("create_task", False)
+                if create_task_enabled:
+                    task_id = await self._create_task_from_insight(insight_data, user_id, created_insight.get("_id"))
+                    if task_id:
+                        logger.info(f"Created task {task_id} from insight")
             else:
                 logger.error(f"Failed to create insight for {user_id}")
                 
         except Exception as e:
             logger.error(f"Error running heartbeat for {user_id}: {e}", exc_info=True)
     
+    async def _create_task_from_insight(self, insight_data: Dict[str, Any], user_id: str, insight_id: str) -> Optional[str]:
+        """Create a task from a heartbeat insight."""
+        try:
+            task_data = {
+                "goal": insight_data["title"],
+                "description": insight_data["description"],
+                "user_id": user_id,
+                "metadata": {
+                    "source": "heartbeat",
+                    "insight_id": str(insight_id)
+                }
+            }
+            
+            task = create_task(task_data)
+            return str(task.get("_id")) if task else None
+        except Exception as e:
+            logger.error(f"Error creating task from insight: {e}")
+            return None
+    
     async def _gather_context(self, user_id: str, profile: Dict[str, Any]) -> Dict[str, Any]:
         """Gather context for heartbeat prompt."""
         context = {
             "goals": profile.get("goals_document", ""),
             "recent_conversations": [],
-            "active_tasks": []
+            "active_tasks": [],
+            "enhanced_context": {}
         }
+        
+        # Get enhanced context from context gatherer
+        try:
+            config = profile.get("heartbeat_config", {})
+            context_config = config.get("context_sources", {
+                "memory": True,
+                "git": True,
+                "project": False,
+                "system": False
+            })
+            
+            gatherer = get_context_gatherer()
+            enhanced = await gatherer.gather_all(
+                include_memory=context_config.get("memory", True),
+                include_git=context_config.get("git", True),
+                include_project=context_config.get("project", False),
+                include_system=context_config.get("system", False)
+            )
+            context["enhanced_context"] = enhanced
+        except Exception as e:
+            logger.error(f"Error gathering enhanced context: {e}")
         
         # Get recent conversations (last 3)
         try:
@@ -262,6 +311,37 @@ class HeartbeatService:
         if context["goals"]:
             prompt_parts.append("USER GOALS:")
             prompt_parts.append(context["goals"])
+            prompt_parts.append("")
+        
+        # Add enhanced context
+        enhanced = context.get("enhanced_context", {})
+        if enhanced:
+            prompt_parts.append("PROJECT CONTEXT:")
+            
+            # Memory context
+            if "memory" in enhanced and enhanced["memory"].get("status") != "unavailable":
+                mem = enhanced["memory"]
+                prompt_parts.append(f"- Semantic Memory: {mem.get('total_conversations', 0)} conversations indexed, {mem.get('storage_mb', 0)}MB")
+            
+            # Git context
+            if "git" in enhanced and enhanced["git"].get("status") != "unavailable":
+                git = enhanced["git"]
+                prompt_parts.append(f"- Git: Branch '{git.get('branch', 'unknown')}', {git.get('uncommitted_files', 0)} uncommitted files, {git.get('unpushed_commits', 0)} unpushed commits")
+                if git.get("recent_commits"):
+                    prompt_parts.append(f"  Recent commits: {', '.join(git['recent_commits'][:3])}")
+            
+            # Project context
+            if "project" in enhanced and enhanced["project"].get("status") != "unavailable":
+                proj = enhanced["project"]
+                prompt_parts.append(f"- Project: {proj.get('todo_count', 0)} TODOs, {proj.get('fixme_count', 0)} FIXMEs")
+                if proj.get("recent_files"):
+                    prompt_parts.append(f"  Recently modified: {', '.join(proj['recent_files'][:5])}")
+            
+            # System context
+            if "system" in enhanced and enhanced["system"].get("status") != "unavailable":
+                sys = enhanced["system"]
+                prompt_parts.append(f"- System: {sys.get('disk_free_gb', 0)}GB free, {sys.get('disk_used_percent', 0)}% used")
+            
             prompt_parts.append("")
         
         # Add recent conversations

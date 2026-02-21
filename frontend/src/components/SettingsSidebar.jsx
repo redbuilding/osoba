@@ -1,5 +1,5 @@
 import React from 'react';
-import { Settings, User, Key, Palette, UserCircle, Target, Brain } from 'lucide-react';
+import { Settings, User, Key, Palette, UserCircle, Target, Brain, Activity } from 'lucide-react';
 
 const SettingsSidebar = ({ activeSection, onSectionChange }) => {
   const sections = [
@@ -20,6 +20,12 @@ const SettingsSidebar = ({ activeSection, onSectionChange }) => {
       label: 'Goals & Priorities',
       icon: Target,
       description: 'Define your objectives'
+    },
+    {
+      id: 'heartbeat',
+      label: 'Proactive Heartbeat',
+      icon: Activity,
+      description: 'Automated insights & tasks'
     },
     {
       id: 'providers',

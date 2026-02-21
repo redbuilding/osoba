@@ -39,7 +39,7 @@ This architecture demonstrates how MCP enables local models to access external t
 - 🤖 **Polite Web Crawling**: Respects robots.txt, implements rate limiting, and uses proper User-Agent identification for ethical content extraction.
 - 👤 **User Profile & Context**: Configure personal information (role, expertise, projects) and pin conversations for contextual AI assistance. The AI understands your background and can reference previous work for personalized responses.
 - 🎯 **Goals & Priorities**: Define your short-term, medium-term, and long-term goals in a structured document (up to 2000 characters) to help the AI understand your objectives and provide relevant assistance.
-- 🔔 **Proactive Agent Heartbeat**: Background service that periodically reviews your goals, conversations, and tasks to provide AI-generated insights via non-intrusive notifications. Configurable intervals, active hours, and timezone support.
+- 🔔 **Proactive Agent Heartbeat**: Enhanced background service with context gathering (semantic memory, git, project files, system health), automated task creation, and file-based configuration (HEARTBEAT.md). Configurable intervals, context sources, and two-way sync between file and UI.
 - 📌 **Conversation Pinning**: Select specific conversations to include as context for future chats, enabling the AI to build upon previous discussions and maintain continuity across sessions.
 - 🧠 **Semantic Memory**: Unlimited conversation storage with intelligent semantic search powered by ChromaDB and nomic-embed-text embeddings. Automatically indexes conversations with 5+ messages, searches by meaning (not keywords), and injects relevant past conversations into new chats. Includes Memory Browser (Ctrl+Shift+M) for searching and managing your conversation history.
 - 🧾 **AI Chat Summaries (On‑Demand)**: Generate concise, LLM‑authored summaries for conversations and use them as the context payload for pinned chats (no heuristics). Summaries are user‑triggered, model‑selectable in Settings, and pinning enforces a cap of 5 chats.
@@ -476,65 +476,82 @@ OhSee features an advanced semantic memory system that provides unlimited conver
 
 ## Proactive Agent Heartbeat System
 
-The Proactive Agent Heartbeat System is a background service that periodically reviews your goals, conversations, and tasks to provide AI-generated insights via non-intrusive notifications. Think of it as your AI assistant checking in to help you stay on track.
+The Enhanced Heartbeat System provides proactive AI assistance through automated insights and task creation. It analyzes your goals, conversations, project state, and system health to suggest actionable next steps.
+
+### Key Features
+
+**Context Gathering:**
+- **Semantic Memory**: Conversation history, indexed conversations, storage usage
+- **Git Repository**: Current branch, uncommitted files, unpushed commits, recent commits
+- **Project Files**: TODO/FIXME comments, recently modified files
+- **System Health**: Disk usage, service status
+
+**Automated Task Creation:**
+- Insights can automatically create tracked tasks
+- Manual conversion via "Create Task" button
+- Tasks linked to insights for tracking
+
+**File-Based Configuration (Power Users):**
+- Define heartbeat tasks in `HEARTBEAT.md`
+- Category-based task organization
+- Custom schedules (cron or interval format)
+- Two-way sync between file and UI
 
 ### How It Works
 
 The heartbeat service runs in the background at configurable intervals (default: every 2 hours). During each heartbeat:
 
-1. **Context Gathering**: Collects your goals document, recent conversations, and active tasks
+1. **Context Gathering**: Collects goals, conversations, tasks, and enhanced context (memory, git, project, system)
 2. **AI Analysis**: Sends context to your chosen LLM (default: Haiku for cost-effectiveness at ~$0.01/user/day)
 3. **Insight Generation**: AI generates actionable insights, suggestions, or identifies blockers
 4. **Smart Filtering**: Uses "HEARTBEAT_OK" pattern to suppress notifications when everything is on track
-5. **Notification**: Displays insights in the bell icon panel (top-right header)
+5. **Task Creation**: Optionally creates tracked tasks from insights
+6. **Notification**: Displays insights in the bell icon panel (top-right header)
 
-### Setting Up Your Goals
+### Quick Start
 
-**1. Navigate to Settings → Goals & Priorities**
+**1. Enable Heartbeat:**
+- Settings → Proactive Heartbeat
+- Toggle "Enable Heartbeat"
+- Choose check interval (30m, 1h, 2h, 4h, 6h)
 
-**2. Enter Your Goals Document** (up to 2000 characters):
+**2. Configure Context Sources:**
+- Enable Semantic Memory (recommended)
+- Enable Git Repository (recommended)
+- Optionally enable Project Files and System Health
+
+**3. Enable Auto-Create Tasks (Optional):**
+- Toggle "Auto-Create Tasks"
+- Insights will automatically create tracked tasks
+
+**4. Set Up Goals:**
+- Settings → Goals & Priorities
+- Enter your goals document (up to 2000 characters)
+
+### Using HEARTBEAT.md (Power Users)
+
+Create `HEARTBEAT.md` in your project root:
+
+```markdown
+# Heartbeat Tasks
+
+## Memory Management
+Schedule: 0 2 * * *
+Enabled: true
+Prompt: Review semantic memory usage and suggest cleanup if storage exceeds 100MB
+Context: memory
+
+## Testing Reminders
+Schedule: 0 9 * * 1
+Enabled: true
+Prompt: Check test coverage and suggest missing tests
+Create_Task: true
+Context: git,project
 ```
-Example goals document:
 
-SHORT-TERM (This Week):
-- Complete user authentication feature
-- Fix payment processing bug
-- Write API documentation
-
-MEDIUM-TERM (This Month):
-- Launch beta version to 50 users
-- Implement analytics dashboard
-- Optimize database queries
-
-LONG-TERM (This Quarter):
-- Reach 1000 active users
-- Build mobile app
-- Integrate with 3rd-party services
-
-BLOCKERS:
-- Waiting on design mockups for dashboard
-- Need to research payment gateway options
-```
-
-**3. Save Your Goals**
-
-The heartbeat service will now use these goals to provide contextual insights.
-
-### Configuring the Heartbeat
-
-**Access Configuration**: Settings → Goals & Priorities → Heartbeat Settings
-
-**Available Options**:
-- **Enabled**: Turn heartbeat on/off
-- **Interval**: How often to check (e.g., "1h", "2h", "30m")
-- **Active Hours**: Only run during specific hours (e.g., 9 AM - 6 PM)
-- **Timezone**: Your local timezone for active hours
-
-**Recommended Settings**:
-- **Developers**: 2-hour intervals during work hours (9 AM - 6 PM)
-- **Project Managers**: 1-hour intervals during business hours
-- **Researchers**: 3-hour intervals, all day
-- **Cost-Conscious**: 4-hour intervals or disable when not needed
+**Sync Options:**
+- **Load from File**: Import tasks from HEARTBEAT.md to database
+- **Save to File**: Export configured tasks to HEARTBEAT.md
 
 ### Using Insights
 
@@ -546,6 +563,7 @@ The heartbeat service will now use these goals to provide contextual insights.
    - **Title**: Quick summary of the insight
    - **Description**: Detailed suggestion or observation
    - **Timestamp**: When the insight was generated
+   - **Create Task Button**: Convert insight to tracked task
 
 **3. Dismiss Insights**: Click "Dismiss" to remove insights you've addressed
 
