@@ -72,7 +72,7 @@ const ChatMessage = ({ message, onPromoteToTask, onSaveMessage, isStreaming = fa
     const summary = message.summary || '';
     return (
       <div className={`flex animate-slide-up justify-start mb-2 group`}>
-        <div className="max-w-2xl p-3 rounded-lg shadow bg-brand-surface-bg text-brand-text-primary rounded-bl-none">
+        <div className="max-w-[800px] p-3 rounded-lg shadow bg-brand-surface-bg text-brand-text-primary rounded-bl-none">
           <div className="flex items-start mb-1">
             <Sparkles size={20} className="mr-2 text-brand-purple flex-shrink-0" />
             <span className="font-semibold text-sm">Codex Workspace Run</span>
@@ -92,7 +92,7 @@ const ChatMessage = ({ message, onPromoteToTask, onSaveMessage, isStreaming = fa
   return (
     <div className={`flex animate-slide-up ${isUser ? 'justify-end' : 'justify-start'} mb-2 group`}>
       <div
-        className={`max-w-2xl p-3 rounded-lg shadow ${
+        className={`max-w-[800px] p-3 rounded-lg shadow ${
           isUser ? 'bg-brand-blue text-white rounded-br-none' : 'bg-brand-surface-bg text-brand-text-primary rounded-bl-none'
         }`}
       >

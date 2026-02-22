@@ -629,22 +629,16 @@ const App = () => {
       {
         onData: (data) => {
           setChatHistory((prev) => {
-            // Simple deduplication check
-            const last = prev[prev.length - 1];
-            if (data.type === "token" && last && last.content.endsWith(data.content)) {
-              return prev; // No change
-            }
-            
-            const historyCopy = [...prev];
-            const lastMessage = historyCopy[historyCopy.length - 1];
+            const lastIdx = prev.length - 1;
+            const lastMessage = prev[lastIdx];
 
+            let updated;
             if (data.type === "indicator") {
-              lastMessage.indicator = data.content;
-              lastMessage.is_html = data.is_html;
+              updated = { ...lastMessage, indicator: data.content, is_html: data.is_html };
             } else if (data.type === "token") {
-              lastMessage.content += data.content;
+              updated = { ...lastMessage, content: lastMessage.content + data.content };
             } else if (data.type === "done") {
-              lastMessage.is_html = data.is_html;
+              updated = { ...lastMessage, is_html: data.is_html };
               
               // If a new conversation was created, reflect its ID
               if (
@@ -653,8 +647,12 @@ const App = () => {
               ) {
                 setCurrentConversationId(data.conversation_id);
               }
+            } else {
+              return prev;
             }
-            return historyCopy;
+            const next = [...prev];
+            next[lastIdx] = updated;
+            return next;
           });
         },
         onError: (err) => {
@@ -1012,6 +1010,9 @@ const App = () => {
               </button>
             )}
 
+            {/* Proactive Insights */}
+            <ProactiveInsightsPanel userId="default" />
+
             {/* Tasks button */}
             <button
               onClick={() => setIsTasksOpen(true)}
@@ -1022,9 +1023,6 @@ const App = () => {
             >
               <ListTodo size={14} /> Tasks{activeTasksCount ? ` (${activeTasksCount})` : ""}
             </button>
-
-            {/* Proactive Insights */}
-            <ProactiveInsightsPanel userId="default" />
 
             {/* Settings button */}
             <button

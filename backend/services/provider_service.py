@@ -42,18 +42,23 @@ async def chat_with_provider(messages: List[Dict[str, str]], model_name: str,
         request_params = {
             "model": full_model,
             "messages": valid_messages,
-            "temperature": 1.0 / repeat_penalty if repeat_penalty > 0 else 1.0
         }
 
-        # Model-specific param normalization (e.g., OpenAI gpt-5 disallows temperature ≠ 1)
-        try:
-            effective_model = clean_model or str(full_model)
-            if provider_id == 'openai':
-                # For gpt-5 family (excluding 5.1), temperature must be exactly 1 (or omitted)
-                if effective_model.startswith('gpt-5') and not effective_model.startswith('gpt-5.1'):
-                    request_params['temperature'] = 1.0
-        except Exception:
-            pass
+        # Reasoning models (o1, o3, o4, gpt-5) don't support temperature/frequency_penalty
+        effective_model = (clean_model or str(full_model)).lower()
+        _is_reasoning = any(effective_model.startswith(p) for p in ('o1', 'o3', 'o4', 'gpt-5'))
+
+        if _is_reasoning:
+            request_params["reasoning_effort"] = "low"
+            request_params["max_completion_tokens"] = 16384
+        else:
+            request_params["temperature"] = 1.0 / repeat_penalty if repeat_penalty > 0 else 1.0
+            if provider_id != 'ollama' and repeat_penalty > 1.0:
+                request_params["frequency_penalty"] = min(round((repeat_penalty - 1.0) * 2, 2), 2.0)
+
+        # Let litellm silently drop any remaining unsupported params
+        if provider_id != 'ollama':
+            request_params["drop_params"] = True
 
         # Add provider-specific parameters
         await _add_provider_params(request_params, provider_id, config, user_id)
@@ -97,17 +102,23 @@ async def stream_chat_with_provider(messages: List[Dict[str, str]], model_name: 
             "model": full_model,
             "messages": valid_messages,
             "stream": True,
-            "temperature": 1.0 / repeat_penalty if repeat_penalty > 0 else 1.0
         }
 
-        # Model-specific param normalization (e.g., OpenAI gpt-5 disallows temperature ≠ 1)
-        try:
-            effective_model = clean_model or str(full_model)
-            if provider_id == 'openai':
-                if effective_model.startswith('gpt-5') and not effective_model.startswith('gpt-5.1'):
-                    request_params['temperature'] = 1.0
-        except Exception:
-            pass
+        # Reasoning models (o1, o3, o4, gpt-5) don't support temperature/frequency_penalty
+        effective_model = (clean_model or str(full_model)).lower()
+        _is_reasoning = any(effective_model.startswith(p) for p in ('o1', 'o3', 'o4', 'gpt-5'))
+
+        if _is_reasoning:
+            request_params["reasoning_effort"] = "low"
+            request_params["max_completion_tokens"] = 16384
+        else:
+            request_params["temperature"] = 1.0 / repeat_penalty if repeat_penalty > 0 else 1.0
+            if provider_id != 'ollama' and repeat_penalty > 1.0:
+                request_params["frequency_penalty"] = min(round((repeat_penalty - 1.0) * 2, 2), 2.0)
+
+        # Let litellm silently drop any remaining unsupported params
+        if provider_id != 'ollama':
+            request_params["drop_params"] = True
 
         # Add provider-specific parameters
         await _add_provider_params(request_params, provider_id, config, user_id)

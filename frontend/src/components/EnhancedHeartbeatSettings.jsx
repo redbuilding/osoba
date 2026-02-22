@@ -31,7 +31,7 @@ const EnhancedHeartbeatSettings = () => {
         getContextConfig(),
         getFileStatus()
       ]);
-      setConfig(configData.config);
+      setConfig(configData);
       setContextConfig(contextData.context_sources);
       setFileStatus(fileData);
     } catch (error) {

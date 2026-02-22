@@ -100,3 +100,22 @@
 .markdown-content tbody tr:nth-child(even) {
   background-color: #0f172a;
 }
+
+.markdown-content td br:first-child {
+  display: none;
+}
+
+.markdown-content hr {
+  border: none;
+  border-top: 1px solid #374151;
+  margin: 1em 0;
+}
+
+.markdown-content ol {
+  margin: 0.8em 0;
+  padding-left: 1.5em;
+}
+
+.markdown-content ol li {
+  list-style-type: decimal;
+}

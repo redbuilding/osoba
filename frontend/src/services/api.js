@@ -83,19 +83,21 @@ export const streamMessage = async (payload, callbacks, signal) => {
     // Stream response.body via reader
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
+    let sseBuffer = '';
 
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
 
-      const textChunk = decoder.decode(value, { stream: true });
+      sseBuffer += decoder.decode(value, { stream: true });
       // SSE payloads are separated by blank lines
-      const events = textChunk
-        .split("\n\n")
-        .map((e) => e.trim())
-        .filter(Boolean);
+      const parts = sseBuffer.split("\n\n");
+      // Keep the last part as it may be incomplete
+      sseBuffer = parts.pop() || '';
 
-      for (const evt of events) {
+      for (const part of parts) {
+        const evt = part.trim();
+        if (!evt) continue;
         if (evt.startsWith("data: ")) {
           const jsonData = evt.slice(6);
           try {
@@ -104,6 +106,19 @@ export const streamMessage = async (payload, callbacks, signal) => {
           } catch (parseErr) {
             console.error("Failed to parse SSE data:", jsonData);
           }
+        }
+      }
+    }
+
+    // Process any remaining buffer
+    if (sseBuffer.trim()) {
+      const evt = sseBuffer.trim();
+      if (evt.startsWith("data: ")) {
+        try {
+          const parsed = JSON.parse(evt.slice(6));
+          callbacks.onData && callbacks.onData(parsed);
+        } catch (parseErr) {
+          // ignore trailing partial
         }
       }
     }
