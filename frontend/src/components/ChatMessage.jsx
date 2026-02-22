@@ -110,7 +110,7 @@ const ChatMessage = ({ message, onPromoteToTask, onSaveMessage, isStreaming = fa
           <div className="mb-2" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(indicator) }} />
         )}
 
-        {is_html ? (
+        {is_html && !indicator ? (
           <div className="prose prose-sm prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(content) }} />
         ) : (
           <div className="markdown-content">

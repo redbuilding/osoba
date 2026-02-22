@@ -634,11 +634,13 @@ const App = () => {
 
             let updated;
             if (data.type === "indicator") {
-              updated = { ...lastMessage, indicator: data.content, is_html: data.is_html };
+              updated = { ...lastMessage, indicator: data.content };
             } else if (data.type === "token") {
               updated = { ...lastMessage, content: lastMessage.content + data.content };
             } else if (data.type === "done") {
-              updated = { ...lastMessage, is_html: data.is_html };
+              // Don't set is_html from done — streamed tokens are always markdown.
+              // The indicator (which is HTML) is already rendered separately.
+              updated = { ...lastMessage };
               
               // If a new conversation was created, reflect its ID
               if (

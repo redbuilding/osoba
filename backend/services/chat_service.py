@@ -756,10 +756,12 @@ Your JSON response:
 
 
     def _save_assistant_message(self, content: str, raw_content: str):
-        assistant_msg = ChatMessage(role="assistant", content=content, is_html=self.is_html_response)
+        assistant_msg = ChatMessage(role="assistant", content=content, is_html=False)
         self.ui_history.append(assistant_msg)
         msg_to_save = assistant_msg.model_dump(exclude_none=True)
         msg_to_save["raw_content_for_llm"] = raw_content
+        if self.html_indicator:
+            msg_to_save["indicator"] = self.html_indicator
         self.collection.update_one({"_id": self.obj_id}, {"$push": {"messages": msg_to_save}, "$set": {"updated_at": datetime.now(timezone.utc)}})
         
         # Trigger auto-index check if conversation has 5+ messages (non-blocking)
@@ -783,8 +785,7 @@ Your JSON response:
             model_response = await chat_with_provider(self.llm_history, self.model_name, repeat_penalty)
 
             if model_response:
-                final_content = f"{self.html_indicator}\n\n{model_response}" if self.is_html_response else model_response
-                self._save_assistant_message(final_content, model_response)
+                self._save_assistant_message(model_response, model_response)
             else:
                 self._save_assistant_message(f"Sorry, I could not get a response from the model ({self.model_name}).", "")
 
@@ -820,8 +821,7 @@ Your JSON response:
 
         # Save clean content without indicator duplication
         if accumulated_response:
-            final_content = f"{self.html_indicator}\n\n{accumulated_response}" if self.is_html_response else accumulated_response
-            self._save_assistant_message(final_content, accumulated_response)
+            self._save_assistant_message(accumulated_response, accumulated_response)
 
         # Send clean content in done payload
         done_payload = json.dumps({
