@@ -19,7 +19,7 @@ const GoalsEditor = ({ userId = 'default' }) => {
       const response = await axios.get(`${API_URL}/user-profile`, {
         params: { user_id: userId }
       });
-      setGoals(response.data.goals_document || '');
+      setGoals(response.data.profile?.goals_document || '');
     } catch (err) {
       console.error('Error loading goals:', err);
       setError('Failed to load goals');

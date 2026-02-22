@@ -11,24 +11,25 @@ const ProactiveInsightsPanel = ({ userId = 'default' }) => {
   const pollIntervalRef = useRef(null);
 
   useEffect(() => {
-    if (isOpen) {
-      loadInsights();
-      // Poll for new insights every 60 seconds when panel is open
-      pollIntervalRef.current = setInterval(loadInsights, 60000);
-    } else {
-      // Stop polling when panel is closed
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-        pollIntervalRef.current = null;
-      }
-    }
+    // Load insights on mount
+    loadInsights();
+    
+    // Poll for new insights every 60 seconds (always, not just when open)
+    pollIntervalRef.current = setInterval(loadInsights, 60000);
 
     return () => {
       if (pollIntervalRef.current) {
         clearInterval(pollIntervalRef.current);
       }
     };
-  }, [isOpen, userId]);
+  }, [userId]);
+
+  useEffect(() => {
+    // Reload insights when panel opens
+    if (isOpen) {
+      loadInsights();
+    }
+  }, [isOpen]);
 
   // Click outside to close
   useEffect(() => {

@@ -221,18 +221,34 @@ class HeartbeatService:
     async def _create_task_from_insight(self, insight_data: Dict[str, Any], user_id: str, insight_id: str) -> Optional[str]:
         """Create a task from a heartbeat insight."""
         try:
+            from datetime import datetime, timezone
+            from db.heartbeat_crud import get_heartbeat_config
+            
+            # Get heartbeat config for model selection
+            heartbeat_config = get_heartbeat_config(user_id)
+            model_name = heartbeat_config.get("model_name") if heartbeat_config else None
+            
+            goal = insight_data["title"]
             task_data = {
-                "goal": insight_data["title"],
-                "description": insight_data["description"],
-                "user_id": user_id,
+                "title": goal[:60],
+                "goal": goal,
+                "status": "PLANNING",
+                "priority": 2,
+                "budget": {},
+                "usage": {"tool_calls": 0, "seconds_elapsed": 0},
+                "current_step_index": -1,
+                "model_name": model_name,
+                "created_at": datetime.now(timezone.utc),
+                "updated_at": datetime.now(timezone.utc),
                 "metadata": {
                     "source": "heartbeat",
-                    "insight_id": str(insight_id)
+                    "insight_id": str(insight_id),
+                    "description": insight_data.get("description", "")
                 }
             }
             
-            task = create_task(task_data)
-            return str(task.get("_id")) if task else None
+            task_id = create_task(task_data)
+            return task_id
         except Exception as e:
             logger.error(f"Error creating task from insight: {e}")
             return None

@@ -150,30 +150,46 @@ async def update_context_config_endpoint(context_sources: dict, user_id: str = "
 async def create_task_from_insight_endpoint(insight_id: str, user_id: str = "default"):
     """Convert a heartbeat insight into a tracked task."""
     try:
-        from db.heartbeat_crud import get_insight_by_id
-        from db.tasks_crud import create_task
+        from db.heartbeat_crud import get_insight_by_id, get_heartbeat_config
+        from db.tasks_crud import create_task, get_task
+        from datetime import datetime, timezone
         
         # Get the insight
         insight = get_insight_by_id(insight_id, user_id)
         if not insight:
             raise HTTPException(status_code=404, detail="Insight not found")
         
-        # Create task
+        # Get heartbeat config for model selection
+        heartbeat_config = get_heartbeat_config(user_id)
+        model_name = heartbeat_config.get("model_name") if heartbeat_config else None
+        
+        # Create task with proper schema
+        goal = insight.get("title", "Heartbeat Task")
         task_data = {
-            "goal": insight.get("title", "Heartbeat Task"),
-            "description": insight.get("description", ""),
-            "user_id": user_id,
+            "title": goal[:60],
+            "goal": goal,
+            "status": "PLANNING",
+            "priority": 2,
+            "budget": {},
+            "usage": {"tool_calls": 0, "seconds_elapsed": 0},
+            "current_step_index": -1,
+            "model_name": model_name,
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc),
             "metadata": {
                 "source": "heartbeat",
-                "insight_id": insight_id
+                "insight_id": insight_id,
+                "description": insight.get("description", "")
             }
         }
         
-        task = create_task(task_data)
+        task_id = create_task(task_data)
+        task = get_task(task_id)
         if not task:
             raise HTTPException(status_code=500, detail="Failed to create task")
         
-        return {"status": "success", "task_id": str(task.get("_id")), "task": task}
+        task["_id"] = str(task["_id"])
+        return {"status": "success", "task_id": task_id, "task": task}
     except HTTPException:
         raise
     except Exception as e:

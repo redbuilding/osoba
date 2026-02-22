@@ -9,6 +9,7 @@ import {
   syncToFile,
   triggerHeartbeat
 } from '../services/heartbeatApi';
+import ModelPickerModal from './ModelPickerModal';
 
 const EnhancedHeartbeatSettings = () => {
   const [config, setConfig] = useState(null);
@@ -18,6 +19,7 @@ const EnhancedHeartbeatSettings = () => {
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [message, setMessage] = useState(null);
+  const [isModelModalOpen, setIsModelModalOpen] = useState(false);
 
   useEffect(() => {
     loadSettings();
@@ -204,6 +206,21 @@ const EnhancedHeartbeatSettings = () => {
               disabled={saving}
             />
           </div>
+
+          {/* Model Selection */}
+          <div>
+            <label className="block text-brand-text-primary font-medium mb-2">Model for Tasks</label>
+            <p className="text-sm text-brand-text-secondary mb-2">
+              Model used when creating tasks from insights
+            </p>
+            <button
+              onClick={() => setIsModelModalOpen(true)}
+              className="w-full bg-brand-main-bg text-brand-text-secondary border border-gray-600 rounded px-3 py-2 text-left hover:border-brand-purple focus:outline-none focus:ring-1 focus:ring-brand-purple transition-colors"
+              disabled={saving}
+            >
+              {config.model_name || 'Select Model'}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -323,6 +340,17 @@ const EnhancedHeartbeatSettings = () => {
           {saving ? 'Running...' : 'Test Heartbeat Now'}
         </button>
       </div>
+
+      {/* Model Picker Modal */}
+      <ModelPickerModal
+        isOpen={isModelModalOpen}
+        onClose={() => setIsModelModalOpen(false)}
+        onSelectModel={(modelName) => {
+          handleConfigUpdate({ model_name: modelName });
+          setIsModelModalOpen(false);
+        }}
+        currentModel={config?.model_name}
+      />
     </div>
   );
 };

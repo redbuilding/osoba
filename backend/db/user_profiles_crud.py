@@ -29,16 +29,10 @@ def upsert_user_profile(profile_data: Dict[str, Any], user_id: str = "default") 
         collection = get_user_profiles_collection()
         now = datetime.now(timezone.utc)
 
-        update_doc = {
-            "name": profile_data.get("name", ""),
-            "role": profile_data.get("role"),
-            "communication_style": profile_data.get("communication_style", "professional"),
-            "expertise_areas": profile_data.get("expertise_areas", []) or [],
-            "current_projects": profile_data.get("current_projects"),
-            "preferred_tools": profile_data.get("preferred_tools", []) or [],
-            "user_id": user_id,
-            "updated_at": now,
-        }
+        # Only $set fields that were actually provided (exclude_unset already applied upstream)
+        update_doc = {k: v for k, v in profile_data.items() if k not in ("_id", "created_at")}
+        update_doc["user_id"] = user_id
+        update_doc["updated_at"] = now
 
         # Upsert and set created_at if inserting
         result = collection.update_one(

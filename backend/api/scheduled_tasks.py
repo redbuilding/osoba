@@ -258,8 +258,10 @@ async def run_scheduled_task_now(task_id: str, payload: dict | None = None):
             "title": scheduled.get("name", scheduled["goal"][:50]),
             "conversation_id": scheduled.get("conversation_id"),
             "model_name": override_model or scheduled.get("model_name") or scheduled.get("ollama_model_name"),
-            "budget": scheduled.get("budget"),
+            "budget": scheduled.get("budget") or {},
             "status": "PLANNING",
+            "usage": {"tool_calls": 0, "seconds_elapsed": 0},
+            "current_step_index": -1,
             "created_at": datetime.now(timezone.utc),
             "updated_at": datetime.now(timezone.utc),
             "priority": 1,
@@ -369,9 +371,14 @@ async def create_task_from_template(template_id: str, payload: TaskFromTemplateP
         # Create task
         task_data = {
             "goal": rendered_goal,
+            "title": rendered_goal[:60],
             "conversation_id": payload.conversation_id,
             "model_name": payload.model_name,
-            "status": "PENDING",
+            "status": "PLANNING",
+            "budget": {},
+            "usage": {"tool_calls": 0, "seconds_elapsed": 0},
+            "current_step_index": -1,
+            "priority": 2,
             "created_at": datetime.now(timezone.utc),
             "updated_at": datetime.now(timezone.utc)
         }

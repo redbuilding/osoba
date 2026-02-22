@@ -187,9 +187,11 @@ class TaskScheduler:
                 "title": title,
                 "conversation_id": scheduled_task.get("conversation_id"),
                 "model_name": scheduled_task.get("model_name") or scheduled_task.get("ollama_model_name"),
-                "budget": scheduled_task.get("budget"),
+                "budget": scheduled_task.get("budget") or {},
                 "planner_hints": scheduled_task.get("planner_hints"),
                 "status": "PLANNING",
+                "usage": {"tool_calls": 0, "seconds_elapsed": 0},
+                "current_step_index": -1,
                 "created_at": datetime.now(timezone.utc),
                 "updated_at": datetime.now(timezone.utc),
                 "priority": 1,  # Scheduled tasks get highest priority

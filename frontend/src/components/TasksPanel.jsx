@@ -261,7 +261,7 @@ const TasksPanel = ({ isOpen, onClose, initialGoal = "", conversationId = null }
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-40" onClick={onClose}>
-      <div className="absolute right-0 top-0 bottom-0 w-full sm:w-[500px] bg-brand-main-bg border-l border-gray-700 z-50" onClick={(e) => e.stopPropagation()}>
+      <div className="absolute right-0 top-0 bottom-0 w-full sm:w-[600px] bg-brand-main-bg border-l border-gray-700 z-50" onClick={(e) => e.stopPropagation()}>
         <div className="p-3 border-b border-gray-700 flex items-center justify-between">
           <div className="font-semibold text-brand-text-primary">Tasks</div>
           <button onClick={onClose} className="p-1 rounded hover:bg-gray-700"><X size={18}/></button>
