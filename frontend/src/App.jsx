@@ -415,82 +415,80 @@ const App = () => {
   /*  Documentation Injection                                              */
   /* --------------------------------------------------------------------- */
   const handleInjectDocs = async () => {
-    if (!currentConversationId) {
-      setError("Please start a conversation first before injecting documentation.");
-      return;
-    }
-    
-    try {
-      // Send a special message to inject docs
-      const payload = {
-        user_message: "/docs",
-        chat_history: chatHistory,
-        use_search: false,
-        use_database: false,
-        use_hubspot: false,
-        use_youtube: false,
-        use_python: false,
-        conversation_id: currentConversationId,
-        inject_docs: true,
-        remove_docs: false,
-      };
-      
-      await sendChatMessage(payload);
-      setDocsInjected(true);
-      
-      // Update conversations list to reflect docs_injected status
-      setConversations(prev => prev.map(c => 
-        c.id === currentConversationId ? { ...c, docs_injected: true } : c
-      ));
-      
-      // Add system message to chat
-      const systemMsg = {
-        role: "assistant",
-        content: "✅ OhSee documentation has been added to this conversation. You can now ask questions about OhSee features and usage.",
-        timestamp: new Date().toISOString(),
-      };
-      setChatHistory(prev => [...prev, systemMsg]);
-    } catch (err) {
-      setError(err.detail || err.message || "Failed to inject documentation.");
-    }
+    const payload = {
+      user_message: "/docs",
+      chat_history: chatHistory,
+      use_search: false,
+      use_database: false,
+      use_hubspot: false,
+      use_youtube: false,
+      use_python: false,
+      conversation_id: currentConversationId || undefined,
+      inject_docs: true,
+      remove_docs: false,
+    };
+
+    const abort = new AbortController();
+    await streamMessage(
+      payload,
+      {
+        onData: (data) => {
+          if (data.conversation_id && !currentConversationId) {
+            setCurrentConversationId(data.conversation_id);
+          }
+        },
+        onError: (err) => setError(err.message || "Failed to inject documentation."),
+        onClose: () => {
+          setDocsInjected(true);
+          setConversations(prev => prev.map(c =>
+            c.id === currentConversationId ? { ...c, docs_injected: true } : c
+          ));
+          setChatHistory(prev => [...prev, {
+            role: "assistant",
+            content: "✅ OhSee documentation has been added to this conversation. You can now ask questions about OhSee features and usage.",
+            timestamp: new Date().toISOString(),
+          }]);
+        },
+      },
+      abort.signal,
+    );
   };
 
   const handleRemoveDocs = async () => {
     if (!currentConversationId) return;
-    
-    try {
-      // Send a special message to remove docs
-      const payload = {
-        user_message: "/docs remove",
-        chat_history: chatHistory,
-        use_search: false,
-        use_database: false,
-        use_hubspot: false,
-        use_youtube: false,
-        use_python: false,
-        conversation_id: currentConversationId,
-        inject_docs: false,
-        remove_docs: true,
-      };
-      
-      await sendChatMessage(payload);
-      setDocsInjected(false);
-      
-      // Update conversations list
-      setConversations(prev => prev.map(c => 
-        c.id === currentConversationId ? { ...c, docs_injected: false } : c
-      ));
-      
-      // Add system message to chat
-      const systemMsg = {
-        role: "assistant",
-        content: "✅ OhSee documentation has been removed from this conversation.",
-        timestamp: new Date().toISOString(),
-      };
-      setChatHistory(prev => [...prev, systemMsg]);
-    } catch (err) {
-      setError(err.detail || err.message || "Failed to remove documentation.");
-    }
+
+    const payload = {
+      user_message: "/docs remove",
+      chat_history: chatHistory,
+      use_search: false,
+      use_database: false,
+      use_hubspot: false,
+      use_youtube: false,
+      use_python: false,
+      conversation_id: currentConversationId,
+      inject_docs: false,
+      remove_docs: true,
+    };
+
+    const abort = new AbortController();
+    await streamMessage(
+      payload,
+      {
+        onError: (err) => setError(err.message || "Failed to remove documentation."),
+        onClose: () => {
+          setDocsInjected(false);
+          setConversations(prev => prev.map(c =>
+            c.id === currentConversationId ? { ...c, docs_injected: false } : c
+          ));
+          setChatHistory(prev => [...prev, {
+            role: "assistant",
+            content: "✅ OhSee documentation has been removed from this conversation.",
+            timestamp: new Date().toISOString(),
+          }]);
+        },
+      },
+      abort.signal,
+    );
   };
 
   /* --------------------------------------------------------------------- */

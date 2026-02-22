@@ -150,21 +150,19 @@ const ChatInput = ({
         )}
 
         {/* Docs Injection Button */}
-        {currentConversationId && (
-          <button
-            type="button"
-            onClick={onInjectDocs}
-            title={docsInjected ? "Documentation already added" : "Add OhSee documentation to this conversation"}
-            disabled={disabled || docsInjected}
-            className={`p-2 rounded-md mr-2 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-brand-purple ${
-              docsInjected 
-                ? "bg-brand-purple text-white opacity-50 cursor-not-allowed" 
-                : "bg-gray-700 text-brand-text-secondary hover:bg-brand-purple hover:text-white"
-            } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
-          >
-            <BookOpen size={20} />
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={onInjectDocs}
+          title={docsInjected ? "Documentation already added" : "Add OhSee documentation to this conversation"}
+          disabled={disabled || docsInjected}
+          className={`p-2 rounded-md mr-2 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-brand-purple ${
+            docsInjected 
+              ? "bg-brand-purple text-white opacity-50 cursor-not-allowed" 
+              : "bg-gray-700 text-brand-text-secondary hover:bg-brand-purple hover:text-white"
+          } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
+        >
+          <BookOpen size={20} />
+        </button>
 
         {/* Text input */}
         <input
