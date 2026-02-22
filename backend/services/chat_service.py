@@ -692,8 +692,11 @@ Your JSON response:
             # Format for system prompt
             docs_section = (
                 "=== OhSee Application Documentation ===\n"
-                "The following is the complete documentation for the OhSee application. "
-                "Use this to answer questions about OhSee features, usage, and configuration.\n\n"
+                "The following is the complete documentation for the OhSee application.\n"
+                "IMPORTANT: When answering questions about OhSee, you MUST answer strictly and only from "
+                "the documentation provided below. Do NOT infer, invent, or extrapolate features, "
+                "behaviours, or capabilities that are not explicitly described in this documentation. "
+                "If the answer is not in the documentation, say so clearly.\n\n"
                 f"{readme_content}"
             )
             

@@ -63,6 +63,9 @@ function processStreamingMarkdown(content) {
 function processCompleteMarkdown(content) {
   let processed = content;
   
+  // Convert HTML <br> tags to actual <br/> for rendering, but preserve them
+  // inside table cells (tables are parsed line-by-line, so we handle <br> there separately)
+  
   // Headers
   processed = processed.replace(/^### (.*$)/gm, '<h3>$1</h3>');
   processed = processed.replace(/^## (.*$)/gm, '<h2>$1</h2>');
@@ -100,7 +103,8 @@ function processCompleteMarkdown(content) {
   // Ordered lists (e.g., 1. item)
   processed = wrapListBlocks(processed, /\n?\d+\.\s+.+/g, /^(\d+)\.\s+(.+)$/gm, 'ol');
   
-  // Line breaks
+  // Line breaks - convert <br> tags first, then handle double newlines
+  processed = processed.replace(/<br\s*\/?>/gi, '<br/>');
   processed = processed.replace(/\n\n/g, '</p><p>');
   processed = '<p>' + processed + '</p>';
   
@@ -202,7 +206,10 @@ function wrapListBlocks(input, blockDetector, itemRegex, listTag) {
 
 // Process inline markdown (bold, italic, code) without escaping
 function processInlineMarkdown(text) {
-  let s = escapeHtml(text);
+  // Preserve <br> tags before escaping HTML
+  let s = text.replace(/<br\s*\/?>/gi, '\n');
+  s = escapeHtml(s);
+  s = s.replace(/\n/g, '<br/>');
   s = s.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
   s = s.replace(/\*(.*?)\*/g, '<em>$1</em>');
   s = s.replace(/`([^`]+)`/g, '<code>$1</code>');

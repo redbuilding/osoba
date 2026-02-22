@@ -414,81 +414,8 @@ const App = () => {
   /* --------------------------------------------------------------------- */
   /*  Documentation Injection                                              */
   /* --------------------------------------------------------------------- */
-  const handleInjectDocs = async () => {
-    const payload = {
-      user_message: "/docs",
-      chat_history: chatHistory,
-      use_search: false,
-      use_database: false,
-      use_hubspot: false,
-      use_youtube: false,
-      use_python: false,
-      conversation_id: currentConversationId || undefined,
-      inject_docs: true,
-      remove_docs: false,
-    };
-
-    const abort = new AbortController();
-    await streamMessage(
-      payload,
-      {
-        onData: (data) => {
-          if (data.conversation_id && !currentConversationId) {
-            setCurrentConversationId(data.conversation_id);
-          }
-        },
-        onError: (err) => setError(err.message || "Failed to inject documentation."),
-        onClose: () => {
-          setDocsInjected(true);
-          setConversations(prev => prev.map(c =>
-            c.id === currentConversationId ? { ...c, docs_injected: true } : c
-          ));
-          setChatHistory(prev => [...prev, {
-            role: "assistant",
-            content: "✅ OhSee documentation has been added to this conversation. You can now ask questions about OhSee features and usage.",
-            timestamp: new Date().toISOString(),
-          }]);
-        },
-      },
-      abort.signal,
-    );
-  };
-
-  const handleRemoveDocs = async () => {
-    if (!currentConversationId) return;
-
-    const payload = {
-      user_message: "/docs remove",
-      chat_history: chatHistory,
-      use_search: false,
-      use_database: false,
-      use_hubspot: false,
-      use_youtube: false,
-      use_python: false,
-      conversation_id: currentConversationId,
-      inject_docs: false,
-      remove_docs: true,
-    };
-
-    const abort = new AbortController();
-    await streamMessage(
-      payload,
-      {
-        onError: (err) => setError(err.message || "Failed to remove documentation."),
-        onClose: () => {
-          setDocsInjected(false);
-          setConversations(prev => prev.map(c =>
-            c.id === currentConversationId ? { ...c, docs_injected: false } : c
-          ));
-          setChatHistory(prev => [...prev, {
-            role: "assistant",
-            content: "✅ OhSee documentation has been removed from this conversation.",
-            timestamp: new Date().toISOString(),
-          }]);
-        },
-      },
-      abort.signal,
-    );
+  const handleToggleDocs = () => {
+    setDocsInjected(prev => !prev);
   };
 
   /* --------------------------------------------------------------------- */
@@ -497,12 +424,6 @@ const App = () => {
   const handleSendMessage = async (userInput) => {
     /* --- guards -------------------------------------------------------- */
     if (isLoading || isChatHistoryLoading) return;
-
-    // Handle /docs slash command
-    if (typeof userInput === 'string' && userInput.trim() === '/docs') {
-      await handleInjectDocs();
-      return;
-    }
 
     // Use selectedModel for new conversations, maintain backward compatibility
     const modelForThisMsg = currentConversationId ? null : (selectedModel || selectedOllamaModel);
@@ -597,8 +518,8 @@ const App = () => {
       conversation_id: currentConversationId,
       model_name: modelForThisMsg,
       provider: providerForThisMsg,
-      inject_docs: false, // Will be set by handleInjectDocs
-      remove_docs: false, // Will be set by handleRemoveDocs
+      inject_docs: docsInjected,
+      remove_docs: false,
       // Backward compatibility
       ollama_model_name: selectedProvider === 'ollama' ? modelForThisMsg : null,
     };
@@ -999,10 +920,10 @@ const App = () => {
             )}
 
             {/* Docs Active Badge */}
-            {docsInjected && currentConversationId && (
+            {docsInjected && (
               <button
-                onClick={handleRemoveDocs}
-                title="Click to remove OhSee documentation from this conversation"
+                onClick={handleToggleDocs}
+                title="Click to disable OhSee documentation context"
                 className="flex items-center gap-1 px-2 py-1 text-xs rounded bg-brand-purple/20 border border-brand-purple text-brand-purple hover:bg-brand-purple/30 transition-colors duration-200"
               >
                 <BookOpen size={14} />
@@ -1113,7 +1034,7 @@ const App = () => {
           onFileChange={handleFileChange}
           uploadedFile={uploadedCsv}
           onClearFile={() => setUploadedCsv(null)}
-          onInjectDocs={handleInjectDocs}
+          onInjectDocs={handleToggleDocs}
           docsInjected={docsInjected}
           currentConversationId={currentConversationId}
         />
