@@ -1,4 +1,5 @@
 """Embedding service using Ollama nomic-embed-text model."""
+import asyncio
 import ollama
 from typing import List
 from core.config import get_logger
@@ -19,7 +20,7 @@ async def embed_text(text: str) -> List[float]:
         List of floats representing the embedding vector (768 dimensions)
     """
     try:
-        response = ollama.embeddings(model=MODEL_NAME, prompt=text)
+        response = await asyncio.to_thread(ollama.embeddings, model=MODEL_NAME, prompt=text)
         embedding = response.get("embedding", [])
         
         if not embedding:

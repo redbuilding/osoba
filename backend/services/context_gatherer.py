@@ -50,9 +50,9 @@ class ContextGatherer:
     async def gather_memory_context(self) -> Dict[str, Any]:
         """Gather semantic memory statistics and recent activity"""
         try:
-            from db.vector_memory import VectorMemory
+            from db.vector_memory import get_vector_memory
             
-            vm = VectorMemory()
+            vm = get_vector_memory()
             stats = vm.get_stats()
             
             # Get recent searches from memory (if available)
@@ -89,7 +89,7 @@ class ContextGatherer:
             try:
                 unpushed = self._run_git_command(["git", "log", "@{u}..", "--oneline"])
                 unpushed_commits = len([line for line in unpushed.split("\n") if line.strip()])
-            except:
+            except Exception:
                 unpushed_commits = 0
             
             # Get recent commits (last 5)
@@ -126,7 +126,7 @@ class ContextGatherer:
                             content = file_path.read_text()
                             todo_count += content.count("TODO")
                             fixme_count += content.count("FIXME")
-                        except:
+                        except Exception:
                             pass
             
             # Get recently modified files (last 24 hours)
@@ -135,7 +135,7 @@ class ContextGatherer:
                     "git", "log", "--since=24 hours ago", "--name-only", "--pretty=format:"
                 ])
                 recent_files = list(set([f for f in recent_output.split("\n") if f.strip()]))[:10]
-            except:
+            except Exception:
                 recent_files = []
             
             return {
@@ -189,7 +189,7 @@ class ContextGatherer:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 s.settimeout(1)
                 return s.connect_ex(("localhost", port)) == 0
-        except:
+        except Exception:
             return False
 
 

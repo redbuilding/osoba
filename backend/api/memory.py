@@ -3,7 +3,7 @@ from fastapi import APIRouter, HTTPException, Query
 from typing import Dict, Any
 from services.conversation_indexing import index_conversation, find_conversations_to_index
 from db.crud import get_conversation_indexing_status
-from db.vector_memory import VectorMemory
+from db.vector_memory import VectorMemory, get_vector_memory
 from core.config import get_logger
 
 logger = get_logger("memory_api")
@@ -107,7 +107,7 @@ async def get_memory_stats() -> Dict[str, Any]:
         Memory statistics
     """
     try:
-        vm = VectorMemory()
+        vm = get_vector_memory()
         stats = vm.get_stats()
         
         return {
@@ -138,7 +138,7 @@ async def search_memory(q: str = Query(...), limit: int = Query(10)) -> Dict[str
         query_embedding = await embed_text(q)
         
         # Search vector memory
-        vm = VectorMemory()
+        vm = get_vector_memory()
         results = vm.search_similar(
             query_embedding=query_embedding,
             limit=limit,
@@ -167,7 +167,7 @@ async def remove_conversation_from_memory(conv_id: str) -> Dict[str, Any]:
         Status of removal
     """
     try:
-        vm = VectorMemory()
+        vm = get_vector_memory()
         success = vm.delete_conversation(conv_id)
         
         if success:
@@ -201,7 +201,7 @@ async def clear_all_memory() -> Dict[str, Any]:
     """
     try:
         # This is a destructive operation - in production, add authentication
-        vm = VectorMemory()
+        vm = get_vector_memory()
         
         # Get all conversation IDs from collection
         stats = vm.get_stats()

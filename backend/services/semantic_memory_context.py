@@ -1,7 +1,7 @@
 """Build hybrid context combining pinned conversations and semantic memory."""
 from typing import Optional
 from services.embedder import embed_text
-from db.vector_memory import VectorMemory
+from db.vector_memory import VectorMemory, get_vector_memory
 from core.config import get_logger
 
 logger = get_logger("semantic_memory_context")
@@ -34,7 +34,7 @@ async def build_memory_context(
         query_embedding = await embed_text(query)
         
         # Search vector memory
-        vm = VectorMemory()
+        vm = get_vector_memory()
         results = vm.search_similar(
             query_embedding=query_embedding,
             limit=5,

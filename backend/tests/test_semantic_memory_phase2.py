@@ -3,6 +3,15 @@ import pytest
 from unittest.mock import patch, MagicMock
 from datetime import datetime, timezone, timedelta
 from bson import ObjectId
+import db.vector_memory as _vm_module
+
+
+@pytest.fixture(autouse=True)
+def _reset_vector_memory_singleton():
+    """Reset the VectorMemory singleton between tests to prevent cross-test contamination."""
+    _vm_module._vector_memory = None
+    yield
+    _vm_module._vector_memory = None
 
 
 class TestConversationIndexing:

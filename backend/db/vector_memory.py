@@ -202,3 +202,22 @@ class VectorMemory:
         except Exception as e:
             logger.error(f"Error getting stats: {e}", exc_info=True)
             return {"total_chunks": 0, "error": str(e)}
+
+
+# Singleton instance
+_vector_memory: Optional[VectorMemory] = None
+
+
+def get_vector_memory(persist_directory: str = CHROMA_PATH) -> VectorMemory:
+    """Get or create the VectorMemory singleton.
+    
+    Args:
+        persist_directory: Directory for ChromaDB persistent storage
+        
+    Returns:
+        VectorMemory singleton instance
+    """
+    global _vector_memory
+    if _vector_memory is None:
+        _vector_memory = VectorMemory(persist_directory)
+    return _vector_memory

@@ -10,7 +10,7 @@ from fastapi import HTTPException
 from fastmcp.client.transports import StdioServerParameters, stdio_client
 from mcp import ClientSession
 
-from core.config import BASE_DIR, WEB_SEARCH_SERVICE_NAME, MYSQL_DB_SERVICE_NAME, HUBSPOT_SERVICE_NAME, YOUTUBE_SERVICE_NAME, PYTHON_SERVICE_NAME, CODEX_SERVICE_NAME, get_logger
+from core.config import BASE_DIR, WEB_SEARCH_SERVICE_NAME, MYSQL_DB_SERVICE_NAME, HUBSPOT_SERVICE_NAME, YOUTUBE_SERVICE_NAME, PYTHON_SERVICE_NAME, CODEX_SERVICE_NAME, DISABLED_MCP_SERVICES, get_logger
 
 logger = get_logger("mcp_service")
 
@@ -32,7 +32,8 @@ class MCPServiceConfig:
 class AppState:
     def __init__(self):
         self.mcp_tasks: Dict[str, asyncio.Task] = {}
-        self.mcp_service_queues: Dict[str, Tuple[asyncio.Queue, asyncio.Queue]] = {}
+        self.mcp_service_queues: Dict[str, asyncio.Queue] = {}  # request queues only
+        self.mcp_pending_futures: Dict[str, Dict[str, asyncio.Future]] = {}  # service -> {req_id -> Future}
         self.mcp_service_ready: Dict[str, bool] = {}
         self.mcp_configs: Dict[str, MCPServiceConfig] = {
             WEB_SEARCH_SERVICE_NAME: MCPServiceConfig(
@@ -75,14 +76,21 @@ class AppState:
 
 app_state = AppState()
 
+def _resolve_future(service_name: str, request_id: str, result: Dict):
+    """Resolve a pending future for a completed request."""
+    futures = app_state.mcp_pending_futures.get(service_name, {})
+    fut = futures.pop(request_id, None)
+    if fut and not fut.done():
+        fut.set_result(result)
+
 async def run_mcp_service_instance(config: MCPServiceConfig):
     service_name = config.name
     logger.info(f"MCP_SERVICE ({service_name}): Starting STDIO client loop...")
     app_state.mcp_service_ready[service_name] = False
 
     request_q = asyncio.Queue()
-    response_q = asyncio.Queue()
-    app_state.mcp_service_queues[service_name] = (request_q, response_q)
+    app_state.mcp_service_queues[service_name] = request_q
+    app_state.mcp_pending_futures[service_name] = {}
 
     server_params = StdioServerParameters(
         command=config.full_command[0],
@@ -159,7 +167,7 @@ async def run_mcp_service_instance(config: MCPServiceConfig):
                                         else:
                                             response_data.append({"type": "text", "content": str(content)})
 
-                                        await response_q.put({"id": request_id, "status": "success", "data": response_data})
+                                        _resolve_future(service_name, request_id, {"id": request_id, "status": "success", "data": response_data})
 
                                     elif request_type == "resource":
                                         uri_to_get = request_data["uri"]
@@ -174,14 +182,14 @@ async def run_mcp_service_instance(config: MCPServiceConfig):
                                         elif hasattr(resource_result, 'content'):
                                             resource_content = resource_result.content
 
-                                        await response_q.put({"id": request_id, "status": "success", "data": resource_content})
+                                        _resolve_future(service_name, request_id, {"id": request_id, "status": "success", "data": resource_content})
                                     else:
-                                        await response_q.put({"id": request_id, "status": "error", "error": f"Unknown request type: {request_type}"})
+                                        _resolve_future(service_name, request_id, {"id": request_id, "status": "error", "error": f"Unknown request type: {request_type}"})
 
                                 except Exception as e_mcp_call:
                                     call_target = request_data.get("tool", request_data.get("uri", "N/A"))
                                     logger.error(f"MCP_SERVICE ({service_name}): Error in '{request_type}' call to '{call_target}': {e_mcp_call}", exc_info=True)
-                                    await response_q.put({"id": request_id, "status": "error", "error": str(e_mcp_call)})
+                                    _resolve_future(service_name, request_id, {"id": request_id, "status": "error", "error": str(e_mcp_call)})
                                 request_q.task_done()
                             except asyncio.QueueEmpty:
                                 await asyncio.sleep(0.01)
@@ -189,6 +197,11 @@ async def run_mcp_service_instance(config: MCPServiceConfig):
             logger.error(f"MCP_SERVICE ({service_name}): Generic Exception (subprocess might have failed): {e_generic}", exc_info=True)
         finally:
             app_state.mcp_service_ready[service_name] = False
+            # Fail all pending futures so callers don't hang
+            for req_id, fut in list(app_state.mcp_pending_futures.get(service_name, {}).items()):
+                if not fut.done():
+                    fut.set_result({"id": req_id, "status": "error", "error": "MCP service connection lost"})
+            app_state.mcp_pending_futures[service_name] = {}
             logger.info(f"MCP_SERVICE ({service_name}): Connection lost or subprocess ended. Will attempt to reconnect after 10s.")
             await asyncio.sleep(10)
 
@@ -196,7 +209,7 @@ async def submit_mcp_request(service_name: str, request_type: str, payload: Dict
     if service_name not in app_state.mcp_service_queues:
         raise HTTPException(status_code=503, detail=f"MCP service '{service_name}' is not available.")
 
-    request_q, _ = app_state.mcp_service_queues[service_name]
+    request_q = app_state.mcp_service_queues[service_name]
 
     if request_type == "tool":
         tool_name = payload.get("tool")
@@ -210,35 +223,37 @@ async def submit_mcp_request(service_name: str, request_type: str, payload: Dict
     else:
         raise ValueError("Invalid MCP request type")
 
+    # Create a Future for this request
+    loop = asyncio.get_running_loop()
+    fut = loop.create_future()
+    app_state.mcp_pending_futures.setdefault(service_name, {})[request_id] = fut
+
     return request_id
 
 async def wait_mcp_response(service_name: str, request_id: str, timeout: int = 45) -> Dict:
-    if service_name not in app_state.mcp_service_queues:
-        return {"id": request_id, "status": "error", "error": f"MCP service '{service_name}' queues not found."}
+    futures = app_state.mcp_pending_futures.get(service_name, {})
+    fut = futures.get(request_id)
+    if not fut:
+        return {"id": request_id, "status": "error", "error": f"No pending request found for {request_id}"}
 
-    _, response_q = app_state.mcp_service_queues[service_name]
-    start_time = time.time()
     try:
-        while time.time() - start_time < timeout:
-            try:
-                item = await asyncio.wait_for(response_q.get(), timeout=0.1)
-                if item.get("id") == request_id:
-                    response_q.task_done()
-                    return item
-                else:
-                    logger.warning(f"MCP_RESPONSE_WAIT ({service_name}): Received item for unexpected ID {item.get('id')}, expected {request_id}. Re-queuing.")
-                    await response_q.put(item)
-            except asyncio.TimeoutError:
-                pass
+        result = await asyncio.wait_for(fut, timeout=timeout)
+        return result
+    except asyncio.TimeoutError:
+        futures.pop(request_id, None)
+        return {"id": request_id, "status": "error", "error": "Request timed out"}
     except Exception as e:
-        logger.error(f"MCP_RESPONSE_WAIT ({service_name}): Error waiting for response for {request_id}: {e}", exc_info=True)
-        return {"id": request_id, "status": "error", "error": f"Exception while waiting for MCP response: {str(e)}"}
-
-    return {"id": request_id, "status": "error", "error": "Request timed out"}
+        logger.error(f"MCP_RESPONSE_WAIT ({service_name}): Error waiting for {request_id}: {e}", exc_info=True)
+        futures.pop(request_id, None)
+        return {"id": request_id, "status": "error", "error": f"Exception while waiting: {str(e)}"}
 
 def start_mcp_services():
     logger.info("FastAPI Lifespan: Startup sequence initiated.")
+    if DISABLED_MCP_SERVICES:
+        logger.info(f"FastAPI Lifespan: Disabled MCP services from env: {DISABLED_MCP_SERVICES}")
     for service_name, config in app_state.mcp_configs.items():
+        if service_name in DISABLED_MCP_SERVICES:
+            config.enabled = False
         if config.enabled:
             task = asyncio.create_task(run_mcp_service_instance(config))
             app_state.mcp_tasks[service_name] = task

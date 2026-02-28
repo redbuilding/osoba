@@ -14,7 +14,7 @@ def import_codex_with_env(tmpdir: Path):
     os.environ["CODEX_WORKSPACES_DIR"] = str(tmpdir / ".codex_ws_test")
     # Keep concurrency low for tests
     os.environ["CODEX_MAX_CONCURRENCY"] = "1"
-    spec = importlib.util.spec_from_file_location("server_codex", str(Path("backend") / "server_codex.py"))
+    spec = importlib.util.spec_from_file_location("server_codex", str(Path(__file__).resolve().parent.parent / "server_codex.py"))
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)  # type: ignore
     return mod
@@ -132,8 +132,8 @@ async def test_output_policy_hard_fail(tmp_path, monkeypatch):
     ws = await mod.create_workspace("policy")
     ws_id = ws["workspace_id"]
     root = Path(ws["workspace_path"])  # type: ignore
-    # Create a disallowed .py file to trigger hard fail (web profile disallows .py)
-    (root / "script.py").write_text("print('x')")
+    # Create a disallowed .exe file to trigger hard fail (not in DEFAULT_ALLOWED_EXTS)
+    (root / "malware.exe").write_bytes(b"\x00\x01\x02")
     events = json.dumps({"type": "turn.completed"})
 
     async def fake_run(cmd, cwd, env, timeout_seconds):

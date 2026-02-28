@@ -1216,6 +1216,16 @@ async def cancel_codex_run(run_id: str) -> dict:
     if not pid:
         return {"status": "error", "message": "process not started or already finished"}
     try:
+        os.kill(pid, 0)  # Check if process exists
+    except ProcessLookupError:
+        job["status"] = "failed"
+        job["error_message"] = "process already exited"
+        job["finished_at_ms"] = _now_ms()
+        _jobs[run_id] = job
+        return {"status": "success", "run": job}
+    except PermissionError:
+        pass  # Process exists but we lack permission — try SIGTERM anyway
+    try:
         os.kill(pid, 15)  # SIGTERM
         job["status"] = "failed"
         job["error_message"] = "canceled"

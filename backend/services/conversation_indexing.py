@@ -2,7 +2,7 @@
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timezone, timedelta
 from services.embedder import embed_batch
-from db.vector_memory import VectorMemory
+from db.vector_memory import VectorMemory, get_vector_memory
 from db.crud import get_conversation_by_id, get_conversations_collection
 from core.config import get_logger
 
@@ -45,7 +45,7 @@ async def index_conversation(conv_id: str) -> bool:
         full_text = "\n\n".join(text_parts)
         
         # Initialize vector memory
-        vm = VectorMemory()
+        vm = get_vector_memory()
         
         # Chunk the conversation
         chunks = vm.chunk_text(full_text)

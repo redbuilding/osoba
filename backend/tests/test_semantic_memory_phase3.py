@@ -33,8 +33,9 @@ class TestSemanticMemoryContext:
         ]
         
         with patch('services.semantic_memory_context.embed_text', return_value=mock_embedding):
-            with patch('services.semantic_memory_context.VectorMemory') as MockVM:
-                mock_vm = MockVM.return_value
+            with patch('services.semantic_memory_context.get_vector_memory') as mock_get_vm:
+                mock_vm = MagicMock()
+                mock_get_vm.return_value = mock_vm
                 mock_vm.search_similar.return_value = mock_results
                 
                 context = await build_memory_context(
@@ -56,8 +57,9 @@ class TestSemanticMemoryContext:
         mock_embedding = [0.1] * 768
         
         with patch('services.semantic_memory_context.embed_text', return_value=mock_embedding):
-            with patch('services.semantic_memory_context.VectorMemory') as MockVM:
-                mock_vm = MockVM.return_value
+            with patch('services.semantic_memory_context.get_vector_memory') as mock_get_vm:
+                mock_vm = MagicMock()
+                mock_get_vm.return_value = mock_vm
                 mock_vm.search_similar.return_value = []
                 
                 context = await build_memory_context(
@@ -93,8 +95,9 @@ class TestSemanticMemoryContext:
         ]
         
         with patch('services.semantic_memory_context.embed_text', return_value=mock_embedding):
-            with patch('services.semantic_memory_context.VectorMemory') as MockVM:
-                mock_vm = MockVM.return_value
+            with patch('services.semantic_memory_context.get_vector_memory') as mock_get_vm:
+                mock_vm = MagicMock()
+                mock_get_vm.return_value = mock_vm
                 mock_vm.search_similar.return_value = mock_results
                 
                 context = await build_memory_context(
@@ -127,8 +130,9 @@ class TestSemanticMemoryContext:
         ]
         
         with patch('services.semantic_memory_context.embed_text', return_value=mock_embedding):
-            with patch('services.semantic_memory_context.VectorMemory') as MockVM:
-                mock_vm = MockVM.return_value
+            with patch('services.semantic_memory_context.get_vector_memory') as mock_get_vm:
+                mock_vm = MagicMock()
+                mock_get_vm.return_value = mock_vm
                 mock_vm.search_similar.return_value = mock_results
                 
                 context = await build_memory_context(

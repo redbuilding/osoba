@@ -58,6 +58,12 @@ TASK_DISPATCH_INTERVAL_MS = int(os.getenv('TASK_DISPATCH_INTERVAL_MS', '2000'))
 # Debug / logging flags
 CODEX_DEBUG = os.getenv('CODEX_DEBUG', 'false').lower() == 'true'
 
+# MCP services that should be disabled (comma-separated names)
+# e.g. DISABLED_MCP_SERVICES=hubspot_service,mysql_db_service,codex_workspace_service
+DISABLED_MCP_SERVICES = set(
+    s.strip() for s in os.getenv('DISABLED_MCP_SERVICES', '').split(',') if s.strip()
+)
+
 # Artifacts configuration
 # Root directory to write artifacts (relative to repo root by default)
 ARTIFACTS_ROOT = os.getenv('ARTIFACTS_ROOT', 'artifacts')
