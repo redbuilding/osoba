@@ -89,6 +89,19 @@ def dismiss_insight(insight_id: str, user_id: str = "default") -> bool:
         return False
 
 
+def get_heartbeat_config(user_id: str = "default") -> Optional[Dict[str, Any]]:
+    """Get heartbeat configuration from the user profile."""
+    try:
+        from db.user_profiles_crud import get_user_profile
+        profile = get_user_profile(user_id)
+        if not profile:
+            return None
+        return profile.get("heartbeat_config")
+    except Exception as e:
+        logger.error(f"Error getting heartbeat config for {user_id}: {e}")
+        return None
+
+
 def count_insights_today(user_id: str = "default") -> int:
     """Count non-dismissed insights created today for a user."""
     try:

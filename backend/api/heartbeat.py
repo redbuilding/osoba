@@ -152,18 +152,17 @@ async def create_task_from_insight_endpoint(insight_id: str, user_id: str = "def
     try:
         from db.heartbeat_crud import get_insight_by_id, get_heartbeat_config
         from db.tasks_crud import create_task, get_task
+        from core.models import TaskDetail
         from datetime import datetime, timezone
         
-        # Get the insight
         insight = get_insight_by_id(insight_id, user_id)
         if not insight:
             raise HTTPException(status_code=404, detail="Insight not found")
         
-        # Get heartbeat config for model selection
         heartbeat_config = get_heartbeat_config(user_id)
         model_name = heartbeat_config.get("model_name") if heartbeat_config else None
         
-        # Create task with proper schema
+        now = datetime.now(timezone.utc)
         goal = insight.get("title", "Heartbeat Task")
         task_data = {
             "title": goal[:60],
@@ -174,8 +173,8 @@ async def create_task_from_insight_endpoint(insight_id: str, user_id: str = "def
             "usage": {"tool_calls": 0, "seconds_elapsed": 0},
             "current_step_index": -1,
             "model_name": model_name,
-            "created_at": datetime.now(timezone.utc),
-            "updated_at": datetime.now(timezone.utc),
+            "created_at": now,
+            "updated_at": now,
             "metadata": {
                 "source": "heartbeat",
                 "insight_id": insight_id,
@@ -189,7 +188,7 @@ async def create_task_from_insight_endpoint(insight_id: str, user_id: str = "def
             raise HTTPException(status_code=500, detail="Failed to create task")
         
         task["_id"] = str(task["_id"])
-        return {"status": "success", "task_id": task_id, "task": task}
+        return {"status": "success", "task_id": task_id, "task": TaskDetail.model_validate(task).model_dump()}
     except HTTPException:
         raise
     except Exception as e:

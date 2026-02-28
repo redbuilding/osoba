@@ -238,7 +238,7 @@ class TestTaskCreationFromInsights:
         }
         
         with patch('services.heartbeat_service.create_task') as mock_create:
-            mock_create.return_value = {"_id": "task123"}
+            mock_create.return_value = "task123"
             
             service = HeartbeatService()
             task_id = await service._create_task_from_insight(
