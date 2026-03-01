@@ -1,4 +1,4 @@
-# OhSee Development — Hour 6 Complete
+# Osoba Development — Hour 6 Complete
 
 **Date:** 2026-02-17  
 **Time:** 8:30-8:45 PM EST  
@@ -162,7 +162,7 @@ def profile_imports(func):
 ---
 
 ## Files Created
-- This file: `memory/ohsee-hour-06-complete.md`
+- This file: `memory/osoba-hour-06-complete.md`
 
 ---
 

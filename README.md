@@ -1,10 +1,10 @@
-# 🔍 🤖 🌐 OhSee
+# 🔍 🤖 🌐 Osoba
 
 A powerful, modern UI that integrates local and hosted LLMs with intelligent web search and content extraction, SQL, YouTube transcript analysis, HubSpot actions, Python data analysis — and a Codex MCP server for safe code scaffolding — all via the Model Context Protocol (MCP). Features include personalized AI assistance through user profiles and conversation context, provider settings, multi‑provider model picking, streaming chat, persistent conversations, a robust Tasks system, and Scheduled tasks with timezone‑aware timing.
 
 ## Overview
 
-OhSee showcases how to extend both local and hosted models through MCP tool use. It combines locally running LLMs via Ollama with intelligent web search and content extraction, SQL querying, YouTube transcript ingestion, HubSpot business actions, Python-based CSV analysis/visualization — and a Codex Workspace server for code generation inside an isolated workspace. A multi‑provider layer adds OpenAI, Anthropic, Google, OpenRouter, Groq, and SambaNova. Conversations and tasks persist in MongoDB.
+Osoba showcases how to extend both local and hosted models through MCP tool use. It combines locally running LLMs via Ollama with intelligent web search and content extraction, SQL querying, YouTube transcript ingestion, HubSpot business actions, Python-based CSV analysis/visualization — and a Codex Workspace server for code generation inside an isolated workspace. A multi‑provider layer adds OpenAI, Anthropic, Google, OpenRouter, Groq, and SambaNova. Conversations and tasks persist in MongoDB.
 
 The project consists of several key components:
 
@@ -117,7 +117,7 @@ The system distinguishes between two types of delays:
 The UI shows the breakdown: "⚠️ Last run: 15m late (sleep: 10m, queued: 5m)". This helps you understand whether delays are due to system sleep or task queue congestion. Since only one task executes at a time (for memory safety), tasks may queue behind catch-up tasks after system wake.
 
 **Running as a Service (Optional)**:
-For guaranteed execution and automatic startup, you can run OhSee backend as a system service. This ensures the backend is always running and ready to execute scheduled tasks on time. Setup scripts are provided for macOS (Launch Agent), Linux (systemd), and Windows (NSSM). See `scripts/README.md` for detailed setup instructions.
+For guaranteed execution and automatic startup, you can run Osoba backend as a system service. This ensures the backend is always running and ready to execute scheduled tasks on time. Setup scripts are provided for macOS (Launch Agent), Linux (systemd), and Windows (NSSM). See `scripts/README.md` for detailed setup instructions.
 
 **Wake Scheduling (Advanced)**:
 On supported systems, you can configure the computer to wake from sleep specifically to run scheduled tasks. This requires administrator/root access and is recommended primarily for desktop machines or when plugged in due to battery impact. Platform-specific instructions:
@@ -151,8 +151,8 @@ Optional (enable additional tools):
 
 1.  **Clone the repository:**
     ```bash
-    git clone https://github.com/redbuilding/ohsee.git
-    cd ohsee
+    git clone https://github.com/redbuilding/osoba.git
+    cd osoba
     ```
 
 2.  **Set up Backend:**
@@ -251,7 +251,7 @@ Optional (enable additional tools):
 
 ## Security Considerations
 
-> ⚠️ **OhSee is designed for local, single-user use.** The API has no authentication layer. Never expose port 8000 to untrusted networks (e.g., via ngrok, port forwarding, or binding to `0.0.0.0`).
+> ⚠️ **Osoba is designed for local, single-user use.** The API has no authentication layer. Never expose port 8000 to untrusted networks (e.g., via ngrok, port forwarding, or binding to `0.0.0.0`).
 
 - **Network Exposure**: The backend binds to `127.0.0.1` by default. Do not change this to `0.0.0.0` unless you understand the risks.
 - **Encryption Key**: Set `SETTINGS_ENCRYPTION_KEY` in `backend/.env` to a stable Fernet key. Without it, provider API keys are lost on every restart.
@@ -416,7 +416,7 @@ The AI combines your profile information with pinned conversation context to pro
 
 ## Semantic Memory System
 
-OhSee features an advanced semantic memory system that provides unlimited conversation storage with intelligent semantic search, going beyond the 5-conversation pinning limit.
+Osoba features an advanced semantic memory system that provides unlimited conversation storage with intelligent semantic search, going beyond the 5-conversation pinning limit.
 
 ### How It Works
 

@@ -1,4 +1,4 @@
-# OhSee Development — Hour 7 Complete
+# Osoba Development — Hour 7 Complete
 
 **Date:** 2026-02-17  
 **Time:** 8:40-9:00 PM EST  
@@ -11,7 +11,7 @@
 
 ### ✅ Proactive Heartbeat Service
 
-Built a complete heartbeat system that enables OhSee to check for and execute proactive tasks without user prompting.
+Built a complete heartbeat system that enables Osoba to check for and execute proactive tasks without user prompting.
 
 ### Files Created
 
@@ -72,7 +72,7 @@ Failing:
 
 ### Integration Points
 
-**Works with existing OhSee infrastructure:**
+**Works with existing Osoba infrastructure:**
 - Uses `RateLimiter` from Hour 4
 - Uses `sanitize_user_input` from Hour 4
 - Integrates with existing task runner (can trigger tasks)
@@ -92,7 +92,7 @@ Failing:
 ### Example Usage
 
 ```python
-# In OhSee startup
+# In Osoba startup
 from services.heartbeat_service import HeartbeatManager
 
 async with HeartbeatManager() as hb:
@@ -125,7 +125,7 @@ async with HeartbeatManager() as hb:
 - Implement actual `check_memory` callback
 - Implement `run_tests` callback
 - Connect to existing task runner
-- Dogfood it (OhSee manages its own hours)
+- Dogfood it (Osoba manages its own hours)
 
 ### Option C: New Feature
 - Multi-channel messaging (Telegram)

@@ -1,6 +1,6 @@
 #!/bin/bash
-# OhSee macOS Service Setup Script
-# This script sets up OhSee backend as a Launch Agent with optional wake scheduling
+# Osoba macOS Service Setup Script
+# This script sets up Osoba backend as a Launch Agent with optional wake scheduling
 
 set -e
 
@@ -8,10 +8,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 BACKEND_DIR="$PROJECT_ROOT/backend"
 LAUNCH_AGENT_DIR="$HOME/Library/LaunchAgents"
-PLIST_NAME="com.ohsee.backend.plist"
+PLIST_NAME="com.osoba.backend.plist"
 PLIST_PATH="$LAUNCH_AGENT_DIR/$PLIST_NAME"
 
-echo "🔍 OhSee macOS Service Setup"
+echo "🔍 Osoba macOS Service Setup"
 echo "=============================="
 echo ""
 
@@ -50,7 +50,7 @@ cat > "$PLIST_PATH" << EOF
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.ohsee.backend</string>
+    <string>com.osoba.backend</string>
     
     <key>ProgramArguments</key>
     <array>
@@ -78,10 +78,10 @@ cat > "$PLIST_PATH" << EOF
     <true/>
     
     <key>StandardOutPath</key>
-    <string>/tmp/ohsee-backend.log</string>
+    <string>/tmp/osoba-backend.log</string>
     
     <key>StandardErrorPath</key>
-    <string>/tmp/ohsee-backend-error.log</string>
+    <string>/tmp/osoba-backend-error.log</string>
 </dict>
 </plist>
 EOF
@@ -98,17 +98,17 @@ echo ""
 
 # Check if it's running
 sleep 2
-if launchctl list | grep -q "com.ohsee.backend"; then
-    echo "✅ OhSee backend is now running as a background service!"
+if launchctl list | grep -q "com.osoba.backend"; then
+    echo "✅ Osoba backend is now running as a background service!"
     echo ""
     echo "📊 Service Status:"
     echo "   • Backend URL: http://localhost:8000"
-    echo "   • Logs: /tmp/ohsee-backend.log"
-    echo "   • Errors: /tmp/ohsee-backend-error.log"
+    echo "   • Logs: /tmp/osoba-backend.log"
+    echo "   • Errors: /tmp/osoba-backend-error.log"
     echo ""
 else
     echo "⚠️  Service may not have started. Check logs:"
-    echo "   tail -f /tmp/ohsee-backend-error.log"
+    echo "   tail -f /tmp/osoba-backend-error.log"
     exit 1
 fi
 

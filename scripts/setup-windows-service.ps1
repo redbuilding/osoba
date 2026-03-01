@@ -1,5 +1,5 @@
-# OhSee Windows Service Setup Script
-# This script sets up OhSee backend as a Windows service using NSSM
+# Osoba Windows Service Setup Script
+# This script sets up Osoba backend as a Windows service using NSSM
 
 param(
     [switch]$Uninstall
@@ -10,9 +10,9 @@ $ErrorActionPreference = "Stop"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ProjectRoot = Split-Path -Parent $ScriptDir
 $BackendDir = Join-Path $ProjectRoot "backend"
-$ServiceName = "OhSeeBackend"
+$ServiceName = "OsobaBackend"
 
-Write-Host "🔍 OhSee Windows Service Setup" -ForegroundColor Cyan
+Write-Host "🔍 Osoba Windows Service Setup" -ForegroundColor Cyan
 Write-Host "===============================" -ForegroundColor Cyan
 Write-Host ""
 
@@ -26,7 +26,7 @@ if (-not $isAdmin) {
 
 # Handle uninstall
 if ($Uninstall) {
-    Write-Host "🗑️  Uninstalling OhSee service..." -ForegroundColor Yellow
+    Write-Host "🗑️  Uninstalling Osoba service..." -ForegroundColor Yellow
     
     $service = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
     if ($service) {
@@ -72,7 +72,7 @@ $NssmPath = (Get-Command nssm -ErrorAction SilentlyContinue).Source
 if (-not $NssmPath) {
     Write-Host "⚠️  NSSM not found. Installing NSSM..." -ForegroundColor Yellow
     Write-Host ""
-    Write-Host "NSSM (Non-Sucking Service Manager) is required to run OhSee as a Windows service." -ForegroundColor Yellow
+    Write-Host "NSSM (Non-Sucking Service Manager) is required to run Osoba as a Windows service." -ForegroundColor Yellow
     Write-Host ""
     Write-Host "Installation options:" -ForegroundColor Cyan
     Write-Host "  1. Using Chocolatey: choco install nssm" -ForegroundColor White
@@ -117,17 +117,17 @@ if ($existingService) {
 }
 
 # Install the service
-Write-Host "📝 Installing OhSee service..." -ForegroundColor Cyan
+Write-Host "📝 Installing Osoba service..." -ForegroundColor Cyan
 & nssm install $ServiceName $UvicornPath "main:app" "--host" "0.0.0.0" "--port" "8000"
 
 # Configure service
 Write-Host "⚙️  Configuring service..." -ForegroundColor Cyan
 & nssm set $ServiceName AppDirectory $BackendDir
-& nssm set $ServiceName DisplayName "OhSee Backend"
-& nssm set $ServiceName Description "OhSee AI Assistant Backend Service"
+& nssm set $ServiceName DisplayName "Osoba Backend"
+& nssm set $ServiceName Description "Osoba AI Assistant Backend Service"
 & nssm set $ServiceName Start SERVICE_AUTO_START
-& nssm set $ServiceName AppStdout "$env:TEMP\ohsee-backend.log"
-& nssm set $ServiceName AppStderr "$env:TEMP\ohsee-backend-error.log"
+& nssm set $ServiceName AppStdout "$env:TEMP\osoba-backend.log"
+& nssm set $ServiceName AppStderr "$env:TEMP\osoba-backend-error.log"
 
 # Load .env file if it exists
 $EnvFile = Join-Path $BackendDir ".env"
@@ -151,19 +151,19 @@ Start-Sleep -Seconds 3
 $service = Get-Service -Name $ServiceName
 if ($service.Status -eq 'Running') {
     Write-Host ""
-    Write-Host "✅ OhSee backend is now running as a Windows service!" -ForegroundColor Green
+    Write-Host "✅ Osoba backend is now running as a Windows service!" -ForegroundColor Green
     Write-Host ""
     Write-Host "📊 Service Status:" -ForegroundColor Cyan
     Write-Host "   • Service Name: $ServiceName" -ForegroundColor White
     Write-Host "   • Status: $($service.Status)" -ForegroundColor White
     Write-Host "   • Backend URL: http://localhost:8000" -ForegroundColor White
-    Write-Host "   • Logs: $env:TEMP\ohsee-backend.log" -ForegroundColor White
-    Write-Host "   • Errors: $env:TEMP\ohsee-backend-error.log" -ForegroundColor White
+    Write-Host "   • Logs: $env:TEMP\osoba-backend.log" -ForegroundColor White
+    Write-Host "   • Errors: $env:TEMP\osoba-backend-error.log" -ForegroundColor White
     Write-Host ""
 } else {
     Write-Host ""
     Write-Host "⚠️  Service may not have started. Status: $($service.Status)" -ForegroundColor Yellow
-    Write-Host "   Check logs at: $env:TEMP\ohsee-backend-error.log" -ForegroundColor Yellow
+    Write-Host "   Check logs at: $env:TEMP\osoba-backend-error.log" -ForegroundColor Yellow
     exit 1
 }
 
@@ -180,11 +180,11 @@ if ($wakeChoice -eq 'y' -or $wakeChoice -eq 'Y') {
     Write-Host ""
     Write-Host "📝 Windows Task Scheduler Wake Setup:" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "The OhSee backend can create Task Scheduler entries that wake your computer." -ForegroundColor White
+    Write-Host "The Osoba backend can create Task Scheduler entries that wake your computer." -ForegroundColor White
     Write-Host ""
     Write-Host "To enable wake scheduling:" -ForegroundColor Cyan
     Write-Host "  1. Open Task Scheduler (taskschd.msc)" -ForegroundColor White
-    Write-Host "  2. Find OhSee-related tasks" -ForegroundColor White
+    Write-Host "  2. Find Osoba-related tasks" -ForegroundColor White
     Write-Host "  3. Edit task → Conditions → Check 'Wake the computer to run this task'" -ForegroundColor White
     Write-Host ""
     Write-Host "⚠️  Note: Wake scheduling requires:" -ForegroundColor Yellow

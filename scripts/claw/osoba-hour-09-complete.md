@@ -1,4 +1,4 @@
-# OhSee Development — Hour 9 Complete
+# Osoba Development — Hour 9 Complete
 
 **Date:** 2026-02-18  
 **Time:** 7:20-7:35 AM EST (~15 min)  
@@ -141,8 +141,8 @@ Changes staged:
 
 **Note:** Commit blocked — `.git/objects` contains root-owned directories from Docker operations. Run from Docker container or fix permissions:
 ```bash
-sudo chown -R app-user:app-user /home/app-user/workspace-main/ohsee/.git/objects
-cd ohsee && git commit -m "feat: Hour 9 - Frontend/backend integration for heartbeat settings"
+sudo chown -R app-user:app-user /home/app-user/workspace-main/osoba/.git/objects
+cd osoba && git commit -m "feat: Hour 9 - Frontend/backend integration for heartbeat settings"
 ```
 
 ---

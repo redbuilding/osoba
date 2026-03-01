@@ -1,7 +1,7 @@
-# OhSee Brand Standards Guide
+# Osoba Brand Standards Guide
 
 ## Overview
-This document defines the visual identity and design standards for the OhSee chat application frontend. The design follows a modern dark theme with purple and blue accents, emphasizing readability and user experience.
+This document defines the visual identity and design standards for the Osoba chat application frontend. The design follows a modern dark theme with purple and blue accents, emphasizing readability and user experience.
 
 ## Color Palette
 

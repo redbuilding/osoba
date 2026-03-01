@@ -667,7 +667,7 @@ Your JSON response:
 
     async def _get_documentation_context(self) -> str:
         """
-        Get OhSee documentation context if docs are injected for this conversation.
+        Get Osoba documentation context if docs are injected for this conversation.
         Returns empty string if docs not injected or file not found.
         """
         try:
@@ -691,16 +691,16 @@ Your JSON response:
             
             # Format for system prompt
             docs_section = (
-                "=== OhSee Application Documentation ===\n"
-                "The following is the complete documentation for the OhSee application.\n"
-                "IMPORTANT: When answering questions about OhSee, you MUST answer strictly and only from "
+                "=== Osoba Application Documentation ===\n"
+                "The following is the complete documentation for the Osoba application.\n"
+                "IMPORTANT: When answering questions about Osoba, you MUST answer strictly and only from "
                 "the documentation provided below. Do NOT infer, invent, or extrapolate features, "
                 "behaviours, or capabilities that are not explicitly described in this documentation. "
                 "If the answer is not in the documentation, say so clearly.\n\n"
                 f"{readme_content}"
             )
             
-            logger.info(f"Injected OhSee documentation context for conv {self.conv_id} (~{len(readme_content)} chars)")
+            logger.info(f"Injected Osoba documentation context for conv {self.conv_id} (~{len(readme_content)} chars)")
             return docs_section
             
         except Exception as e:

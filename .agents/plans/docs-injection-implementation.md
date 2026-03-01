@@ -1,7 +1,7 @@
 # Documentation Injection Feature - Implementation Summary
 
 ## Overview
-Implemented a manual documentation injection system that allows users to add OhSee's README documentation to specific conversations for context-aware help about the application's features and usage.
+Implemented a manual documentation injection system that allows users to add Osoba's README documentation to specific conversations for context-aware help about the application's features and usage.
 
 ## Implementation Date
 February 20, 2026
@@ -21,7 +21,7 @@ February 20, 2026
 - Visual states:
   - **Gray**: Docs not injected (clickable)
   - **Purple + disabled**: Docs already injected
-- Tooltip: "Add OhSee documentation to this conversation"
+- Tooltip: "Add Osoba documentation to this conversation"
 
 #### B. Slash Command
 - Type `/docs` in chat input
@@ -69,7 +69,7 @@ class ConversationListItem(BaseModel):
 ```python
 async def _get_documentation_context(self) -> str:
     """
-    Get OhSee documentation context if docs are injected.
+    Get Osoba documentation context if docs are injected.
     Returns empty string if docs not injected or file not found.
     """
     # Check conversation's docs_injected flag
@@ -80,7 +80,7 @@ async def _get_documentation_context(self) -> str:
 
 **System Prompt Integration**:
 - Documentation injected after profile, conversation, and memory context
-- Formatted as "=== OhSee Application Documentation ===" section
+- Formatted as "=== Osoba Application Documentation ===" section
 - ~3000 tokens added only when docs are injected
 
 ### Frontend Changes
@@ -139,13 +139,13 @@ const handleRemoveDocs = async () => {
 ### Adding Documentation
 1. **Start or select a conversation**
 2. **Click 📚 icon** in chat input OR **type `/docs`**
-3. **See confirmation**: "✅ OhSee documentation has been added to this conversation"
+3. **See confirmation**: "✅ Osoba documentation has been added to this conversation"
 4. **Badge appears** in header: "📚 Docs Active"
-5. **Ask questions** about OhSee features
+5. **Ask questions** about Osoba features
 
 ### Removing Documentation
 1. **Click "📚 Docs Active" badge** in header
-2. **See confirmation**: "✅ OhSee documentation has been removed from this conversation"
+2. **See confirmation**: "✅ Osoba documentation has been removed from this conversation"
 3. **Badge disappears**
 4. **Context returns to normal** (no docs in future messages)
 
@@ -219,8 +219,8 @@ const handleRemoveDocs = async () => {
 - User selects what they need
 
 ### Phase 3: Smart Suggestions
-- Detect OhSee-related questions without docs
-- Show tooltip: "💡 Tip: Click 📚 to add OhSee documentation for better answers"
+- Detect Osoba-related questions without docs
+- Show tooltip: "💡 Tip: Click 📚 to add Osoba documentation for better answers"
 - Help users discover the feature
 
 ### Phase 4: Documentation Versioning
@@ -251,7 +251,7 @@ const handleRemoveDocs = async () => {
 - Feature works immediately after deployment
 
 ## Success Metrics
-- Users can ask questions about OhSee features
+- Users can ask questions about Osoba features
 - AI provides accurate answers using documentation
 - No context bloat in normal conversations
 - Clear user control over when docs are active

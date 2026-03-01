@@ -252,7 +252,7 @@ class TestSmartExtraction:
         assert config.max_chars_per_url == 2000  # Default value
         assert config.max_total_chars == 5000  # Default value
         assert config.request_delay == 1.0  # Default value
-        assert "OhSee-AI-Assistant" in config.user_agent
+        assert "Osoba-AI-Assistant" in config.user_agent
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

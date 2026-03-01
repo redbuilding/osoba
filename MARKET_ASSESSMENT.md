@@ -1,4 +1,4 @@
-# OhSee Market Assessment & Strategic Options
+# Osoba Market Assessment & Strategic Options
 **Date**: February 21, 2026  
 **Status**: Portfolio Project → Commercial Evaluation
 
@@ -6,7 +6,7 @@
 
 ## Executive Summary
 
-OhSee is positioned at the intersection of three major market trends: (1) MCP protocol standardization, (2) AI coding assistant monetization, and (3) the shift from open-source to open-core business models. With OpenClaw as the primary open-source competitor (buggy, security issues, hard to use), OhSee has a **clear opportunity for commercial success** through an open-core model rather than pure open source.
+Osoba is positioned at the intersection of three major market trends: (1) MCP protocol standardization, (2) AI coding assistant monetization, and (3) the shift from open-source to open-core business models. With OpenClaw as the primary open-source competitor (buggy, security issues, hard to use), Osoba has a **clear opportunity for commercial success** through an open-core model rather than pure open source.
 
 **Recommendation**: Pursue **Open-Core Commercial Model** with strategic open-source foundation.
 
@@ -82,9 +82,9 @@ OhSee is positioned at the intersection of three major market trends: (1) MCP pr
 
 **Market Position**: Developer hobbyist tool, not enterprise-ready
 
-### OhSee Competitive Advantages
+### Osoba Competitive Advantages
 
-| Feature | OhSee | OpenClaw |
+| Feature | Osoba | OpenClaw |
 |---------|-------|----------|
 | **Modern Web UI** | ✅ React, responsive, professional | ❌ Terminal/messaging only |
 | **MCP Native** | ✅ 5 MCP servers, extensible | ❌ Custom skill system |
@@ -97,11 +97,11 @@ OhSee is positioned at the intersection of three major market trends: (1) MCP pr
 | **Ease of Use** | ✅ One-click setup, settings UI, visual feedback | ❌ Complex setup |
 | **Documentation** | ✅ Comprehensive README, user guides | ⚠️ Limited |
 
-**Verdict**: OhSee is **enterprise-ready** where OpenClaw is a **hobbyist tool**.
+**Verdict**: Osoba is **enterprise-ready** where OpenClaw is a **hobbyist tool**.
 
 ---
 
-## OhSee's Unique Value Propositions
+## Osoba's Unique Value Propositions
 
 ### 1. **MCP-Native Architecture**
 - Only comprehensive MCP chat UI with 5+ production-ready servers
@@ -154,7 +154,7 @@ OhSee is positioned at the intersection of three major market trends: (1) MCP pr
 - **Zero revenue** (unless donations, which rarely work)
 - **No competitive moat**: Anyone can fork and commercialize
 - **Limited resources**: Can't hire, can't scale development
-- **Cloud providers win**: AWS/Azure could offer "OhSee as a Service" without contributing back
+- **Cloud providers win**: AWS/Azure could offer "Osoba as a Service" without contributing back
 - **Sustainability risk**: Burnout, abandonment common in unfunded OSS
 
 **Verdict**: Good for portfolio, bad for business.
@@ -177,7 +177,7 @@ OhSee is positioned at the intersection of three major market trends: (1) MCP pr
 - **Multi-tenancy**: Multiple users, organizations, RBAC
 - **SSO/SAML**: Enterprise authentication
 - **Audit logs**: Compliance, security tracking
-- **Cloud hosting**: Managed OhSee (no self-hosting)
+- **Cloud hosting**: Managed Osoba (no self-hosting)
 - **Advanced MCP servers**: HubSpot, Salesforce, custom integrations
 - **Priority support**: SLA, dedicated Slack channel
 - **Team features**: Shared conversations, knowledge bases, templates
@@ -227,7 +227,7 @@ OhSee is positioned at the intersection of three major market trends: (1) MCP pr
 - **Competitive disadvantage**: Open-source alternatives will emerge
 - **Ethical concerns**: MCP is open standard, closed implementation feels wrong
 
-**Verdict**: Not recommended. Loses OhSee's core advantage (open, extensible, community-driven).
+**Verdict**: Not recommended. Loses Osoba's core advantage (open, extensible, community-driven).
 
 ---
 
@@ -243,7 +243,7 @@ OhSee is positioned at the intersection of three major market trends: (1) MCP pr
 **Examples**: MongoDB (SSPL), Elastic (Elastic License), GitLab (MIT core + proprietary enterprise)
 
 **Pros**:
-- **Protects against cloud competition**: AWS can't offer "OhSee as a Service" without paying
+- **Protects against cloud competition**: AWS can't offer "Osoba as a Service" without paying
 - **Revenue from large deployments**: Enterprises pay to avoid AGPL compliance
 - **Community-friendly**: Still open source, just with copyleft requirements
 
@@ -296,7 +296,7 @@ OhSee is positioned at the intersection of three major market trends: (1) MCP pr
    - Partnerships with MCP server developers
    - Conference talks (AI/ML conferences, developer events)
 2. **Product expansion**:
-   - Cloud-hosted option (OhSee Cloud)
+   - Cloud-hosted option (Osoba Cloud)
    - Marketplace for MCP servers (revenue share with developers)
    - White-label offering for agencies
 3. **Team growth**: Hire 1-2 developers, 1 support/success person
@@ -347,7 +347,7 @@ OhSee is positioned at the intersection of three major market trends: (1) MCP pr
 - **Support**: Dedicated Slack channel, phone support, on-site training
 - **Monetization**: High-margin, long-term contracts
 
-### OhSee Cloud (Managed Hosting)
+### Osoba Cloud (Managed Hosting)
 - **Target**: Users who want free features but don't want to self-host
 - **Pricing**: $9/month (individual), $19/month (team features)
 - **Features**: Hosted version of open-source core, automatic updates, backups
@@ -463,13 +463,13 @@ OhSee is positioned at the intersection of three major market trends: (1) MCP pr
 - ✅ You want maximum revenue capture
 - ✅ You're willing to sacrifice community growth
 - ✅ You have VC funding or significant runway
-- ❌ Not recommended for OhSee
+- ❌ Not recommended for Osoba
 
 ---
 
 ## Conclusion & Recommendation
 
-**OhSee is uniquely positioned to become the leading MCP chat platform** by combining:
+**Osoba is uniquely positioned to become the leading MCP chat platform** by combining:
 1. **Technical excellence**: Production-ready, well-architected, extensible
 2. **Market timing**: MCP is becoming infrastructure, early movers win
 3. **Competitive advantage**: OpenClaw is buggy/insecure, no other serious open-source competitors

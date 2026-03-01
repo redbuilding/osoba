@@ -1,4 +1,4 @@
-# OhSee Development — Hour 8B Complete
+# Osoba Development — Hour 8B Complete
 
 **Date:** 2026-02-17  
 **Time:** 10:37-11:00 PM EST (~23 min)  
@@ -22,7 +22,7 @@
 - **Save functionality** — Visual feedback (loading spinner, saved confirmation)
 
 **UI Design:**
-- Uses OhSee's existing design system (`brand-purple`, `brand-surface-bg`, etc.)
+- Uses Osoba's existing design system (`brand-purple`, `brand-surface-bg`, etc.)
 - Toggle switches (not checkboxes) for main features
 - Card-based layout with clear hierarchy
 - Responsive grid layout
@@ -53,7 +53,7 @@
         ↓
 ┌─────────────────────────────────────────────┐
 │ Automation                                  │
-│ Configure OhSee to proactively execute...   │
+│ Configure Osoba to proactively execute...   │
 ├─────────────────────────────────────────────┤
 │ Heartbeat Service                    [ ON ] │
 │ Allow autonomous task execution             │
@@ -159,7 +159,7 @@ main branch: 9 commits ahead of origin
 - Heartbeat service daemon
 - Settings persistence (opt-in, encrypted)
 - Context gatherer (git, memory, project state)
-- Task bridge (submits to OhSee Task Runner)
+- Task bridge (submits to Osoba Task Runner)
 - API endpoints for settings management
 
 **Frontend:**

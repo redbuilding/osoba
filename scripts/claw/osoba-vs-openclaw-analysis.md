@@ -1,5 +1,5 @@
-# OhSee vs OpenClaw: Deep Dive Analysis
-## Gaps and Opportunities for OhSee
+# Osoba vs OpenClaw: Deep Dive Analysis
+## Gaps and Opportunities for Osoba
 
 **Research Date:** February 16, 2026  
 **Analyst:** Nowl (OpenClaw AI Assistant)  
@@ -9,11 +9,11 @@
 
 ## Executive Summary
 
-OhSee is a well-architected FastAPI/React application demonstrating Model Context Protocol (MCP) integration for local and hosted LLMs. While technically impressive, there are significant gaps compared to OpenClaw's multi-channel messaging-first architecture. This report identifies strategic opportunities for OhSee to evolve beyond a web-only demo into a production-ready AI assistant platform.
+Osoba is a well-architected FastAPI/React application demonstrating Model Context Protocol (MCP) integration for local and hosted LLMs. While technically impressive, there are significant gaps compared to OpenClaw's multi-channel messaging-first architecture. This report identifies strategic opportunities for Osoba to evolve beyond a web-only demo into a production-ready AI assistant platform.
 
 ---
 
-## OhSee Architecture Overview
+## Osoba Architecture Overview
 
 ### Core Stack
 - **Backend:** FastAPI (Python 3.11+)
@@ -24,7 +24,7 @@ OhSee is a well-architected FastAPI/React application demonstrating Model Contex
 - **Protocol:** Model Context Protocol (MCP) via FastMCP
 
 ### MCP Servers (Tools)
-OhSee implements 6 MCP servers:
+Osoba implements 6 MCP servers:
 1. **Web Search** (Serper.dev API) - Smart extraction via trafilatura/BeautifulSoup
 2. **SQL Query** (MySQL) - Read-only with schema introspection
 3. **YouTube Transcript** - Multi-strategy fetching (youtube-transcript-api, Pytube, yt-dlp)
@@ -63,18 +63,18 @@ OpenClaw is a **messaging-first** AI assistant platform, not a web chat app.
 
 ---
 
-## Gap Analysis: 10 Major Opportunities for OhSee
+## Gap Analysis: 10 Major Opportunities for Osoba
 
 ### 1. **Multi-Channel Messaging (CRITICAL GAP)**
 
-**Current State:** OhSee is web-only (React frontend + FastAPI backend)
+**Current State:** Osoba is web-only (React frontend + FastAPI backend)
 
 **OpenClaw Advantage:**
 - WhatsApp, Telegram, Discord, Signal, iMessage integration
 - Users interact via their preferred messaging app
 - Platform-native features (voice notes, images, reactions)
 
-**Opportunity for OhSee:**
+**Opportunity for Osoba:**
 - Integrate messaging provider SDKs (Twilio for WhatsApp, python-telegram-bot, discord.py)
 - Implement webhook handlers for each channel
 - Build channel-agnostic message routing layer
@@ -92,7 +92,7 @@ OpenClaw is a **messaging-first** AI assistant platform, not a web chat app.
 
 ### 2. **Proactive Heartbeat System vs Reactive Tasks**
 
-**Current State:** OhSee has scheduled tasks but they're reactive (user-created cron jobs)
+**Current State:** Osoba has scheduled tasks but they're reactive (user-created cron jobs)
 
 **OpenClaw Advantage:**
 - Gateway daemon with heartbeat system
@@ -100,7 +100,7 @@ OpenClaw is a **messaging-first** AI assistant platform, not a web chat app.
 - Can reach out to user without being asked
 - "Faith + pressure" proactive execution
 
-**Opportunity for OhSee:**
+**Opportunity for Osoba:**
 - Add gateway daemon that polls for proactive opportunities
 - HEARTBEAT.md equivalent for agent behavior
 - Proactive research, content suggestions, reminders
@@ -119,7 +119,7 @@ OpenClaw is a **messaging-first** AI assistant platform, not a web chat app.
 
 ### 3. **Memory Architecture: Database vs Semantic**
 
-**Current State:** OhSee uses MongoDB for conversations; no semantic search
+**Current State:** Osoba uses MongoDB for conversations; no semantic search
 
 **OpenClaw Advantage:**
 - Daily memory files (`memory/YYYY-MM-DD.md`)
@@ -128,7 +128,7 @@ OpenClaw is a **messaging-first** AI assistant platform, not a web chat app.
 - Cites sources: "Source: MEMORY.md#42"
 - Survives session restarts elegantly
 
-**Opportunity for OhSee:**
+**Opportunity for Osoba:**
 - Add vector database (Pinecone, Weaviate, or Chroma)
 - Implement conversation embedding on save
 - `recall()` function for semantic context retrieval
@@ -147,7 +147,7 @@ OpenClaw is a **messaging-first** AI assistant platform, not a web chat app.
 
 ### 4. **Agent Spawning & Sub-Agents**
 
-**Current State:** OhSee has "Tasks" but they're single-threaded workflows
+**Current State:** Osoba has "Tasks" but they're single-threaded workflows
 
 **OpenClaw Advantage:**
 - `sessions_spawn()` creates isolated sub-agents
@@ -155,7 +155,7 @@ OpenClaw is a **messaging-first** AI assistant platform, not a web chat app.
 - Report back to parent session when complete
 - True parallel execution with result aggregation
 
-**Opportunity for OhSee:**
+**Opportunity for Osoba:**
 - Add session spawning capability
 - Each task could spawn its own isolated "sub-agent"
 - Parallel task execution (currently single-threaded queue)
@@ -174,7 +174,7 @@ OpenClaw is a **messaging-first** AI assistant platform, not a web chat app.
 
 ### 5. **Skills System & Packaging**
 
-**Current State:** OhSee MCP servers are hardcoded; no user-extensible tools
+**Current State:** Osoba MCP servers are hardcoded; no user-extensible tools
 
 **OpenClaw Advantage:**
 - Skills are `.skill` files (zip packages with scripts, SKILL.md)
@@ -182,7 +182,7 @@ OpenClaw is a **messaging-first** AI assistant platform, not a web chat app.
 - Skills have standardized interface (SKILL.md guides usage)
 - Community skill marketplace potential
 
-**Opportunity for OhSee:**
+**Opportunity for Osoba:**
 - Standardize MCP server packaging (.skill format)
 - Skill manager UI (install, configure, enable/disable)
 - Hot-reload skills without server restart
@@ -201,7 +201,7 @@ OpenClaw is a **messaging-first** AI assistant platform, not a web chat app.
 
 ### 6. **Persona Embodiment & SOUL.md**
 
-**Current State:** OhSee has "user profiles" but no agent persona
+**Current State:** Osoba has "user profiles" but no agent persona
 
 **OpenClaw Advantage:**
 - SOUL.md defines agent identity, voice, opinions
@@ -209,7 +209,7 @@ OpenClaw is a **messaging-first** AI assistant platform, not a web chat app.
 - "Faith + pressure" motivational style
 - Protective of user's energy and focus
 
-**Opportunity for OhSee:**
+**Opportunity for Osoba:**
 - Add agent persona configuration (not just user profiles)
 - Personality persists across conversations
 - Configurable tone (mentor, assistant, co-conspirator)
@@ -227,7 +227,7 @@ OpenClaw is a **messaging-first** AI assistant platform, not a web chat app.
 
 ### 7. **Local-First & Privacy Architecture**
 
-**Current State:** OhSee requires MongoDB, Serper.dev, external APIs
+**Current State:** Osoba requires MongoDB, Serper.dev, external APIs
 
 **OpenClaw Advantage:**
 - File-based memory (markdown files)
@@ -235,7 +235,7 @@ OpenClaw is a **messaging-first** AI assistant platform, not a web chat app.
 - User data stays on-device
 - Works entirely offline with local models
 
-**Opportunity for OhSee:**
+**Opportunity for Osoba:**
 - Optional file-based mode (no MongoDB required)
 - Local-only mode (Ollama + file storage)
 - Graduated privacy: local → hybrid → cloud
@@ -254,7 +254,7 @@ OpenClaw is a **messaging-first** AI assistant platform, not a web chat app.
 
 ### 8. **Canvas/Screen Presentation**
 
-**Current State:** OhSee has web UI only; no external presentation layer
+**Current State:** Osoba has web UI only; no external presentation layer
 
 **OpenClaw Advantage:**
 - Canvas tool for presenting visual content
@@ -262,7 +262,7 @@ OpenClaw is a **messaging-first** AI assistant platform, not a web chat app.
 - Node-based canvas for remote devices
 - Screenshot/snapshot capabilities
 
-**Opportunity for OhSee:**
+**Opportunity for Osoba:**
 - Add canvas presentation layer
 - Display charts from Python analysis inline
 - Visual workflow builders for tasks
@@ -281,14 +281,14 @@ OpenClaw is a **messaging-first** AI assistant platform, not a web chat app.
 
 ### 9. **Browser Automation Integration**
 
-**Current State:** OhSee has web search but no browser control
+**Current State:** Osoba has web search but no browser control
 
 **OpenClaw Advantage:**
 - Browser control via Playwright (snapshot, click, type)
 - Can navigate websites, fill forms, extract data
 - UI automation capabilities
 
-**Opportunity for OhSee:**
+**Opportunity for Osoba:**
 - Add browser MCP server
 - Automated form filling
 - Price monitoring, competitor tracking
@@ -307,7 +307,7 @@ OpenClaw is a **messaging-first** AI assistant platform, not a web chat app.
 
 ### 10. **Multi-User & Collaboration**
 
-**Current State:** OhSee appears single-user (no auth system)
+**Current State:** Osoba appears single-user (no auth system)
 
 **OpenClaw Advantage:**
 - Session-based isolation
@@ -315,7 +315,7 @@ OpenClaw is a **messaging-first** AI assistant platform, not a web chat app.
 - Group chat participation
 - Shared workspaces possible
 
-**Opportunity for OhSee:**
+**Opportunity for Osoba:**
 - Add authentication layer
 - Multi-tenant MongoDB collections
 - Shared conversations (collaborative AI chats)
@@ -373,19 +373,19 @@ OpenClaw is a **messaging-first** AI assistant platform, not a web chat app.
 
 ## Strategic Positioning Opportunities
 
-### 1. **OhSee as "OpenClaw for Teams"**
-- Position OhSee as team/collaborative version
+### 1. **Osoba as "OpenClaw for Teams"**
+- Position Osoba as team/collaborative version
 - Web UI for desktop use, API for integrations
 - Shared MCP tools across team
 - Centralized task scheduling
 
-### 2. **OhSee as "MCP Playground"**
+### 2. **Osoba as "MCP Playground"**
 - Emphasize MCP education/demonstration
 - Best-in-class MCP server examples
 - Reference implementation for MCP spec
 - Documentation generator from MCP servers
 
-### 3. **OhSee as "Local AI Workstation"**
+### 3. **Osoba as "Local AI Workstation"**
 - Double down on local-first capabilities
 - Ollama integration showcase
 - Privacy-first alternative to cloud AI
@@ -415,7 +415,7 @@ OpenClaw is a **messaging-first** AI assistant platform, not a web chat app.
 
 ## Conclusion
 
-OhSee is a technically solid MCP demonstration with excellent task scheduling and multi-provider LLM support. However, it currently competes in the crowded "web chat with AI" space.
+Osoba is a technically solid MCP demonstration with excellent task scheduling and multi-provider LLM support. However, it currently competes in the crowded "web chat with AI" space.
 
 **Key Differentiation Needed:**
 - Messaging-first architecture (meet users where they are)
@@ -424,11 +424,11 @@ OhSee is a technically solid MCP demonstration with excellent task scheduling an
 - Agent spawning (parallel intelligent execution)
 - Skills ecosystem (user-extensible capabilities)
 
-If OhSee can add these OpenClaw-inspired capabilities while maintaining its technical elegance, it could become the leading open-source AI assistant platform for both individuals and teams.
+If Osoba can add these OpenClaw-inspired capabilities while maintaining its technical elegance, it could become the leading open-source AI assistant platform for both individuals and teams.
 
 The biggest opportunity is the **paradigm shift from "web app you visit" to "assistant that reaches you"** — anywhere, proactively, with true memory and personality.
 
 ---
 
 **Report Compiled:** 2026-02-16  
-**Sources:** OhSee GitHub repository (github.com/redbuilding/ohsee), OpenClaw runtime context, 2 web searches (within constraints)
+**Sources:** Osoba GitHub repository (github.com/redbuilding/osoba), OpenClaw runtime context, 2 web searches (within constraints)

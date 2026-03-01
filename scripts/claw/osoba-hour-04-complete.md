@@ -1,4 +1,4 @@
-# OhSee Development — Hour 4 Complete
+# Osoba Development — Hour 4 Complete
 
 **Date:** 2026-02-17  
 **Time:** 07:20-08:20 EST  

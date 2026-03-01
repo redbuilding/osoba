@@ -10,7 +10,7 @@ Implement a comprehensive semantic memory system that replaces the limited 5-con
 
 ## User Story
 
-As an OhSee user
+As an Osoba user
 I want unlimited conversation memory with intelligent semantic search
 So that the AI can reference any relevant past conversation without manual pinning limits
 
@@ -503,7 +503,7 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
   - Shows spinner during save
   - Shows "Saved" confirmation
   - Tooltip explains auto-save behavior
-- **STYLING**: Use existing OhSee button styles
+- **STYLING**: Use existing Osoba button styles
 - **VALIDATE**: Button appears and triggers save API call
 
 #### Task 4.2: CREATE frontend/src/components/memory/MemoryIndicator.jsx

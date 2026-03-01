@@ -1,8 +1,8 @@
-# OhSee Heartbeat Integration Design
+# Osoba Heartbeat Integration Design
 
 **Date:** 2026-02-17  
 **Status:** Architecture Design Complete  
-**Objective:** Integrate Heartbeat Service with OhSee's existing systems
+**Objective:** Integrate Heartbeat Service with Osoba's existing systems
 
 ---
 
@@ -93,7 +93,7 @@ Heartbeat service schedules tasks → Task Runner executes them
 ```python
 # services/heartbeat_service.py
 async def _execute_task(self, task: HeartbeatTask):
-    # Convert heartbeat task to OhSee Task
+    # Convert heartbeat task to Osoba Task
     task_payload = {
         "goal": task.description,
         "conversation_id": None,  # System task
@@ -227,7 +227,7 @@ Use this context to prioritize and execute effectively.
   <Section title="Heartbeat">
     <Toggle 
       label="Enable autonomous heartbeat"
-      description="Allow OhSee to check for and execute proactive tasks"
+      description="Allow Osoba to check for and execute proactive tasks"
       checked={heartbeatEnabled}
       onChange={toggleHeartbeat}
     />
@@ -303,7 +303,7 @@ Use this context to prioritize and execute effectively.
 ```
 
 **Visual Design:**
-- Use existing OhSee styling (brand colors, borders)
+- Use existing Osoba styling (brand colors, borders)
 - Toggle switches (not checkboxes) for main features
 - Inline frequency selectors (dropdowns)
 - Status cards with timestamps
@@ -381,7 +381,7 @@ HeartbeatService respects setting
 | **Heartbeat → Task Scheduler** | Reuse infrastructure, visibility, budgets |
 | **Context Gatherer** | Tasks need context to be effective |
 | **Two-way HEARTBEAT.md sync** | Power users edit files, casual users use UI |
-| **Settings panel integration** | Consistent with existing OhSee UX |
+| **Settings panel integration** | Consistent with existing Osoba UX |
 
 ---
 

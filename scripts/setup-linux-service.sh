@@ -1,16 +1,16 @@
 #!/bin/bash
-# OhSee Linux Service Setup Script (systemd)
-# This script sets up OhSee backend as a systemd service
+# Osoba Linux Service Setup Script (systemd)
+# This script sets up Osoba backend as a systemd service
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 BACKEND_DIR="$PROJECT_ROOT/backend"
-SERVICE_NAME="ohsee-backend"
+SERVICE_NAME="osoba-backend"
 SERVICE_FILE="/etc/systemd/system/$SERVICE_NAME.service"
 
-echo "🔍 OhSee Linux Service Setup (systemd)"
+echo "🔍 Osoba Linux Service Setup (systemd)"
 echo "======================================="
 echo ""
 
@@ -57,7 +57,7 @@ fi
 echo "📝 Creating systemd service..."
 cat > "$SERVICE_FILE" << EOF
 [Unit]
-Description=OhSee Backend Service
+Description=Osoba Backend Service
 After=network.target
 Wants=network-online.target
 
@@ -106,7 +106,7 @@ echo ""
 # Check status
 sleep 2
 if systemctl is-active --quiet $SERVICE_NAME; then
-    echo "✅ OhSee backend is now running as a system service!"
+    echo "✅ Osoba backend is now running as a system service!"
     echo ""
     echo "📊 Service Status:"
     systemctl status $SERVICE_NAME --no-pager -l

@@ -319,7 +319,7 @@ const EnhancedHeartbeatSettings = () => {
               Create HEARTBEAT.md in your project root to define custom tasks
             </p>
             <a
-              href="https://github.com/redbuilding/ohsee/blob/main/HEARTBEAT.md.example"
+              href="https://github.com/redbuilding/osoba/blob/main/HEARTBEAT.md.example"
               target="_blank"
               rel="noopener noreferrer"
               className="text-brand-purple hover:text-brand-button-grad-to text-sm"

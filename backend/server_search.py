@@ -53,7 +53,7 @@ class SmartExtractionConfig:
     max_chars_per_url: int = int(os.getenv("SMART_EXTRACT_MAX_CHARS_PER_URL", "2000"))
     max_total_chars: int = int(os.getenv("SMART_EXTRACT_MAX_TOTAL_CHARS", "5000"))
     request_delay: float = float(os.getenv("SMART_EXTRACT_REQUEST_DELAY", "1.0"))
-    user_agent: str = "OhSee-AI-Assistant/1.0 (Polite Content Extraction)"
+    user_agent: str = "Osoba-AI-Assistant/1.0 (Polite Content Extraction)"
 
 # Create an MCP server instance using FastMCP
 # Note: Remove the explicit transport configuration - FastMCP handles this

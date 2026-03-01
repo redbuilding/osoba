@@ -4,7 +4,7 @@ The following plan addresses 7 security findings (2 High, 5 Medium) identified i
 
 ## Feature Description
 
-Remediate critical security vulnerabilities in the OhSee codebase including arbitrary code execution via pandas query injection, XSS through unsanitized HTML rendering, network exposure via incorrect service binding, missing CSRF protection in OAuth flows, and weak encryption key management. These fixes protect against real exploits while maintaining the application's localhost-first deployment model.
+Remediate critical security vulnerabilities in the Osoba codebase including arbitrary code execution via pandas query injection, XSS through unsanitized HTML rendering, network exposure via incorrect service binding, missing CSRF protection in OAuth flows, and weak encryption key management. These fixes protect against real exploits while maintaining the application's localhost-first deployment model.
 
 ## User Story
 
@@ -449,9 +449,9 @@ cd frontend && npm run dev
 **Service Binding**:
 ```bash
 # After running setup script, verify binding
-launchctl list | grep ohsee
+launchctl list | grep osoba
 # Check generated plist contains 127.0.0.1
-cat ~/Library/LaunchAgents/com.ohsee.backend.plist | grep -A1 "host"
+cat ~/Library/LaunchAgents/com.osoba.backend.plist | grep -A1 "host"
 ```
 
 ### Level 5: Security Validation

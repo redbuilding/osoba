@@ -319,12 +319,12 @@ HUBSPOT_SERVICE_NAME: MCPServiceConfig(
 
 ### For Open-Core Strategy
 
-**Problem**: If you're positioning OhSee as "enterprise-ready" with advanced task automation, the limited tool access is a **competitive weakness**.
+**Problem**: If you're positioning Osoba as "enterprise-ready" with advanced task automation, the limited tool access is a **competitive weakness**.
 
 **Competitor Comparison**:
-- **OpenClaw**: No task system (advantage: OhSee)
-- **Cursor/Windsurf**: Full tool access in agentic workflows (disadvantage: OhSee)
-- **Cline**: Full MCP access (disadvantage: OhSee)
+- **OpenClaw**: No task system (advantage: Osoba)
+- **Cursor/Windsurf**: Full tool access in agentic workflows (disadvantage: Osoba)
+- **Cline**: Full MCP access (disadvantage: Osoba)
 
 **Recommendation**: Expand task tool access to match or exceed competitors. This is a **differentiator** for the Pro/Enterprise tiers.
 
@@ -433,4 +433,4 @@ Dynamic tool discovery with safety controls:
 - **Aggressive**: Remove whitelist entirely, match chat's full access (recommended for competitive positioning)
 - **Hybrid**: Tiered access (safe by default, advanced opt-in)
 
-For the **open-core commercial strategy**, I recommend the **aggressive approach** (full tool access) to differentiate OhSee as the most capable MCP task automation platform. This becomes a key selling point for Pro/Enterprise tiers.
+For the **open-core commercial strategy**, I recommend the **aggressive approach** (full tool access) to differentiate Osoba as the most capable MCP task automation platform. This becomes a key selling point for Pro/Enterprise tiers.

@@ -1,4 +1,4 @@
-# Security Review — OhSee Codebase
+# Security Review — Osoba Codebase
 
 **Date:** 2026-02-21
 **Scope:** Full codebase (backend, frontend, MCP servers, scripts, dependencies)
@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-OhSee has a reasonable security posture for a locally-deployed application. The codebase demonstrates intentional security thinking in several areas (SQL whitelist, Codex sandboxing, Fernet encryption, CORS restrictions). However, there are significant findings around arbitrary code execution via `pandas.DataFrame.query()`, XSS through unsanitized LLM output rendering, missing authentication on all API endpoints, and a service setup script that binds to `0.0.0.0`.
+Osoba has a reasonable security posture for a locally-deployed application. The codebase demonstrates intentional security thinking in several areas (SQL whitelist, Codex sandboxing, Fernet encryption, CORS restrictions). However, there are significant findings around arbitrary code execution via `pandas.DataFrame.query()`, XSS through unsanitized LLM output rendering, missing authentication on all API endpoints, and a service setup script that binds to `0.0.0.0`.
 
 **Findings by severity:** 2 High, 5 Medium, 4 Low, 5 Info
 
@@ -150,7 +150,7 @@ exploit scenario: |
   to all conversations, stored API keys, and can execute arbitrary tasks.
 recommendation: |
   For now, document this as an explicit design decision in README.md:
-  "⚠️ OhSee has no authentication. Never expose port 8000 to untrusted networks."
+  "⚠️ Osoba has no authentication. Never expose port 8000 to untrusted networks."
   
   For future hardening:
   1. Add a simple bearer token or basic auth middleware
@@ -282,7 +282,7 @@ title: MongoDB connection uses no authentication by default
 description: |
   The default MongoDB URI is `mongodb://localhost:27017/` with no username or password.
   MongoDB's default installation also has no authentication enabled. This means any
-  process on the machine can read/write all OhSee data.
+  process on the machine can read/write all Osoba data.
   
   The data includes: conversation history, user profiles, stored (encrypted) API keys,
   task plans and outputs, heartbeat insights, and semantic memory metadata.

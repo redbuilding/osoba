@@ -6,11 +6,11 @@ Pay special attention to naming of existing utils types and models. Import from 
 
 ## Feature Description
 
-Address the 4 low-severity security findings from the OhSee security review (`.agents/security-reviews/security-review-2026-02-21.md`). These are hardening improvements for a localhost-only application: MySQL query timeouts/row limits, CSV upload size limits with DataFrame store eviction, a MongoDB no-auth startup warning, and documenting the Codex API key environment exposure as a known limitation.
+Address the 4 low-severity security findings from the Osoba security review (`.agents/security-reviews/security-review-2026-02-21.md`). These are hardening improvements for a localhost-only application: MySQL query timeouts/row limits, CSV upload size limits with DataFrame store eviction, a MongoDB no-auth startup warning, and documenting the Codex API key environment exposure as a known limitation.
 
 ## User Story
 
-As a developer running OhSee locally
+As a developer running Osoba locally
 I want defense-in-depth protections against resource exhaustion and data exposure
 So that the application is resilient to accidental misuse and edge cases
 

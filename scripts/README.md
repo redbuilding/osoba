@@ -1,12 +1,12 @@
-# OhSee Service Setup Scripts
+# Osoba Service Setup Scripts
 
-These scripts help you run OhSee backend as a system service, ensuring scheduled tasks execute reliably even when the application isn't manually started.
+These scripts help you run Osoba backend as a system service, ensuring scheduled tasks execute reliably even when the application isn't manually started.
 
 ## Overview
 
-**Problem**: Scheduled tasks only run when the OhSee backend is running. If you close the terminal or restart your computer, scheduled tasks won't execute.
+**Problem**: Scheduled tasks only run when the Osoba backend is running. If you close the terminal or restart your computer, scheduled tasks won't execute.
 
-**Solution**: Run OhSee backend as a system service that:
+**Solution**: Run Osoba backend as a system service that:
 - Starts automatically on boot
 - Runs in the background
 - Restarts automatically if it crashes
@@ -35,25 +35,25 @@ cd scripts
 ## What Gets Installed
 
 ### macOS (Launch Agent)
-- **Location**: `~/Library/LaunchAgents/com.ohsee.backend.plist`
+- **Location**: `~/Library/LaunchAgents/com.osoba.backend.plist`
 - **Runs as**: Your user account
 - **Starts**: Automatically on login
-- **Logs**: `/tmp/ohsee-backend.log` and `/tmp/ohsee-backend-error.log`
+- **Logs**: `/tmp/osoba-backend.log` and `/tmp/osoba-backend-error.log`
 
 **Management Commands**:
 ```bash
 # Stop service
-launchctl unload ~/Library/LaunchAgents/com.ohsee.backend.plist
+launchctl unload ~/Library/LaunchAgents/com.osoba.backend.plist
 
 # Start service
-launchctl load ~/Library/LaunchAgents/com.ohsee.backend.plist
+launchctl load ~/Library/LaunchAgents/com.osoba.backend.plist
 
 # View logs
-tail -f /tmp/ohsee-backend.log
+tail -f /tmp/osoba-backend.log
 ```
 
 ### Linux (systemd)
-- **Location**: `/etc/systemd/system/ohsee-backend.service`
+- **Location**: `/etc/systemd/system/osoba-backend.service`
 - **Runs as**: Your user account (via sudo)
 - **Starts**: Automatically on boot
 - **Logs**: System journal (journalctl)
@@ -61,40 +61,40 @@ tail -f /tmp/ohsee-backend.log
 **Management Commands**:
 ```bash
 # Stop service
-sudo systemctl stop ohsee-backend
+sudo systemctl stop osoba-backend
 
 # Start service
-sudo systemctl start ohsee-backend
+sudo systemctl start osoba-backend
 
 # Restart service
-sudo systemctl restart ohsee-backend
+sudo systemctl restart osoba-backend
 
 # View logs
-sudo journalctl -u ohsee-backend -f
+sudo journalctl -u osoba-backend -f
 
 # Disable auto-start
-sudo systemctl disable ohsee-backend
+sudo systemctl disable osoba-backend
 ```
 
 ### Windows (NSSM Service)
-- **Service Name**: `OhSeeBackend`
+- **Service Name**: `OsobaBackend`
 - **Runs as**: Local System account
 - **Starts**: Automatically on boot
-- **Logs**: `%TEMP%\ohsee-backend.log` and `%TEMP%\ohsee-backend-error.log`
+- **Logs**: `%TEMP%\osoba-backend.log` and `%TEMP%\osoba-backend-error.log`
 
 **Management Commands** (PowerShell as Administrator):
 ```powershell
 # Stop service
-Stop-Service OhSeeBackend
+Stop-Service OsobaBackend
 
 # Start service
-Start-Service OhSeeBackend
+Start-Service OsobaBackend
 
 # Restart service
-Restart-Service OhSeeBackend
+Restart-Service OsobaBackend
 
 # View service status
-Get-Service OhSeeBackend
+Get-Service OsobaBackend
 
 # Uninstall service
 .\setup-windows-service.ps1 -Uninstall
@@ -165,13 +165,13 @@ echo 1708448400 | sudo tee /sys/class/rtc/rtc0/wakealarm  # Set
 
 **Configure Task Wake**:
 1. Open Task Scheduler (`taskschd.msc`)
-2. Find OhSee-related tasks
+2. Find Osoba-related tasks
 3. Right-click → Properties
 4. Conditions tab → Check "Wake the computer to run this task"
 
 ## Catch-up Logic (No Service Required)
 
-If you don't want to run OhSee as a service, the backend includes **catch-up logic**:
+If you don't want to run Osoba as a service, the backend includes **catch-up logic**:
 
 **How it works**:
 1. When the backend starts, it checks for overdue scheduled tasks
@@ -196,10 +196,10 @@ If you don't want to run OhSee as a service, the backend includes **catch-up log
 **macOS**:
 ```bash
 # Check logs
-tail -f /tmp/ohsee-backend-error.log
+tail -f /tmp/osoba-backend-error.log
 
 # Verify plist syntax
-plutil ~/Library/LaunchAgents/com.ohsee.backend.plist
+plutil ~/Library/LaunchAgents/com.osoba.backend.plist
 
 # Check if port 8000 is in use
 lsof -i :8000
@@ -208,10 +208,10 @@ lsof -i :8000
 **Linux**:
 ```bash
 # Check service status
-sudo systemctl status ohsee-backend
+sudo systemctl status osoba-backend
 
 # View detailed logs
-sudo journalctl -u ohsee-backend -n 50
+sudo journalctl -u osoba-backend -n 50
 
 # Check if port 8000 is in use
 sudo netstat -tulpn | grep 8000
@@ -220,10 +220,10 @@ sudo netstat -tulpn | grep 8000
 **Windows**:
 ```powershell
 # Check service status
-Get-Service OhSeeBackend | Format-List *
+Get-Service OsobaBackend | Format-List *
 
 # View logs
-Get-Content $env:TEMP\ohsee-backend-error.log -Tail 50
+Get-Content $env:TEMP\osoba-backend-error.log -Tail 50
 
 # Check if port 8000 is in use
 netstat -ano | findstr :8000
@@ -232,7 +232,7 @@ netstat -ano | findstr :8000
 ### Environment Variables Not Loading
 
 **macOS**: Add to plist under `<key>EnvironmentVariables</key>`
-**Linux**: Check `/etc/systemd/system/ohsee-backend.service` has `EnvironmentFile=-/path/to/.env`
+**Linux**: Check `/etc/systemd/system/osoba-backend.service` has `EnvironmentFile=-/path/to/.env`
 **Windows**: NSSM loads .env automatically, check logs for parsing errors
 
 ### Wake Scheduling Not Working
@@ -256,15 +256,15 @@ netstat -ano | findstr :8000
 
 ### macOS
 ```bash
-launchctl unload ~/Library/LaunchAgents/com.ohsee.backend.plist
-rm ~/Library/LaunchAgents/com.ohsee.backend.plist
+launchctl unload ~/Library/LaunchAgents/com.osoba.backend.plist
+rm ~/Library/LaunchAgents/com.osoba.backend.plist
 ```
 
 ### Linux
 ```bash
-sudo systemctl stop ohsee-backend
-sudo systemctl disable ohsee-backend
-sudo rm /etc/systemd/system/ohsee-backend.service
+sudo systemctl stop osoba-backend
+sudo systemctl disable osoba-backend
+sudo rm /etc/systemd/system/osoba-backend.service
 sudo systemctl daemon-reload
 ```
 
@@ -294,4 +294,4 @@ For issues or questions:
 
 ---
 
-**Note**: These scripts are optional. OhSee works perfectly fine without running as a service if you don't need scheduled tasks or prefer to start it manually.
+**Note**: These scripts are optional. Osoba works perfectly fine without running as a service if you don't need scheduled tasks or prefer to start it manually.

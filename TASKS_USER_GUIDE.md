@@ -1,8 +1,8 @@
-# OhSee Tasks User Guide
+# Osoba Tasks User Guide
 
 ## Overview
 
-OhSee's Tasks feature enables you to create and manage long-running, autonomous tasks that can plan and execute multi-step workflows. Tasks run independently in the background and can operate overnight or for extended periods, making them perfect for complex data analysis, research projects, and multi-step automation.
+Osoba's Tasks feature enables you to create and manage long-running, autonomous tasks that can plan and execute multi-step workflows. Tasks run independently in the background and can operate overnight or for extended periods, making them perfect for complex data analysis, research projects, and multi-step automation.
 
 ## Key Features
 
@@ -407,6 +407,6 @@ For developers integrating with the Tasks API:
 
 ## Conclusion
 
-The Tasks system in OhSee provides powerful autonomous execution capabilities that extend far beyond simple chat interactions. By leveraging structured planning, multi-tool integration, and robust monitoring, you can accomplish complex, multi-step workflows that would be time-consuming to execute manually.
+The Tasks system in Osoba provides powerful autonomous execution capabilities that extend far beyond simple chat interactions. By leveraging structured planning, multi-tool integration, and robust monitoring, you can accomplish complex, multi-step workflows that would be time-consuming to execute manually.
 
 Start with simple goals, experiment with different task types, and gradually build up to more complex autonomous workflows. Each task is planned independently based on your specific goal and the available tools.

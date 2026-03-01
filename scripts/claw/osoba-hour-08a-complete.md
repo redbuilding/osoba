@@ -1,4 +1,4 @@
-# OhSee Development — Hour 8A Complete
+# Osoba Development — Hour 8A Complete
 
 **Date:** 2026-02-17  
 **Time:** 9:55-10:35 PM EST (40 min)  
@@ -63,7 +63,7 @@ task_goal = f"Check memory files\n\n{context_gatherer.format_context_for_task(co
 
 **Integration Pattern:**
 ```
-Heartbeat discovers task → Bridge validates settings → Gathers context → Submits to Task Scheduler → OhSee executes
+Heartbeat discovers task → Bridge validates settings → Gathers context → Submits to Task Scheduler → Osoba executes
 ```
 
 **Registered Handlers:**
@@ -81,7 +81,7 @@ Heartbeat discovers task → Bridge validates settings → Gathers context → S
 **Budgets:**
 - Default: 300 seconds, 10 tool calls
 - Category-specific overrides
-- Respects OhSee's task budget system
+- Respects Osoba's task budget system
 
 ### ✅ API Endpoints for Settings
 
@@ -106,7 +106,7 @@ POST /api/heartbeat/settings/tasks/toggle       → Enable/disable individual ta
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    OhSee Heartbeat System                    │
+│                    Osoba Heartbeat System                    │
 ├─────────────────────────────────────────────────────────────┤
 │  HEARTBEAT.md (task definitions)                            │
 │       ↓                                                      │
@@ -116,7 +116,7 @@ POST /api/heartbeat/settings/tasks/toggle       → Enable/disable individual ta
 │       ↓                                                      │
 │  ContextGatherer (adds memory/git context)                  │
 │       ↓                                                      │
-│  OhSee Task Scheduler (submits as task)                    │
+│  Osoba Task Scheduler (submits as task)                    │
 │       ↓                                                      │
 │  Task Runner (executes with tools, budgets)                │
 │       ↓                                                      │
@@ -152,7 +152,7 @@ Date:   Tue Feb 17 22:35:00 2026 -0500
     
     - heartbeat_settings.py: Settings persistence with opt-in by default
     - context_gatherer.py: Memory, git, and project context gathering
-    - heartbeat_task_bridge.py: Integration with OhSee Task Runner
+    - heartbeat_task_bridge.py: Integration with Osoba Task Runner
     - heartbeat_settings_routes.py: API endpoints for settings management
     
     4 files changed, 664 insertions(+)

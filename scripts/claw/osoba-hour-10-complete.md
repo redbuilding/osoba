@@ -1,4 +1,4 @@
-# OhSee Development — Hour 10 Complete
+# Osoba Development — Hour 10 Complete
 
 **Date:** 2026-02-18  
 **Time:** 7:39-7:45 AM EST (~6 min)  
@@ -54,7 +54,7 @@ await heartbeat_service.stop()
 Replaced empty placeholder with real tasks:
 
 ```markdown
-# HEARTBEAT.md — OhSee Automation Tasks
+# HEARTBEAT.md — Osoba Automation Tasks
 
 **Schedule:** Every hour  
 **Quiet time:** 23:00 - 07:00
@@ -91,9 +91,9 @@ Replaced empty placeholder with real tasks:
       ├─ Validates settings (enabled? category enabled?)
       ├─ Gathers context (git status, recent files, MEMORY.md)
       ├─ Formats enriched goal with context
-      └─ Calls schedule_task() → creates OhSee Task
+      └─ Calls schedule_task() → creates Osoba Task
 
-4. Task Appears in OhSee Task Runner
+4. Task Appears in Osoba Task Runner
    └─ User sees "Memory Maintenance" task in UI
    └─ Task executes with full context
    └─ Results tracked like any other task
@@ -141,7 +141,7 @@ To verify it's working:
 
 1. **Start the backend:**
    ```bash
-   cd ohsee/backend && python main.py
+   cd osoba/backend && python main.py
    ```
    
    Look for logs:
@@ -156,7 +156,7 @@ To verify it's working:
    - Or restart to trigger immediate first check
 
 3. **Check Task Runner:**
-   - Open OhSee UI → Tasks panel
+   - Open Osoba UI → Tasks panel
    - Should see heartbeat-created tasks appear
    - Tasks will have source: "heartbeat" in metadata
 
@@ -168,7 +168,7 @@ To verify it's working:
 
 ## Current Limitations
 
-1. **Task storage:** Heartbeat tasks create OhSee Task Runner tasks, but don't track completion back to HEARTBEAT.md checkboxes (those are manual)
+1. **Task storage:** Heartbeat tasks create Osoba Task Runner tasks, but don't track completion back to HEARTBEAT.md checkboxes (those are manual)
 
 2. **Context paths:** Hardcoded to `/app` — works in Docker, may need adjustment for local dev
 
@@ -199,7 +199,7 @@ Date:   Wed Feb 18 07:45:00 2026 -0500
 - ✅ Parses HEARTBEAT.md
 - ✅ Respects user settings (opt-in, categories, quiet hours)
 - ✅ Gathers context (git, memory, project state)
-- ✅ Submits tasks to OhSee Task Runner
+- ✅ Submits tasks to Osoba Task Runner
 - ✅ Runs autonomously every 5 minutes
 - ✅ UI for settings control
 

@@ -890,7 +890,7 @@ const App = () => {
                 <PanelLeftClose size={20} />
               )}
             </button>
-            <h1 className="text-xl font-semibold text-brand-purple">OhSee</h1>
+            <h1 className="text-xl font-semibold text-brand-purple">Osoba</h1>
           </div>
 
           <div className="text-xs text-brand-text-secondary flex items-center space-x-2 sm:space-x-3 flex-wrap">
@@ -923,7 +923,7 @@ const App = () => {
             {docsInjected && (
               <button
                 onClick={handleToggleDocs}
-                title="Click to disable OhSee documentation context"
+                title="Click to disable Osoba documentation context"
                 className="flex items-center gap-1 px-2 py-1 text-xs rounded bg-brand-purple/20 border border-brand-purple text-brand-purple hover:bg-brand-purple/30 transition-colors duration-200"
               >
                 <BookOpen size={14} />

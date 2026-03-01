@@ -11,7 +11,7 @@ logger = logging.getLogger("web_fetcher")
 class WebFetcher:
     """Async HTTP client wrapper with rate limiting and robots.txt compliance."""
     
-    def __init__(self, user_agent: str = "OhSee-AI-Assistant/1.0 (Polite Content Extraction)", 
+    def __init__(self, user_agent: str = "Osoba-AI-Assistant/1.0 (Polite Content Extraction)", 
                  request_delay: float = 1.0, timeout: int = 10):
         self.user_agent = user_agent
         self.request_delay = request_delay

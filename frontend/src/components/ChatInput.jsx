@@ -153,7 +153,7 @@ const ChatInput = ({
         <button
           type="button"
           onClick={onInjectDocs}
-          title={docsInjected ? "Disable documentation context" : "Enable OhSee documentation context"}
+          title={docsInjected ? "Disable documentation context" : "Enable Osoba documentation context"}
           disabled={disabled}
           className={`p-2 rounded-md mr-2 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-brand-purple ${
             docsInjected 

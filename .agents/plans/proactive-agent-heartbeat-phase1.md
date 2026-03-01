@@ -12,7 +12,7 @@ The heartbeat runs at configurable intervals (default: 2 hours), respects active
 
 ## User Story
 
-As a user of OhSee
+As a user of Osoba
 I want the AI to proactively review my goals and recent activity
 So that I receive timely suggestions to advance my objectives without being overwhelmed by notifications
 
@@ -939,7 +939,7 @@ print('6 PM EST:', service._in_active_hours(config, now))
 
 ## BRAND STANDARDS COMPLIANCE
 
-All frontend components MUST follow the OhSee Brand Standards Guide (`BRAND_STANDARDS_GUIDE.md`).
+All frontend components MUST follow the Osoba Brand Standards Guide (`BRAND_STANDARDS_GUIDE.md`).
 
 ### Color Palette Usage
 
