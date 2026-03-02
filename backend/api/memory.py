@@ -142,7 +142,7 @@ async def search_memory(q: str = Query(...), limit: int = Query(10)) -> Dict[str
         results = vm.search_similar(
             query_embedding=query_embedding,
             limit=limit,
-            score_threshold=0.6
+            score_threshold=0.3
         )
         
         return {

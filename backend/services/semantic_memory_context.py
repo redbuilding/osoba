@@ -7,7 +7,7 @@ from core.config import get_logger
 logger = get_logger("semantic_memory_context")
 
 MAX_MEMORY_CONTEXT_CHARS = 2500
-SIMILARITY_THRESHOLD = 0.6
+SIMILARITY_THRESHOLD = 0.3
 
 
 async def build_memory_context(

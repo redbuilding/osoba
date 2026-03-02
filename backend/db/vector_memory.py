@@ -30,7 +30,10 @@ class VectorMemory:
             self.client = PersistentClient(path=persist_directory)
             self.collection = self.client.get_or_create_collection(
                 name=COLLECTION_NAME,
-                metadata={"description": "Conversation memory for semantic search"}
+                metadata={
+                    "description": "Conversation memory for semantic search",
+                    "hnsw:space": "cosine"
+                }
             )
             logger.info(f"Initialized ChromaDB at {persist_directory}")
         except Exception as e:
@@ -112,7 +115,7 @@ class VectorMemory:
         self,
         query_embedding: List[float],
         limit: int = 10,
-        score_threshold: float = 0.6
+        score_threshold: float = 0.3
     ) -> List[Dict[str, Any]]:
         """Search for similar conversations.
         
@@ -134,14 +137,9 @@ class VectorMemory:
             formatted_results = []
             if results and results.get("ids") and len(results["ids"]) > 0:
                 for i, doc_id in enumerate(results["ids"][0]):
-                    # ChromaDB returns L2 distances, smaller is more similar
-                    # For cosine similarity, we need to handle it differently
-                    # Since we're using default distance (L2), we'll use inverse
-                    distance = results["distances"][0][i] if results.get("distances") else 0.0
-                    
-                    # Convert distance to similarity score (0-1 range)
-                    # For L2 distance, we use 1 / (1 + distance)
-                    similarity = 1.0 / (1.0 + distance)
+                    # ChromaDB cosine distance: similarity = 1 - distance
+                    distance = results["distances"][0][i] if results.get("distances") else 1.0
+                    similarity = 1.0 - distance
                     
                     if similarity >= score_threshold:
                         formatted_results.append({
