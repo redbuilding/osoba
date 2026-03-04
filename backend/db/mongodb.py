@@ -20,6 +20,7 @@ settings_collection = None
 profiles_collection = None
 user_profiles_collection = None
 heartbeat_insights_collection = None
+documents_collection = None
 _initialized = False
 
 
@@ -28,6 +29,7 @@ def _initialize_mongodb():
     global mongo_client, db, conversations_collection, tasks_collection
     global scheduled_tasks_collection, templates_collection, settings_collection
     global profiles_collection, user_profiles_collection, heartbeat_insights_collection
+    global documents_collection
     global _initialized
 
     if _initialized:
@@ -50,6 +52,7 @@ def _initialize_mongodb():
         profiles_collection = db["ai_profiles"]
         user_profiles_collection = db["user_profiles"]
         heartbeat_insights_collection = db["heartbeat_insights"]
+        documents_collection = db["documents"]
         _create_search_indexes()
         _initialized = True
         logger.info(f"Successfully connected to MongoDB: {MONGODB_URI}")
@@ -135,3 +138,9 @@ def get_heartbeat_insights_collection():
     if heartbeat_insights_collection is None:
         raise RuntimeError("MongoDB is not available.")
     return heartbeat_insights_collection
+
+def get_documents_collection():
+    _initialize_mongodb()
+    if documents_collection is None:
+        raise RuntimeError("MongoDB is not available.")
+    return documents_collection

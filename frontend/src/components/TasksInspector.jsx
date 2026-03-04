@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState, useCallback } from "react";
-import { X, Play, Pause, Square, RefreshCcw, Loader2, ChevronDown, ChevronRight, Image as ImageIcon, Table as TableIcon, FileText, Clock, Layers, Copy, Trash2 } from "lucide-react";
-import { createTask, listTasks, getTaskDetail, streamTask, pauseTask, resumeTask, cancelTask, deleteTask } from "../services/api";
+import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
+import { X, Play, Pause, Square, RefreshCcw, Loader2, ChevronDown, ChevronRight, Image as ImageIcon, Table as TableIcon, FileText, Clock, Layers, Copy, Trash2, BookOpen } from "lucide-react";
+import { createTask, listTasks, getTaskDetail, streamTask, pauseTask, resumeTask, cancelTask, deleteTask, listDocuments } from "../services/api";
 import TaskTemplateSelector from "./TaskTemplateSelector";
 import ScheduledTasksPanel from "./ScheduledTasksPanel";
 import RightPanel from "./RightPanel";
@@ -296,6 +296,15 @@ const TaskDetailInline = ({ taskId, onClose, onTaskDeleted, onSaveAll }) => {
       {detail.model_name && (
         <div className="text-[11px] text-brand-text-secondary mb-2">Model: {detail.model_name}</div>
       )}
+      {detail.kb_docs?.length > 0 && (
+        <div className="flex items-center flex-wrap gap-1 text-xs text-brand-text-secondary mb-2">
+          <BookOpen size={12} />
+          <span>KB:</span>
+          {detail.kb_docs.map(d => (
+            <span key={d.id} className="px-1.5 py-0.5 bg-gray-700 rounded text-xs">{d.title}</span>
+          ))}
+        </div>
+      )}
       {/* Collapsible task description */}
       {typeof detail.goal === 'string' && detail.goal.trim().length > 0 && (
         <div className="mb-3">
@@ -397,6 +406,10 @@ const TasksInspector = ({ isOpen, onClose, initialGoal = "", conversationId = nu
   const [taskModel, setTaskModel] = useState(null);
   const [isModelModalOpen, setIsModelModalOpen] = useState(false);
   const [saveModal, setSaveModal] = useState({ open: false, taskId: null, title: '' });
+  const [kbDocs, setKbDocs] = useState([]);       // [{id, title}] selected docs
+  const [allDocs, setAllDocs] = useState([]);      // indexed docs from API
+  const [kbPickerOpen, setKbPickerOpen] = useState(false);
+  const kbPickerRef = useRef(null);
 
   const fetchTasks = async () => {
     setLoading(true);
@@ -421,14 +434,35 @@ const TasksInspector = ({ isOpen, onClose, initialGoal = "", conversationId = nu
     }
   }, [isOpen, initialGoal, defaultConversationModel]);
 
+  useEffect(() => {
+    if (kbPickerOpen && allDocs.length === 0) {
+      listDocuments().then(docs => {
+        setAllDocs((docs || []).filter(d => d.indexed));
+      }).catch(() => {});
+    }
+  }, [kbPickerOpen]);
+
+  useEffect(() => {
+    if (!kbPickerOpen) return;
+    const handleClick = (e) => {
+      if (kbPickerRef.current && !kbPickerRef.current.contains(e.target)) {
+        setKbPickerOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [kbPickerOpen]);
+
   const handleCreate = async () => {
     if (!goal.trim()) return;
     setSubmitting(true);
     try {
       const payload = { goal, conversation_id: conversationId };
       if (taskModel) payload.model_name = taskModel;
+      if (kbDocs.length > 0) payload.kb_doc_ids = kbDocs.map(d => d.id);
       await createTask(payload);
       setGoal("");
+      setKbDocs([]);
       // keep selected task model for next time
       await fetchTasks();
     } finally {
@@ -472,15 +506,77 @@ const TasksInspector = ({ isOpen, onClose, initialGoal = "", conversationId = nu
             </button>
           </div>
           
+          {/* KB doc chips */}
+          {kbDocs.length > 0 && (
+            <div className="flex flex-wrap gap-1 mb-2">
+              {kbDocs.map(d => (
+                <span key={d.id} className="flex items-center gap-1 px-2 py-0.5 bg-gray-700 rounded text-xs text-brand-text-primary">
+                  <BookOpen size={10} />
+                  {d.title}
+                  <button
+                    onClick={() => setKbDocs(prev => prev.filter(x => x.id !== d.id))}
+                    className="ml-1 text-brand-text-secondary hover:text-brand-alert-red focus:outline-none"
+                    title="Remove"
+                  >
+                    <X size={10} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+
           <div className="flex gap-2">
-            <button 
+            {/* KB doc picker */}
+            <div className="relative" ref={kbPickerRef}>
+              <button
+                onClick={() => setKbPickerOpen(v => !v)}
+                disabled={kbDocs.length >= 2}
+                className="flex items-center gap-1 px-3 py-1 text-xs rounded bg-gray-700 hover:bg-gray-600 text-white focus:outline-none focus:ring-2 focus:ring-brand-purple disabled:opacity-40"
+                title="Attach a KB document to give context to the planner and step agents"
+              >
+                <BookOpen className="w-3 h-3" />
+                Add KB Doc
+              </button>
+              {kbPickerOpen && (
+                <div className="absolute left-0 top-full mt-1 w-64 bg-gray-800 border border-gray-600 rounded shadow-lg z-20 max-h-48 overflow-y-auto">
+                  {allDocs.length === 0 ? (
+                    <div className="p-3 text-xs text-brand-text-secondary">No indexed documents found.</div>
+                  ) : (
+                    allDocs.map(doc => {
+                      const already = kbDocs.some(d => d.id === doc.id);
+                      return (
+                        <button
+                          key={doc.id}
+                          onClick={() => {
+                            if (!already && kbDocs.length < 2) {
+                              setKbDocs(prev => [...prev, { id: doc.id, title: doc.title }]);
+                            }
+                            setKbPickerOpen(false);
+                          }}
+                          disabled={already || kbDocs.length >= 2}
+                          className="w-full text-left px-3 py-2 text-xs text-brand-text-primary hover:bg-gray-700 disabled:opacity-40 flex items-center gap-2"
+                        >
+                          <span className="flex-1 truncate">{doc.title}</span>
+                          {doc.file_type && (
+                            <span className="text-[10px] px-1 py-0.5 bg-gray-600 rounded uppercase">{doc.file_type}</span>
+                          )}
+                          {already && <span className="text-[10px] text-brand-success-green">added</span>}
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              )}
+            </div>
+
+            <button
               onClick={() => setShowTemplates(true)}
               className="flex items-center gap-1 px-3 py-1 text-xs rounded bg-gray-700 hover:bg-gray-600 text-white focus:outline-none focus:ring-2 focus:ring-brand-purple"
             >
               <Layers className="w-3 h-3" />
               Templates
             </button>
-            <button 
+            <button
               onClick={() => setShowScheduled(true)}
               className="flex items-center gap-1 px-3 py-1 text-xs rounded bg-gray-700 hover:bg-gray-600 text-white focus:outline-none focus:ring-2 focus:ring-brand-purple"
             >

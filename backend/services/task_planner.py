@@ -199,7 +199,7 @@ def _tool_catalog_text() -> str:
     )
 
 
-def build_planning_prompt(goal: str, allowed_tools: List[str], budget: Dict | None, planner_hints: Dict | None = None) -> str:
+def build_planning_prompt(goal: str, allowed_tools: List[str], budget: Dict | None, planner_hints: Dict | None = None, kb_context: str = "") -> str:
     schema = {
         "type": "object",
         "required": ["constraints", "resources", "steps"],
@@ -231,6 +231,7 @@ def build_planning_prompt(goal: str, allowed_tools: List[str], budget: Dict | No
     step_hint = hints.get("step_plan") if isinstance(hints, dict) else None
     manifest_text = ("\nPlanner manifest (use identifiers exactly; do not invent new ones):\n" + json.dumps(manifest)) if manifest else ""
     step_hint_text = ("\nSuggested step skeleton (align your plan to this, but keep within allowed tools):\n" + json.dumps(step_hint)) if step_hint else ""
+    kb_text = f"\nReference material (use this to inform your plan):\n{kb_context}\n" if kb_context else ""
     return (
         "You are a planning agent. Generate a plan as strict JSON only.\n"
         f"Goal: {goal}\n"
@@ -239,6 +240,7 @@ def build_planning_prompt(goal: str, allowed_tools: List[str], budget: Dict | No
         f"Budget: {budget or {}}\n"
         f"{manifest_text}"
         f"{step_hint_text}"
+        f"{kb_text}"
         "Constraints: Use only allowed tools; be concise; 3-10 steps; each step has id,title,instruction,tool,params?,success_criteria,max_retries.\n"
         "Important: Only use python.* tools if the user provides a CSV (python.load_csv must appear before any other python.* tool).\n"
         "Important: HubSpot tools require OAuth authentication - they will fail if not configured.\n"
@@ -250,12 +252,12 @@ def build_planning_prompt(goal: str, allowed_tools: List[str], budget: Dict | No
     )
 
 
-async def plan_task(goal: str, model: str | None, budget: Dict | None, planner_hints: Dict | None = None) -> Plan:
+async def plan_task(goal: str, model: str | None, budget: Dict | None, planner_hints: Dict | None = None, kb_context: str = "") -> Plan:
     model_name = model or await get_default_ollama_model()
     if not model_name or model_name.strip() == "":
         model_name = "llama3.1"  # Hard fallback
         logger.warning(f"Using hard fallback model: {model_name}")
-    prompt = build_planning_prompt(goal, ALLOWED_TASK_TOOLS, budget, planner_hints)
+    prompt = build_planning_prompt(goal, ALLOWED_TASK_TOOLS, budget, planner_hints, kb_context)
     raw = await chat_with_provider([
         {"role": "system", "content": "You produce only JSON."},
         {"role": "user", "content": prompt},

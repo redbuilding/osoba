@@ -90,6 +90,7 @@ class TaskCreatePayload(BaseModel):
     budget: dict | None = None  # { max_seconds?: int, max_tool_calls?: int }
     dry_run: bool = False
     priority: int = 2  # 1=scheduled, 2=user, 3=low
+    kb_doc_ids: Optional[List[str]] = None  # up to 2 indexed KB doc IDs
 
 class TaskSummary(BaseModel):
     id: str = Field(alias="_id")
@@ -121,6 +122,7 @@ class TaskDetail(BaseModel):
     summary: str | None = None
     error: str | None = None
     priority: int = 2  # 1=scheduled, 2=user, 3=low
+    kb_docs: Optional[List[dict]] = None  # [{id, title}] — KB docs attached at creation
 
     class Config:
         populate_by_name = True

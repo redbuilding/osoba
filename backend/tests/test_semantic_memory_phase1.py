@@ -60,33 +60,43 @@ class TestVectorMemory:
     
     @pytest.mark.asyncio
     async def test_vector_memory_operations(self):
-        """Test add, search, and delete operations."""
-        vm = VectorMemory(persist_directory=".chroma_test")
-        
-        # Create test data
-        conv_id = "test_conv_123"
-        chunks = ["This is chunk one.", "This is chunk two."]
-        
-        # Generate embeddings
-        embeddings = await embed_batch(chunks)
-        
-        # Add conversation
-        success = vm.add_conversation(
-            conv_id=conv_id,
-            chunks=chunks,
-            embeddings=embeddings,
-            metadata={"title": "Test Conversation", "message_count": 5}
-        )
-        assert success is True
-        
-        # Search for similar
-        query_embedding = await embed_text("This is a test query.")
-        results = vm.search_similar(query_embedding, limit=5, score_threshold=0.0)
-        assert len(results) > 0
-        
-        # Delete conversation
-        deleted = vm.delete_conversation(conv_id)
-        assert deleted is True
+        """Test add, search, and delete operations.
+
+        Uses a fresh isolated ChromaDB directory and deterministic non-zero
+        embeddings so the test does not depend on Ollama being available and
+        is not contaminated by leftover data from previous runs.
+        """
+        import random
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            vm = VectorMemory(persist_directory=tmpdir)
+
+            conv_id = "test_conv_isolated_123"
+            chunks = ["This is chunk one.", "This is chunk two."]
+
+            # Deterministic non-zero unit-ish vectors — cosine sim well-defined.
+            rng = random.Random(42)
+            fake_embeddings = [[rng.uniform(0.1, 1.0) for _ in range(768)] for _ in chunks]
+            # Use the first chunk's embedding as the query — perfect match expected.
+            fake_query_emb = list(fake_embeddings[0])
+
+            # Add conversation directly with the fake embeddings (no Ollama call).
+            success = vm.add_conversation(
+                conv_id=conv_id,
+                chunks=chunks,
+                embeddings=fake_embeddings,
+                metadata={"title": "Test Conversation", "message_count": 5}
+            )
+            assert success is True
+
+            # Search — threshold -1.0 ensures any cosine similarity passes.
+            results = vm.search_similar(fake_query_emb, limit=5, score_threshold=-1.0)
+            assert len(results) > 0
+
+            # Delete conversation
+            deleted = vm.delete_conversation(conv_id)
+            assert deleted is True
     
     def test_get_stats(self):
         """Test getting collection statistics."""

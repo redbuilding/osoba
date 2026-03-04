@@ -233,6 +233,7 @@ async def _run_task(task_id: str):
                 model_name,
                 doc.get("budget"),
                 planner_hints=(doc.get("planner_hints") or None),
+                kb_context=doc.get("kb_context", ""),
             )
             logger.info(f"Task {task_id} plan generated, updating to PENDING")
             update_task(
@@ -526,6 +527,10 @@ async def _execute_step(task_id: str, idx: int, step: Dict[str, Any]):
             context_text = _build_llm_context(task_doc, idx)
             increment_usage(task_id, "tool_calls", 1)
             messages = [{"role": "system", "content": "You are a helpful assistant."}]
+            # Inject KB context snapshot if present
+            kb_context = task_doc.get("kb_context", "")
+            if kb_context:
+                messages.append({"role": "user", "content": kb_context})
             # Inject planner manifest (global + scoped) if present
             try:
                 import json as _json

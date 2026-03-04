@@ -631,6 +631,18 @@ Your JSON response:
                 logger.error(f"Error building semantic memory context: {e}")
                 # Don't fail if memory context fails
 
+            # Build Knowledge Base Context section
+            kb_section = ""
+            try:
+                from services.kb_context import build_kb_context
+                if user_query:
+                    kb_ctx = await build_kb_context(query=user_query, user_id=user_id)
+                    if kb_ctx:
+                        kb_section = "=== Knowledge Base ===\n" + kb_ctx
+            except Exception as e:
+                logger.error(f"Error building KB context: {e}")
+                # Don't fail if KB context fails
+
             # Build Assistant Persona section
             persona_section = ""
             if system_prompt:
@@ -649,7 +661,7 @@ Your JSON response:
             guidelines_section = "\n".join(guidelines)
 
             # Combine sections
-            sections = [s for s in [persona_section, human_section, conv_section, memory_section, guidelines_section] if s]
+            sections = [s for s in [persona_section, human_section, conv_section, memory_section, kb_section, guidelines_section] if s]
             combined_prompt = "\n\n".join(sections)
             
             # Add documentation context if injected for this conversation

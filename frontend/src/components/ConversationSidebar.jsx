@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { PlusSquare, MessageSquare, Loader2, AlertTriangle, Trash2, Pencil, Check, X, Wifi, Server, Share2, Youtube, FileCode, Database, Sparkles } from 'lucide-react';
+import { PlusSquare, MessageSquare, Loader2, AlertTriangle, Trash2, Pencil, Check, X, Wifi, Server, Share2, Youtube, FileCode, Database, Sparkles, BookOpen } from 'lucide-react';
 import SidebarSearch from './SidebarSearch';
 import ConversationPinButton from './ConversationPinButton';
+import { getDocumentStats } from '../services/api';
 
 const MCPStatusIndicator = ({ isReady, name }) => (
   <div className="flex items-center justify-between text-xs text-brand-text-secondary">
@@ -47,6 +48,11 @@ const ConversationSidebar = ({
   const [editingConversationId, setEditingConversationId] = useState(null);
   const [currentEditingTitle, setCurrentEditingTitle] = useState('');
   const editInputRef = useRef(null);
+  const [docCount, setDocCount] = useState(0);
+
+  useEffect(() => {
+    getDocumentStats().then(stats => setDocCount(stats.document_count || 0)).catch(() => {});
+  }, []);
 
   const formatDate = (isoString) => {
     if (!isoString) return '';
@@ -259,6 +265,18 @@ const ConversationSidebar = ({
             <MCPStatusIndicator isReady={mcpHubspotServiceReady} name="HubSpot" />
             <MCPStatusIndicator isReady={mcpYoutubeServiceReady} name="YouTube" />
             <MCPStatusIndicator isReady={mcpCodexServiceReady && openaiConfigured} name="Codex" />
+          </div>
+          <div className="mt-3 pt-3 border-t border-gray-700 space-y-2 px-2">
+            <div className="flex items-center justify-between text-xs text-brand-text-secondary">
+              <span className="flex items-center">
+                <BookOpen size={14} className="mr-2" />
+                Knowledge Base
+              </span>
+              <div className="flex items-center">
+                <div className={`w-2 h-2 rounded-full mr-1 ${docCount > 0 ? 'bg-brand-success-green' : 'bg-gray-500'}`}></div>
+                <span>{docCount > 0 ? `${docCount} doc${docCount !== 1 ? 's' : ''}` : 'Empty'}</span>
+              </div>
+            </div>
           </div>
         </div>
       )}

@@ -1,6 +1,6 @@
 # 🔍 🤖 🌐 Osoba
 
-A powerful, modern UI that integrates local and hosted LLMs with intelligent web search and content extraction, SQL, YouTube transcript analysis, HubSpot actions, Python data analysis — and a Codex MCP server for safe code scaffolding — all via the Model Context Protocol (MCP). Features include personalized AI assistance through user profiles and conversation context, provider settings, multi‑provider model picking, streaming chat, persistent conversations, a robust Tasks system, and Scheduled tasks with timezone‑aware timing.
+A powerful, modern UI that integrates local and hosted LLMs with intelligent web search and content extraction, SQL, YouTube transcript analysis, HubSpot actions, Python data analysis — and a Codex MCP server for safe code scaffolding — all via the Model Context Protocol (MCP). Features include personalized AI assistance through user profiles and conversation context, a Document Knowledge Base for persistent reference material, provider settings, multi‑provider model picking, streaming chat, persistent conversations, a robust Tasks system, and Scheduled tasks with timezone‑aware timing.
 
 ## Overview
 
@@ -42,6 +42,7 @@ This architecture demonstrates how MCP enables local models to access external t
 - 🔔 **Proactive Agent Heartbeat**: Enhanced background service with context gathering (semantic memory, git, project files, system health), automated task creation, and file-based configuration (HEARTBEAT.md). Configurable intervals, context sources, and two-way sync between file and UI.
 - 📌 **Conversation Pinning**: Select specific conversations to include as context for future chats, enabling the AI to build upon previous discussions and maintain continuity across sessions.
 - 🧠 **Semantic Memory**: Unlimited conversation storage with intelligent semantic search powered by ChromaDB and nomic-embed-text embeddings. Automatically indexes conversations with 5+ messages, searches by meaning (not keywords), and injects relevant past conversations into new chats. Includes Memory Browser (Ctrl+Shift+M) for searching and managing your conversation history.
+- 📚 **Document Knowledge Base**: Upload PDFs, Word documents, Markdown files, plain text, or web URLs as persistent reference material. Documents are chunked, embedded, and stored in a dedicated ChromaDB collection. Relevant document snippets are automatically injected into every chat alongside Semantic Memory. Open with Ctrl+Shift+K or the "KB" header button.
 - 🧾 **AI Chat Summaries (On‑Demand)**: Generate concise, LLM‑authored summaries for conversations and use them as the context payload for pinned chats (no heuristics). Summaries are user‑triggered, model‑selectable in Settings, and pinning enforces a cap of 5 chats.
 - 🎯 **Personalized AI Responses**: AI adapts its communication style and suggestions based on your profile information and pinned conversation history for more relevant assistance.
 - 💾 **Persistent Conversations**: Chat history is saved in MongoDB, allowing users to resume conversations.
@@ -85,6 +86,7 @@ The task system has **full access to all MCP tools** available in the chat inter
 - Marketing automation with HubSpot integration
 - Code generation with fine-grained Codex workspace management
 - Multi-step workflows combining search, analysis, and generation
+- **KB context attachment**: Attach 1–2 indexed Knowledge Base documents at task creation to inject reference material into the planner and every LLM step
 
 ### Priority Queue System
 The application uses a **priority-based task queue** to ensure system stability and prevent memory overload from multiple LLM instances:
@@ -136,9 +138,9 @@ See `scripts/README.md` for complete wake scheduling setup and troubleshooting.
 - MySQL server (optional, for the SQL querying tool)
 - Internet connection for web searches and package downloads
 
-**For Semantic Memory:**
+**For Semantic Memory & Document Knowledge Base:**
 - Ollama with `nomic-embed-text` model: `ollama pull nomic-embed-text`
-- ChromaDB and tiktoken (automatically installed via requirements.txt)
+- ChromaDB, tiktoken, and pdfplumber (automatically installed via requirements.txt)
 
 Optional (enable additional tools):
 - Smart web search: `trafilatura`, `beautifulsoup4`, `lxml` (automatically installed)
@@ -505,6 +507,142 @@ Osoba features an advanced semantic memory system that provides unlimited conver
 | **Context Efficiency** | All 5 included | Only relevant ones |
 | **Management** | Manual pin/unpin | Auto-indexed |
 
+## Document Knowledge Base
+
+The Document Knowledge Base lets you upload persistent reference material — SOPs, research papers, specifications, documentation — and have the AI automatically draw on it in every conversation, just like Semantic Memory does for past chats.
+
+### Supported Formats
+
+| Format | Extension | Parser |
+|--------|-----------|--------|
+| Plain text | `.txt` | UTF-8 decode |
+| Markdown | `.md` | UTF-8 decode |
+| Word documents | `.docx` | python-docx |
+| PDFs | `.pdf` | pdfplumber |
+| Web pages | URL | trafilatura |
+
+Maximum document size: **200,000 characters** per document.
+
+### How It Works
+
+```
+Upload (file / URL)
+    ↓
+document_parser.py  ← extracts plain text
+    ↓
+documents_crud.py   ← stores metadata + raw text in MongoDB ("documents" collection)
+    ↓
+document_indexing.py ← chunks text → embeds via nomic-embed-text → stores in ChromaDB ("documents" collection)
+    ↓
+kb_context.py       ← at chat time: embeds query, searches "documents", formats snippets
+    ↓
+chat_service.py     ← injects "=== Knowledge Base ===" section into system prompt
+```
+
+Documents with more than 50,000 characters are indexed in the background so the upload responds immediately.
+
+### Opening the Knowledge Base Panel
+
+- **Keyboard shortcut**: `Ctrl+Shift+K`
+- **Header button**: Click "KB" in the top navigation bar
+
+### Documents Tab
+
+- **Drag-and-drop upload** or click "Choose File" to select `.txt`, `.md`, `.docx`, or `.pdf` files
+- **URL ingestion**: Paste any URL and click "Add URL" (or press Enter) to fetch and index a web page
+- **Document cards** show: type badge (color-coded), indexed status dot (green = ready, amber = pending), character count, upload date, and a delete button
+- Documents are indexed immediately after upload (or in the background for large files)
+
+### Search Tab
+
+- Enter a query to semantically search across all indexed document chunks
+- Results show document title, relevance percentage, and a text snippet
+
+### Sidebar Status
+
+The left sidebar footer shows a live count of indexed documents. The indicator dot turns green once at least one document is available.
+
+### Chat Integration
+
+When you send a message, the backend:
+1. Embeds your query with `nomic-embed-text`
+2. Searches the `documents` ChromaDB collection for the top-5 most relevant chunks (score ≥ 0.4)
+3. Formats matches as an `=== Knowledge Base ===` section injected into the system prompt alongside Semantic Memory
+
+The AI will reference document content when it is relevant, without you having to manually include it in each message.
+
+### Using KB Docs in Tasks
+
+You can explicitly attach 1–2 indexed KB documents when creating a task to give the planner and step agents reference material. This is fully opt-in: if no documents are attached the task behaves exactly as before.
+
+**How to attach:**
+1. Open the **Tasks** panel (Ctrl+Shift+T or the Tasks header button)
+2. Type your goal
+3. Click **"Add KB Doc"** — an inline dropdown lists all indexed documents
+4. Select up to **2** documents; each appears as a dismissible chip below the input
+5. Click the run button — the selected documents are sent as `kb_doc_ids` in the payload
+
+**What happens under the hood:**
+```
+Task creation request (with kb_doc_ids)
+    ↓
+api/tasks.py  — fetches each doc from MongoDB, excerpts up to 4,000 chars each
+    ↓ stores {kb_docs: [{id, title}], kb_context: "=== Knowledge Base ===\n..."} in task doc
+         ↓                              ↓
+task_planner.py              task_runner.py
+(planning prompt includes     (every LLM step gets kb_context
+ "Reference material" block)   as the 2nd message after system)
+```
+
+**Limits:**
+
+| Constraint | Value |
+|---|---|
+| Max docs per task | 2 |
+| Max chars excerpted per doc | 4,000 |
+| Max total KB context string | ~9,000 chars |
+| Only indexed docs selectable | yes |
+| Content snapshotted at creation | yes — consistent through all steps |
+| Injected in LLM steps only | yes — not in MCP tool steps |
+
+**Task detail view:** Attached documents are shown as small chips in the task header so you can see at a glance what context was provided.
+
+> **Tip:** Attach an SOP or specification document to tasks that involve following a defined process. The planner will incorporate the document's constraints into its step design, and each LLM generation step will have the full excerpt available.
+
+### API Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/documents/upload` | Upload a file (base64-encoded JSON body) |
+| `POST` | `/api/documents/url` | Ingest from a URL |
+| `GET` | `/api/documents` | List all documents |
+| `GET` | `/api/documents/{id}` | Get document detail (includes content) |
+| `DELETE` | `/api/documents/{id}` | Delete from MongoDB + ChromaDB |
+| `GET` | `/api/documents/search?q=...` | Semantic search over document chunks |
+| `GET` | `/api/documents/stats` | Count, chars, chunks |
+
+**Upload payload shape:**
+```json
+{
+  "filename": "spec.pdf",
+  "data_b64": "<base64 string>",
+  "title": "Product Spec",
+  "description": "Optional description",
+  "user_id": "default"
+}
+```
+
+### Backend Files
+
+| File | Purpose |
+|------|---------|
+| `backend/db/document_store.py` | `DocumentVectorStore` — ChromaDB `"documents"` collection |
+| `backend/db/documents_crud.py` | MongoDB CRUD for document metadata |
+| `backend/services/document_parser.py` | File/URL → plain text extraction |
+| `backend/services/document_indexing.py` | Chunking + embedding + storage pipeline |
+| `backend/services/kb_context.py` | Query-time context builder |
+| `backend/api/documents.py` | FastAPI router (`/api/documents`) |
+
 ## Proactive Agent Heartbeat System
 
 The Enhanced Heartbeat System provides proactive AI assistance through automated insights and task creation. It analyzes your goals, conversations, project state, and system health to suggest actionable next steps.
@@ -869,6 +1007,37 @@ Prereqs:
 - Ollama running for local models (pull a model, e.g., `ollama pull llama3.1`).
 - MongoDB reachable (for history/tasks).
 - For Codex: install Codex CLI and configure an OpenAI API key (via Settings or env) before starting runs.
+
+## Updating
+
+To update to the latest version without affecting your existing data (MongoDB, ChromaDB, `.env`):
+
+```bash
+# 1. Pull latest code
+git pull origin main
+
+# 2. Update backend dependencies
+cd backend
+pip install -r requirements.txt
+
+# 3. Rebuild frontend
+cd ../frontend
+npm install
+npm run build
+
+# 4. Restart the backend
+# Manually:
+cd ../backend
+uvicorn main:app --host 0.0.0.0 --port 8000
+
+# macOS Launch Agent:
+launchctl stop com.osoba.backend && launchctl start com.osoba.backend
+
+# Linux systemd:
+sudo systemctl restart osoba-backend
+```
+
+**Your data is safe**: MongoDB (conversations, tasks, documents, settings) and ChromaDB (semantic memory, KB embeddings) are external services not touched by a code update. Your `.env` file is gitignored and will never be overwritten.
 
 ## Contributing
 

@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -13,6 +13,29 @@ from services.progress_bus import progress_bus
 
 router = APIRouter()
 logger = get_logger("api_tasks")
+
+MAX_KB_DOCS = 2
+MAX_CHARS_PER_DOC = 4_000
+
+
+def _build_task_kb_context(doc_ids: List[str]):
+    """Fetch up to 2 indexed KB docs, snapshot content, return (kb_docs list, kb_context string)."""
+    from db.documents_crud import get_document
+    parts, kb_docs = [], []
+    for doc_id in doc_ids[:MAX_KB_DOCS]:
+        try:
+            doc = get_document(doc_id)
+        except Exception:
+            continue
+        if not doc or not doc.get("indexed"):
+            continue
+        title = doc.get("title", "Untitled")
+        excerpt = (doc.get("content") or "")[:MAX_CHARS_PER_DOC]
+        parts.append(f"[{title}]\n{excerpt}")
+        kb_docs.append({"id": doc_id, "title": title})
+    if not parts:
+        return [], ""
+    return kb_docs, "=== Knowledge Base ===\n" + "\n\n".join(parts)
 
 
 @router.on_event("startup")
@@ -38,6 +61,10 @@ async def create_task_endpoint(payload: TaskCreatePayload):
                 resolved_model = conv.get("model_name") or conv.get("ollama_model_name")
         except Exception:
             resolved_model = resolved_model or None
+    kb_docs = []
+    kb_context = ""
+    if payload.kb_doc_ids:
+        kb_docs, kb_context = _build_task_kb_context(payload.kb_doc_ids)
     doc = {
         "title": payload.goal[:60] or "Task",
         "goal": payload.goal,
@@ -50,6 +77,8 @@ async def create_task_endpoint(payload: TaskCreatePayload):
         "usage": {"tool_calls": 0, "seconds_elapsed": 0},
         "current_step_index": -1,
         "priority": payload.priority,
+        "kb_docs": kb_docs,
+        "kb_context": kb_context,
     }
     tid = create_task(doc)
     # If not dry_run, dispatcher will pick and convert to PENDING/RUNNING

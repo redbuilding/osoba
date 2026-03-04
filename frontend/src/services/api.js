@@ -963,3 +963,65 @@ export const clearMemory = async () => {
     throw error.response ? error.response.data : new Error("Network error or server unavailable");
   }
 };
+
+// ---------- Document Knowledge Base API ----------
+
+export const uploadDocument = async (payload) => {
+  try {
+    const response = await apiClient.post("/documents/upload", payload);
+    return response.data;
+  } catch (error) {
+    console.error("Error uploading document:", error);
+    throw error.response ? error.response.data : new Error("Network error or server unavailable");
+  }
+};
+
+export const ingestDocumentUrl = async (url, title, description = "") => {
+  try {
+    const response = await apiClient.post("/documents/url", { url, title, description });
+    return response.data;
+  } catch (error) {
+    console.error("Error ingesting document URL:", error);
+    throw error.response ? error.response.data : new Error("Network error or server unavailable");
+  }
+};
+
+export const listDocuments = async () => {
+  try {
+    const response = await apiClient.get("/documents");
+    return response.data;
+  } catch (error) {
+    console.error("Error listing documents:", error);
+    throw error.response ? error.response.data : new Error("Network error or server unavailable");
+  }
+};
+
+export const deleteDocument = async (docId) => {
+  try {
+    const response = await apiClient.delete(`/documents/${docId}`);
+    return response.data;
+  } catch (error) {
+    console.error("Error deleting document:", error);
+    throw error.response ? error.response.data : new Error("Network error or server unavailable");
+  }
+};
+
+export const searchDocuments = async (query, limit = 10) => {
+  try {
+    const response = await apiClient.get("/documents/search", { params: { q: query, limit } });
+    return response.data;
+  } catch (error) {
+    console.error("Error searching documents:", error);
+    throw error.response ? error.response.data : new Error("Network error or server unavailable");
+  }
+};
+
+export const getDocumentStats = async () => {
+  try {
+    const response = await apiClient.get("/documents/stats");
+    return response.data;
+  } catch (error) {
+    console.error("Error getting document stats:", error);
+    return { document_count: 0, indexed_count: 0, total_chars: 0, total_chunks: 0 };
+  }
+};

@@ -21,7 +21,7 @@ from services.heartbeat_service import heartbeat_service
 from services.memory_tasks import MemoryTaskService
 from services.template_initializer import initialize_default_templates
 from db.mongodb import mongo_client
-from api import chat, conversations, status, tasks, scheduled_tasks, providers, codex, profiles, artifacts, user_context, summaries, heartbeat, memory
+from api import chat, conversations, status, tasks, scheduled_tasks, providers, codex, profiles, artifacts, user_context, summaries, heartbeat, memory, documents
 from api import user_profile as user_profile_api
 from api.user_context import router as user_context_router
 from auth_hubspot import router as hubspot_auth_router
@@ -91,6 +91,7 @@ app.include_router(summaries.router)
 app.include_router(user_profile_api.router)
 app.include_router(heartbeat.router)
 app.include_router(memory.router)
+app.include_router(documents.router)
 
 # --- Static Files Hosting ---
 # Note: Mount more specific prefixes (e.g., /artifacts) BEFORE mounting the root "/" static app

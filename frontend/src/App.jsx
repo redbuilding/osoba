@@ -23,6 +23,8 @@ import FileViewerModal from "./components/FileViewerModal";
 import ToastContainer from "./components/ToastContainer";
 import { MemoryBrowser } from "./components/memory";
 import "./components/memory/MemoryStyles.css";
+import KnowledgeBase from "./components/knowledge/KnowledgeBase";
+import "./components/knowledge/KnowledgeStyles.css";
 import {
   sendMessage, // still used for legacy / fall‑back
   streamMessage, // ✨ NEW – SSE streaming
@@ -138,6 +140,7 @@ const App = () => {
   const [promotedGoal, setPromotedGoal] = useState("");
   const [fileViewer, setFileViewer] = useState({ open: false, workspaceId: null });
   const [isMemoryBrowserOpen, setIsMemoryBrowserOpen] = useState(false);
+  const [isKnowledgeBaseOpen, setIsKnowledgeBaseOpen] = useState(false);
 
   // Refs
   const chatContainerRef = useRef(null);
@@ -388,6 +391,10 @@ const App = () => {
     'ctrl+shift+m': () => {
       // Toggle memory browser
       setIsMemoryBrowserOpen(prev => !prev);
+    },
+    'ctrl+shift+k': () => {
+      // Toggle knowledge base
+      setIsKnowledgeBaseOpen(prev => !prev);
     }
   });
 
@@ -945,6 +952,15 @@ const App = () => {
               <ListTodo size={14} /> Tasks{activeTasksCount ? ` (${activeTasksCount})` : ""}
             </button>
 
+            {/* Knowledge Base button */}
+            <button
+              onClick={() => setIsKnowledgeBaseOpen(true)}
+              title="Knowledge Base (Ctrl+Shift+K)"
+              className="flex items-center gap-1 px-2 py-1 text-xs rounded bg-gray-700 hover:bg-gray-600 text-white"
+            >
+              <BookOpen size={14} /> KB
+            </button>
+
             {/* Settings button */}
             <button
               onClick={() => setIsSettingsOpen(true)}
@@ -1112,9 +1128,15 @@ const App = () => {
       )}
 
       {/* Memory Browser */}
-      <MemoryBrowser 
+      <MemoryBrowser
         isOpen={isMemoryBrowserOpen}
         onClose={() => setIsMemoryBrowserOpen(false)}
+      />
+
+      {/* Knowledge Base */}
+      <KnowledgeBase
+        isOpen={isKnowledgeBaseOpen}
+        onClose={() => setIsKnowledgeBaseOpen(false)}
       />
 
       {/* Toasts */}
