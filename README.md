@@ -162,6 +162,11 @@ Optional (enable additional tools):
         ```bash
         cd backend
         ```
+    *   Create and activate a virtual environment:
+        ```bash
+        python3 -m venv mcp
+        source mcp/bin/activate  # On Windows: mcp\Scripts\activate
+        ```
     *   Install Python dependencies:
         ```bash
         pip install -r requirements.txt
@@ -1028,7 +1033,7 @@ npm run build
 # 4. Restart the backend
 # Manually:
 cd ../backend
-uvicorn main:app --host 0.0.0.0 --port 8000
+uvicorn main:app --host 127.0.0.1 --port 8000
 
 # macOS Launch Agent:
 launchctl stop com.osoba.backend && launchctl start com.osoba.backend
