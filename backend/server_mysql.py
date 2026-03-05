@@ -6,7 +6,7 @@ import json
 import re
 from decimal import Decimal
 from typing import Dict, Union, List
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 from dotenv import load_dotenv
 load_dotenv()
 

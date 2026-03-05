@@ -2,7 +2,7 @@ import logging
 import httpx
 from typing import Dict, Any, Optional
 from pydantic import BaseModel
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 # Initialize logger
 logger = logging.getLogger("server_hubspot")
@@ -14,8 +14,7 @@ logger.addHandler(handler)
 mcp = FastMCP(
     name="HubspotBusinessLogic",
     version="0.1.0",
-    display_name="HubSpot Business Logic Tools",
-    description="Provides create/update marketing-email tools for HubSpot using a provided access token",
+    instructions="Provides create/update marketing-email tools for HubSpot using a provided access token",
 )
 
 # Pydantic models for request validation

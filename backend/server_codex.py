@@ -36,7 +36,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from dotenv import find_dotenv, load_dotenv
 
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 # -----------------------------
 # Logging (matches your style)
@@ -120,8 +120,7 @@ script_logger.info(f"WORKSPACES_DIR={WORKSPACES_DIR}")
 mcp = FastMCP(
     name="CodexWorkspaceServer",
     version="0.2.0",
-    display_name="Codex Workspace Server",
-    description=(
+    instructions=(
         "Creates isolated workspaces and runs Codex CLI in a bounded directory "
         "for later human review."
     ),

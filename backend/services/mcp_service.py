@@ -7,8 +7,8 @@ from typing import List, Dict, Tuple, Any
 from dataclasses import dataclass, field
 
 from fastapi import HTTPException
-from fastmcp.client.transports import StdioServerParameters, stdio_client
-from mcp import ClientSession
+from fastmcp import Client
+from fastmcp.client.transports import StdioTransport
 
 from core.config import BASE_DIR, WEB_SEARCH_SERVICE_NAME, MYSQL_DB_SERVICE_NAME, HUBSPOT_SERVICE_NAME, YOUTUBE_SERVICE_NAME, PYTHON_SERVICE_NAME, CODEX_SERVICE_NAME, DISABLED_MCP_SERVICES, get_logger
 
@@ -92,7 +92,7 @@ async def run_mcp_service_instance(config: MCPServiceConfig):
     app_state.mcp_service_queues[service_name] = request_q
     app_state.mcp_pending_futures[service_name] = {}
 
-    server_params = StdioServerParameters(
+    transport = StdioTransport(
         command=config.full_command[0],
         args=config.full_command[1:],
         cwd=BASE_DIR
@@ -100,99 +100,76 @@ async def run_mcp_service_instance(config: MCPServiceConfig):
 
     while True:
         try:
-            logger.info(f"MCP_SERVICE ({service_name}): Launching subprocess with params: {server_params}")
-            async with stdio_client(server_params) as streams:
-                read_stream, write_stream = streams
-                logger.info(f"MCP_SERVICE ({service_name}): Connected to subprocess. Initializing ClientSession...")
+            logger.info(f"MCP_SERVICE ({service_name}): Launching subprocess...")
+            async with Client(transport) as client:
+                logger.info(f"MCP_SERVICE ({service_name}): Connected. Listing tools...")
 
-                async with ClientSession(read_stream, write_stream) as session:
-                    logger.info(f"MCP_SERVICE ({service_name}): ClientSession created. Initializing session...")
-                    await session.initialize()
-                    logger.info(f"MCP_SERVICE ({service_name}): Session initialized. Listing tools...")
+                tools = await client.list_tools()
+                available_tool_names = [tool.name for tool in tools]
+                logger.info(f"MCP_SERVICE ({service_name}): Available tools: {available_tool_names}")
 
-                    tools_response = await session.list_tools()
-                    logger.debug(f"MCP_SERVICE ({service_name}): Raw tools_response: {tools_response!r}")
+                all_required_found = all(req_tool in available_tool_names for req_tool in config.required_tools) if config.required_tools else True
 
-                    if tools_response and tools_response.tools is not None:
-                        available_tool_names = [tool.name for tool in tools_response.tools]
-                        logger.info(f"MCP_SERVICE ({service_name}): Available tools: {available_tool_names}")
+                if all_required_found:
+                    app_state.mcp_service_ready[service_name] = True
+                    logger.info(f"MCP_SERVICE ({service_name}): Service fully initialized and all required tools are available.")
+                else:
+                    app_state.mcp_service_ready[service_name] = False
+                    missing_tools = [t for t in config.required_tools if t not in available_tool_names]
+                    logger.error(f"MCP_SERVICE ({service_name}): CRITICAL: Required tools NOT FOUND: {missing_tools}")
 
-                        all_required_found = all(req_tool in available_tool_names for req_tool in config.required_tools) if config.required_tools else True
+                if app_state.mcp_service_ready.get(service_name, False):
+                    while True:
+                        try:
+                            request_data = request_q.get_nowait()
+                            request_id = request_data["id"]
+                            request_type = request_data.get("type", "tool")
 
-                        if all_required_found:
-                            app_state.mcp_service_ready[service_name] = True
-                            logger.info(f"MCP_SERVICE ({service_name}): Service fully initialized and all required tools are available.")
-                        else:
-                            app_state.mcp_service_ready[service_name] = False
-                            missing_tools = [t for t in config.required_tools if t not in available_tool_names]
-                            logger.error(f"MCP_SERVICE ({service_name}): CRITICAL: Required tools NOT FOUND: {missing_tools}")
-                    else:
-                        logger.error(f"MCP_SERVICE ({service_name}): CRITICAL: No tools found or invalid response from list_tools().")
-                        app_state.mcp_service_ready[service_name] = False
-
-                    if app_state.mcp_service_ready.get(service_name, False):
-                        while True:
                             try:
-                                request_data = request_q.get_nowait()
-                                request_id = request_data["id"]
-                                request_type = request_data.get("type", "tool")
+                                start_time = time.time()
+                                if request_type == "tool":
+                                    tool_to_call = request_data["tool"]
+                                    params = request_data["params"]
+                                    logger.debug(f"MCP_SERVICE ({service_name}): Calling TOOL '{tool_to_call}' (req_id: {request_id})")
+                                    result = await client.call_tool(tool_to_call, arguments=params)
+                                    duration = time.time() - start_time
+                                    logger.info(f"MCP_SERVICE ({service_name}): TOOL '{tool_to_call}' completed in {duration:.2f}s (req_id: {request_id})")
 
-                                try:
-                                    start_time = time.time()
-                                    if request_type == "tool":
-                                        tool_to_call = request_data["tool"]
-                                        params = request_data["params"]
-                                        logger.debug(f"MCP_SERVICE ({service_name}): Calling TOOL '{tool_to_call}' (req_id: {request_id})")
-                                        result = await session.call_tool(tool_to_call, params)
-                                        duration = time.time() - start_time
-                                        logger.info(f"MCP_SERVICE ({service_name}): TOOL '{tool_to_call}' completed in {duration:.2f}s (req_id: {request_id})")
-
-                                        # Handle complex content (text and images)
-                                        response_data = []
-                                        content = result.content
-
-                                        # Handle new-style list of dicts from refactored python server
-                                        if isinstance(content, list) and content and all(isinstance(item, dict) and 'type' in item for item in content):
-                                            response_data = content
-                                        # Handle old-style list of mcp.types objects for compatibility
-                                        elif content and isinstance(content, list):
-                                            for part in content:
-                                                if hasattr(part, 'type') and part.type == 'text' and hasattr(part, 'text'):
-                                                    response_data.append({"type": "text", "content": part.text})
-                                                elif hasattr(part, 'type') and part.type == 'image' and hasattr(part, 'data'):
-                                                    response_data.append({"type": "image", "mimeType": part.mimeType, "data": part.data})
-                                                else:
-                                                    response_data.append({"type": "unknown", "content": str(part)})
-                                        # Handle simple string/dict returns from other fastmcp tools
+                                    response_data = []
+                                    for part in result.content:
+                                        if hasattr(part, 'type') and part.type == 'text' and hasattr(part, 'text'):
+                                            response_data.append({"type": "text", "content": part.text})
+                                        elif hasattr(part, 'type') and part.type == 'image' and hasattr(part, 'data'):
+                                            response_data.append({"type": "image", "mimeType": part.mimeType, "data": part.data})
                                         else:
-                                            response_data.append({"type": "text", "content": str(content)})
+                                            response_data.append({"type": "unknown", "content": str(part)})
 
-                                        _resolve_future(service_name, request_id, {"id": request_id, "status": "success", "data": response_data})
+                                    _resolve_future(service_name, request_id, {"id": request_id, "status": "success", "data": response_data})
 
-                                    elif request_type == "resource":
-                                        uri_to_get = request_data["uri"]
-                                        logger.debug(f"MCP_SERVICE ({service_name}): Getting RESOURCE '{uri_to_get}' (req_id: {request_id})")
-                                        resource_result = await session.read_resource(uri_to_get)
-                                        duration = time.time() - start_time
-                                        logger.info(f"MCP_SERVICE ({service_name}): RESOURCE '{uri_to_get}' completed in {duration:.2f}s (req_id: {request_id})")
+                                elif request_type == "resource":
+                                    uri_to_get = request_data["uri"]
+                                    logger.debug(f"MCP_SERVICE ({service_name}): Getting RESOURCE '{uri_to_get}' (req_id: {request_id})")
+                                    resource_result = await client.read_resource(uri_to_get)
+                                    duration = time.time() - start_time
+                                    logger.info(f"MCP_SERVICE ({service_name}): RESOURCE '{uri_to_get}' completed in {duration:.2f}s (req_id: {request_id})")
 
-                                        resource_content = str(resource_result)
-                                        if hasattr(resource_result, 'contents') and resource_result.contents:
-                                            resource_content = resource_result.contents[0].text if resource_result.contents[0].text else str(resource_result.contents[0])
-                                        elif hasattr(resource_result, 'content'):
-                                            resource_content = resource_result.content
+                                    resource_content = str(resource_result)
+                                    if hasattr(resource_result, 'contents') and resource_result.contents:
+                                        resource_content = resource_result.contents[0].text if resource_result.contents[0].text else str(resource_result.contents[0])
+                                    elif hasattr(resource_result, 'content'):
+                                        resource_content = resource_result.content
 
-                                        _resolve_future(service_name, request_id, {"id": request_id, "status": "success", "data": resource_content})
-                                    else:
-                                        _resolve_future(service_name, request_id, {"id": request_id, "status": "error", "error": f"Unknown request type: {request_type}"})
+                                    _resolve_future(service_name, request_id, {"id": request_id, "status": "success", "data": resource_content})
+                                else:
+                                    _resolve_future(service_name, request_id, {"id": request_id, "status": "error", "error": f"Unknown request type: {request_type}"})
 
-                                except Exception as e_mcp_call:
-                                    call_target = request_data.get("tool", request_data.get("uri", "N/A"))
-                                    logger.error(f"MCP_SERVICE ({service_name}): Error in '{request_type}' call to '{call_target}': {e_mcp_call}", exc_info=True)
-                                    _resolve_future(service_name, request_id, {"id": request_id, "status": "error", "error": str(e_mcp_call)})
-                                request_q.task_done()
-                            except asyncio.QueueEmpty:
-                                await asyncio.sleep(0.01)
+                            except Exception as e_mcp_call:
+                                call_target = request_data.get("tool", request_data.get("uri", "N/A"))
+                                logger.error(f"MCP_SERVICE ({service_name}): Error in '{request_type}' call to '{call_target}': {e_mcp_call}", exc_info=True)
+                                _resolve_future(service_name, request_id, {"id": request_id, "status": "error", "error": str(e_mcp_call)})
+                            request_q.task_done()
+                        except asyncio.QueueEmpty:
+                            await asyncio.sleep(0.01)
         except Exception as e_generic:
             logger.error(f"MCP_SERVICE ({service_name}): Generic Exception (subprocess might have failed): {e_generic}", exc_info=True)
         finally:

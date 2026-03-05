@@ -31,8 +31,7 @@ def _data_store_memory_bytes() -> int:
 mcp = FastMCP(
     name="EnhancedDataAnalysisServer",
     version="1.0.0",
-    display_name="Enhanced Data Analysis Server",
-    description="Provides tools for CSV data loading, analysis, and visualization."
+    instructions="Provides tools for CSV data loading, analysis, and visualization."
 )
 
 # --------------------------------------------------------------------------

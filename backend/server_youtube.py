@@ -14,7 +14,7 @@ from urllib.parse import parse_qs, urlparse
 
 import requests
 import yt_dlp
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 from pytube import YouTube
 from youtube_transcript_api import (
     CouldNotRetrieveTranscript,

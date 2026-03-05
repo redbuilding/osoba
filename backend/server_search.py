@@ -3,7 +3,7 @@ import os
 import json
 from dotenv import load_dotenv, find_dotenv
 import httpx
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 import logging
 import sys
 import time
@@ -60,8 +60,7 @@ class SmartExtractionConfig:
 mcp = FastMCP(
     name="WebSearchServer",
     version="0.1.0",
-    display_name="Web Search Server (Serper.dev)",
-    description="Provides web search functionality via the Serper.dev API.",
+    instructions="Provides web search functionality via the Serper.dev API.",
 )
 script_logger.info("FastMCP instance created.")
 
