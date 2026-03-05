@@ -151,6 +151,7 @@ class ScheduledTaskPayload(BaseModel):
     # Optional planner hints produced by the AI improver
     # Expected keys: { manifest?: dict, step_plan?: list }
     planner_hints: Optional[Dict[str, Any]] = None
+    kb_doc_ids: Optional[List[str]] = None  # up to 2 indexed KB doc IDs
 
 class ScheduledTaskSummary(BaseModel):
     id: str = Field(alias="_id")

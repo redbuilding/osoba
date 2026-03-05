@@ -253,6 +253,10 @@ async def run_scheduled_task_now(task_id: str, payload: dict | None = None):
             if not ok:
                 raise HTTPException(status_code=400, detail=f"Model '{override_model}' not available for provider '{provider_id}'")
 
+        from services.task_scheduler import _build_kb_context
+        kb_doc_ids = scheduled.get("kb_doc_ids") or []
+        kb_docs, kb_context = _build_kb_context(kb_doc_ids)
+
         task_data = {
             "goal": scheduled["goal"],
             "title": scheduled.get("name", scheduled["goal"][:50]),
@@ -265,6 +269,8 @@ async def run_scheduled_task_now(task_id: str, payload: dict | None = None):
             "created_at": datetime.now(timezone.utc),
             "updated_at": datetime.now(timezone.utc),
             "priority": 1,
+            "kb_docs": kb_docs,
+            "kb_context": kb_context,
         }
         new_task_id = create_task(task_data)
         return {"task_id": new_task_id}
@@ -277,6 +283,7 @@ async def run_scheduled_task_now(task_id: str, payload: dict | None = None):
 @router.get("/api/scheduled-tasks")
 async def list_scheduled_tasks():
     try:
+        from db.documents_crud import get_document
         tasks = scheduled_tasks_crud.list_scheduled_tasks()
         result = []
         for task in tasks:
@@ -292,6 +299,17 @@ async def list_scheduled_tasks():
             # Add delay info if available
             if 'last_delay_minutes' in task_dict:
                 task_dict['last_delay_minutes'] = task_dict.get('last_delay_minutes', 0)
+            # Resolve kb_doc_ids → kb_docs for display
+            kb_doc_ids = task_dict.get('kb_doc_ids') or []
+            kb_docs = []
+            for doc_id in kb_doc_ids[:2]:
+                try:
+                    doc = get_document(doc_id)
+                    if doc:
+                        kb_docs.append({"id": doc_id, "title": doc.get("title", "Untitled")})
+                except Exception:
+                    pass
+            task_dict['kb_docs'] = kb_docs
             result.append(task_dict)
         return result
     except Exception as e:

@@ -8,6 +8,28 @@ from db.mongodb import get_scheduled_tasks_collection
 from db.tasks_crud import create_task
 from core.models import TaskCreatePayload
 
+_MAX_KB_DOCS = 2
+_MAX_CHARS_PER_DOC = 4_000
+
+def _build_kb_context(doc_ids):
+    """Resolve KB doc IDs to content context. Returns (kb_docs list, kb_context string)."""
+    from db.documents_crud import get_document
+    parts, kb_docs = [], []
+    for doc_id in (doc_ids or [])[:_MAX_KB_DOCS]:
+        try:
+            doc = get_document(doc_id)
+        except Exception:
+            continue
+        if not doc or not doc.get("indexed"):
+            continue
+        title = doc.get("title", "Untitled")
+        excerpt = (doc.get("content") or "")[:_MAX_CHARS_PER_DOC]
+        parts.append(f"[{title}]\n{excerpt}")
+        kb_docs.append({"id": doc_id, "title": title})
+    if not parts:
+        return [], ""
+    return kb_docs, "=== Knowledge Base ===\n" + "\n\n".join(parts)
+
 logger = get_logger("task_scheduler")
 
 class TaskScheduler:
@@ -182,6 +204,9 @@ class TaskScheduler:
             # Store when task should have run for queue delay calculation
             scheduled_for = scheduled_task.get("schedule", {}).get("next_run")
             
+            kb_doc_ids = scheduled_task.get("kb_doc_ids") or []
+            kb_docs, kb_context = _build_kb_context(kb_doc_ids)
+
             task_data = {
                 "goal": scheduled_task["goal"],
                 "title": title,
@@ -195,6 +220,8 @@ class TaskScheduler:
                 "created_at": datetime.now(timezone.utc),
                 "updated_at": datetime.now(timezone.utc),
                 "priority": 1,  # Scheduled tasks get highest priority
+                "kb_docs": kb_docs,
+                "kb_context": kb_context,
                 "metadata": {
                     "scheduled_task_id": task_id,
                     "scheduled_for": scheduled_for,  # When it should have run

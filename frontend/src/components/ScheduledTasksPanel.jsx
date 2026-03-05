@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { X, Clock, Plus, Trash2, Calendar } from 'lucide-react';
-import { 
-  listScheduledTasks, 
-  createScheduledTask, 
+import React, { useState, useEffect, useRef } from 'react';
+import { X, Clock, Plus, Trash2, Calendar, BookOpen } from 'lucide-react';
+import {
+  listScheduledTasks,
+  createScheduledTask,
   deleteScheduledTask,
-  runScheduledTaskNow
+  runScheduledTaskNow,
+  listDocuments
 } from '../services/api';
 import ModelPickerModal from './ModelPickerModal';
 import { improveScheduledInstruction } from "../services/api";
@@ -17,6 +18,12 @@ const ScheduledTasksPanel = ({ isOpen, onClose }) => {
   const [isModelModalOpen, setIsModelModalOpen] = useState(false);
   const [formModel, setFormModel] = useState(null);
   const [runOverrideForId, setRunOverrideForId] = useState(null);
+
+  // KB doc picker state
+  const [kbDocs, setKbDocs] = useState([]);       // [{id, title}] selected for new task
+  const [allDocs, setAllDocs] = useState([]);      // indexed docs from API
+  const [kbPickerOpen, setKbPickerOpen] = useState(false);
+  const kbPickerRef = useRef(null);
 
   // Improve-with-AI state
   const [isImproveOpen, setIsImproveOpen] = useState(false);
@@ -68,6 +75,24 @@ const ScheduledTasksPanel = ({ isOpen, onClose }) => {
       fetchScheduledTasks();
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (kbPickerOpen && allDocs.length === 0) {
+      listDocuments().then(data => {
+        setAllDocs((data?.documents || []).filter(d => d.indexed));
+      }).catch(() => {});
+    }
+  }, [kbPickerOpen]);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (kbPickerRef.current && !kbPickerRef.current.contains(e.target)) {
+        setKbPickerOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const fetchScheduledTasks = async () => {
     try {
@@ -148,6 +173,7 @@ const ScheduledTasksPanel = ({ isOpen, onClose }) => {
         model_name: formModel || null,
         schedule: schedulePayload,
         planner_hints: improvedHints || null,
+        kb_doc_ids: kbDocs.length > 0 ? kbDocs.map(d => d.id) : null,
       });
 
       setFormData({
@@ -168,6 +194,7 @@ const ScheduledTasksPanel = ({ isOpen, onClose }) => {
       setShowCreateForm(false);
       setFormModel(null);
       setImprovedHints(null);
+      setKbDocs([]);
       fetchScheduledTasks();
     } catch (error) {
       setError(error.response?.data?.detail || 'Failed to create scheduled task');
@@ -528,6 +555,69 @@ const ScheduledTasksPanel = ({ isOpen, onClose }) => {
                   />
                 </div>
 
+                {/* KB Doc Picker */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium mb-1 text-brand-text-primary">Knowledge Base</label>
+                  {kbDocs.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mb-2">
+                      {kbDocs.map(d => (
+                        <span key={d.id} className="flex items-center gap-1 px-2 py-0.5 bg-gray-700 rounded text-xs text-brand-text-primary">
+                          <BookOpen size={10} />
+                          {d.title}
+                          <button
+                            type="button"
+                            onClick={() => setKbDocs(prev => prev.filter(x => x.id !== d.id))}
+                            className="ml-1 text-brand-text-secondary hover:text-brand-alert-red focus:outline-none"
+                            title="Remove"
+                          >×</button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <div className="relative" ref={kbPickerRef}>
+                    <button
+                      type="button"
+                      onClick={() => setKbPickerOpen(v => !v)}
+                      disabled={kbDocs.length >= 2}
+                      className="flex items-center gap-1 px-3 py-1 text-xs rounded bg-gray-700 hover:bg-gray-600 text-white focus:outline-none focus:ring-2 focus:ring-brand-purple disabled:opacity-40"
+                      title="Attach a KB document to provide context when this task runs"
+                    >
+                      <BookOpen size={12} />
+                      {kbDocs.length >= 2 ? 'Max 2 docs' : 'Attach Doc'}
+                    </button>
+                    {kbPickerOpen && (
+                      <div className="absolute left-0 top-full mt-1 w-72 bg-brand-surface-bg border border-gray-700 rounded shadow-lg z-10 max-h-48 overflow-y-auto">
+                        {allDocs.length === 0 ? (
+                          <div className="p-3 text-xs text-brand-text-secondary">No indexed documents found.</div>
+                        ) : (
+                          allDocs.map(doc => {
+                            const already = kbDocs.some(d => d.id === doc.id);
+                            return (
+                              <button
+                                key={doc.id}
+                                type="button"
+                                onClick={() => {
+                                  if (!already && kbDocs.length < 2) {
+                                    setKbDocs(prev => [...prev, { id: doc.id, title: doc.title }]);
+                                  }
+                                  setKbPickerOpen(false);
+                                }}
+                                disabled={already || kbDocs.length >= 2}
+                                className="w-full text-left px-3 py-2 text-xs text-brand-text-primary hover:bg-gray-700 disabled:opacity-40 flex items-center gap-2"
+                              >
+                                <BookOpen size={10} className="shrink-0" />
+                                <span className="flex-1 truncate">{doc.title}</span>
+                                {already && <span className="text-brand-text-secondary">✓</span>}
+                              </button>
+                            );
+                          })
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-xs text-brand-text-secondary mt-1">Up to 2 indexed docs — injected as context each time this task runs.</p>
+                </div>
+
                 <div className="flex justify-end gap-2">
                   <button
                     type="button"
@@ -567,6 +657,15 @@ const ScheduledTasksPanel = ({ isOpen, onClose }) => {
                     <p className="text-sm text-brand-text-secondary mb-2">{task.goal}</p>
                     {task.model_name && (
                       <div className="text-xs text-brand-text-secondary mb-1">Model: {task.model_name}</div>
+                    )}
+                    {task.kb_docs?.length > 0 && (
+                      <div className="flex items-center flex-wrap gap-1 text-xs text-brand-text-secondary mb-1">
+                        <BookOpen size={12} />
+                        <span>KB:</span>
+                        {task.kb_docs.map(d => (
+                          <span key={d.id} className="px-1.5 py-0.5 bg-gray-700 rounded text-xs">{d.title}</span>
+                        ))}
+                      </div>
                     )}
                     
                     <div className="flex items-center gap-4 text-xs text-brand-text-secondary">
