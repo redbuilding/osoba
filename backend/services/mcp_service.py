@@ -10,7 +10,7 @@ from fastapi import HTTPException
 from fastmcp import Client
 from fastmcp.client.transports import StdioTransport
 
-from core.config import BASE_DIR, WEB_SEARCH_SERVICE_NAME, MYSQL_DB_SERVICE_NAME, HUBSPOT_SERVICE_NAME, YOUTUBE_SERVICE_NAME, PYTHON_SERVICE_NAME, CODEX_SERVICE_NAME, CANVA_SERVICE_NAME, DISABLED_MCP_SERVICES, get_logger
+from core.config import BASE_DIR, WEB_SEARCH_SERVICE_NAME, MYSQL_DB_SERVICE_NAME, HUBSPOT_SERVICE_NAME, YOUTUBE_SERVICE_NAME, PYTHON_SERVICE_NAME, CODEX_SERVICE_NAME, CANVA_SERVICE_NAME, FIGMA_SERVICE_NAME, DISABLED_MCP_SERVICES, get_logger
 
 logger = get_logger("mcp_service")
 
@@ -76,6 +76,12 @@ class AppState:
                 name=CANVA_SERVICE_NAME,
                 script_name="server_canva.py",
                 required_tools=["create_design", "list_designs", "get_design", "export_design"],
+            ),
+            FIGMA_SERVICE_NAME: MCPServiceConfig(
+                name=FIGMA_SERVICE_NAME,
+                script_name="server_figma.py",
+                required_tools=["figma_get_file", "figma_get_nodes", "figma_export_images",
+                                 "figma_get_comments", "figma_post_comment", "figma_get_design_system"],
             ),
         }
 

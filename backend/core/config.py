@@ -36,6 +36,7 @@ YOUTUBE_SERVICE_NAME = "youtube_service"
 PYTHON_SERVICE_NAME = "python_service"
 CODEX_SERVICE_NAME = "codex_workspace_service"
 CANVA_SERVICE_NAME = "canva_service"
+FIGMA_SERVICE_NAME = "figma_service"
 MAX_DB_RESULT_CHARS = 5000 # Proxy for token limit (approx 1000-1200 tokens)
 MAX_TABLES_FOR_SCHEMA_CONTEXT = 7 # Max tables to fetch full schema for, to keep prompt size reasonable
 

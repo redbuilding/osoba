@@ -72,6 +72,14 @@ ALLOWED_TASK_TOOLS = [
     "get_design",                    # Get a specific design by ID
     "export_design",                 # Export design to PNG/JPG/PDF/etc.
 
+    # Figma Design MCP (6 tools)
+    "figma_get_file",                # Get Figma file structure and metadata
+    "figma_get_nodes",               # Get specific nodes by ID
+    "figma_export_images",           # Export nodes as PNG/JPG/SVG/PDF images
+    "figma_get_comments",            # List comments on a file
+    "figma_post_comment",            # Post a comment to a file
+    "figma_get_design_system",       # Extract design tokens and components
+
     # LLM-only (no MCP)
     "llm.generate",                  # Direct LLM generation
 ]
@@ -138,6 +146,15 @@ TOOL_ALIASES = {
     "canva_get": "get_design",
     "canva_export": "export_design",
     "export": "export_design",
+
+    # Figma design variants
+    "figma_file": "figma_get_file",
+    "figma_nodes": "figma_get_nodes",
+    "figma_images": "figma_export_images",
+    "figma_comments": "figma_get_comments",
+    "figma_comment": "figma_post_comment",
+    "figma_design_system": "figma_get_design_system",
+    "figma_tokens": "figma_get_design_system",
 
     # Existing generation variants
     "write": "llm.generate",
@@ -224,6 +241,17 @@ def _tool_catalog_text() -> str:
         "- get_design(design_id: string) -> {status, id, title, url, thumbnail_url, width, height}\n"
         "- export_design(design_id: string, format?: string, width?: int, height?: int, quality?: int, pages?: string) -> {status, download_url, job_id}\n"
         "  formats: png, jpg, pdf, svg, mp4, gif\n"
+        "\n"
+        "## Figma Design Tools\n"
+        "- figma_get_file(file_key: string, depth?: int) -> {status, name, lastModified, version, document, components, styles}\n"
+        "  file_key is found in the Figma URL: figma.com/file/{file_key}/...\n"
+        "- figma_get_nodes(file_key: string, node_ids: string, depth?: int) -> {status, name, nodes}\n"
+        "  node_ids: comma-separated IDs e.g. '1:2,3:4'\n"
+        "- figma_export_images(file_key: string, node_ids: string, format?: string, scale?: float) -> {status, images}\n"
+        "  formats: png, jpg, svg, pdf — returns map of node_id -> download URL\n"
+        "- figma_get_comments(file_key: string) -> {status, comments}\n"
+        "- figma_post_comment(file_key: string, message: string, node_id?: string, parent_id?: string) -> {status, id, message}\n"
+        "- figma_get_design_system(file_key: string) -> {status, colors, typography, spacing, effects, components}\n"
         "\n"
         "## LLM-only Tools\n"
         "- llm.generate(prompt?: string) -> text (runs local LLM; if prompt omitted, uses step instruction)\n"
