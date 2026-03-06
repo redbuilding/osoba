@@ -1,14 +1,14 @@
 # 🔍 🤖 🌐 Osoba
 
-A powerful, modern UI that integrates local and hosted LLMs with intelligent web search and content extraction, SQL, YouTube transcript analysis, HubSpot actions, Python data analysis — and a Codex MCP server for safe code scaffolding — all via the Model Context Protocol (MCP). Features include personalized AI assistance through user profiles and conversation context, a Document Knowledge Base for persistent reference material, provider settings, multi‑provider model picking, streaming chat, persistent conversations, a robust Tasks system, and Scheduled tasks with timezone‑aware timing.
+A powerful, modern UI that integrates local and hosted LLMs with intelligent web search and content extraction, SQL, YouTube transcript analysis, HubSpot actions, Python data analysis, Canva design creation, Figma design inspection — and a Codex MCP server for safe code scaffolding — all via the Model Context Protocol (MCP). Features include personalized AI assistance through user profiles and conversation context, a Document Knowledge Base for persistent reference material, provider settings, multi‑provider model picking, streaming chat, persistent conversations, a robust Tasks system, and Scheduled tasks with timezone‑aware timing.
 
 ## Overview
 
-Osoba showcases how to extend both local and hosted models through MCP tool use. It combines locally running LLMs via Ollama with intelligent web search and content extraction, SQL querying, YouTube transcript ingestion, HubSpot business actions, Python-based CSV analysis/visualization — and a Codex Workspace server for code generation inside an isolated workspace. A multi‑provider layer adds OpenAI, Anthropic, Google, OpenRouter, Groq, and SambaNova. Conversations and tasks persist in MongoDB.
+Osoba showcases how to extend both local and hosted models through MCP tool use. It combines locally running LLMs via Ollama with intelligent web search and content extraction, SQL querying, YouTube transcript ingestion, HubSpot business actions, Python-based CSV analysis/visualization, Canva design creation and export, Figma file/design inspection and export — and a Codex Workspace server for code generation inside an isolated workspace. A multi‑provider layer adds OpenAI, Anthropic, Google, OpenRouter, Groq, and SambaNova. Conversations and tasks persist in MongoDB.
 
 The project consists of several key components:
 
-- **Backend (FastAPI)**: Manages chat logic, model provider routing, MCP service communication (including starting and managing MCP services like web search, SQL, YouTube, HubSpot, Python, Codex), tasks/scheduler, and persistence.
+- **Backend (FastAPI)**: Manages chat logic, model provider routing, MCP service communication (including starting and managing MCP services like web search, SQL, YouTube, HubSpot, Python, Canva, Figma, Codex), tasks/scheduler, and persistence.
 
 - **Frontend (React)**: A modern, responsive web interface for users to interact with the chat application.
 
@@ -21,6 +21,10 @@ The project consists of several key components:
 - **MCP HubSpot Business Tools**: Create/update marketing emails via HubSpot APIs using OAuth, with a JSON-first prompting flow.
 
 - **MCP Python Data Analysis Server**: Comprehensive data analysis toolkit including CSV loading, data profiling, filtering, grouping/aggregation, outlier detection, data type conversion, statistical hypothesis testing, and visualization (base64 images) for complete analytical workflows.
+
+- **MCP Canva Design Server**: Create, browse, and export Canva designs directly from chat or autonomous tasks. Supports all standard size presets (Instagram, YouTube, presentation, A4, and more), custom dimensions, brand template autofill, and export to PNG, JPG, PDF, SVG, MP4, or GIF. Requires a Canva Personal Access Token.
+
+- **MCP Figma Design Server**: Read Figma files, extract specific nodes, export frames and components as images (PNG/JPG/SVG/PDF), manage comments, and extract the full design system (color tokens, typography, spacing, components) — all from chat or tasks. Requires a Figma Personal Access Token.
 
 - **MCP Codex Workspace Server**: Creates per‑run workspaces and launches the Codex CLI within an isolated directory, persists artifacts (JSONL events, manifest), enforces a configurable output policy, and exposes async run APIs for a streaming‑friendly UX. Gated on a valid OpenAI API key.
 
@@ -62,6 +66,8 @@ This architecture demonstrates how MCP enables local models to access external t
 - 📈 **Live Task Progress**: Tasks stream progress via SSE; per‑step outputs (tables/images/text) render in the UI.
 - 🧩 **LLM‑only Steps (No MCP)**: Tasks can include steps that run directly on Ollama (e.g., summaries/reasoning) without using any MCP tool.
 - 🚦 **Priority Task Queue**: Memory-safe task execution with priority scheduling - scheduled tasks run first, user tasks queue behind them, only one task executes at a time to prevent system overload, especially important for local, memory-constrained systems.
+- 🎨 **Canva Design Tools (MCP)**: Create Canva designs from chat or tasks using standard presets (Instagram, YouTube thumbnail, presentation, A4, and more) or custom dimensions. Browse existing designs, retrieve editor links, and export to PNG, JPG, PDF, SVG, MP4, or GIF — all without leaving Osoba. Requires a Canva Personal Access Token.
+- 🖼️ **Figma Design Tools (MCP)**: Read Figma file structures, extract specific nodes by ID, export frames and components as images, list and post comments, and extract the full design system (color, typography, spacing tokens and component catalog). Useful for design review workflows, design-to-code handoffs, and automated design auditing. Requires a Figma Personal Access Token.
 - ✨ **Codex Workspace (MCP)**: Launch Codex to generate/edit files in an isolated workspace; inline run status in chat; artifacts persisted for review; gated on OpenAI key.
 - 🗓️ **Scheduled Tasks (Timezone‑Aware)**: Recurring cron or one‑time schedules computed in local timezone with DST safety; auto‑disable after first run for one‑time schedules; “Run now” with model override.
 
@@ -71,9 +77,11 @@ This architecture demonstrates how MCP enables local models to access external t
 
 The task system has **full access to all MCP tools** available in the chat interface, enabling autonomous execution of complex workflows:
 
-**Available Tools (33 total)**:
-- **Web Search** (4 tools): Basic search, smart content extraction, image search, news search
+**Available Tools (44 total)**:
+- **Web Search** (5 tools): Basic search, smart content extraction, image search, news search, direct URL fetch
 - **Python Data Analysis** (17 tools): Data loading, inspection, cleaning, transformation, statistical analysis, visualization
+- **Canva Design** (4 tools): Create designs, list designs, get design details, export to file
+- **Figma Design** (6 tools): Get file structure, get nodes, export images, list comments, post comment, extract design system
 - **HubSpot Business** (2 tools): Create/update marketing emails (requires OAuth)
 - **Codex Workspace** (7 tools): Code generation and workspace management (requires OpenAI API key)
 - **Database** (1 tool): Read-only SQL queries
@@ -83,9 +91,11 @@ The task system has **full access to all MCP tools** available in the chat inter
 **Advanced Task Capabilities**:
 - Research with smart content extraction (full webpage content, not just snippets)
 - Advanced data analysis with outlier detection and statistical hypothesis testing
+- Canva design workflows: research a topic then automatically create and export a design
+- Figma design workflows: extract design tokens, export assets, and review file structure for design-to-code handoffs
 - Marketing automation with HubSpot integration
 - Code generation with fine-grained Codex workspace management
-- Multi-step workflows combining search, analysis, and generation
+- Multi-step workflows combining search, analysis, design, and generation
 - **KB context attachment**: Attach 1–2 indexed Knowledge Base documents at task creation to inject reference material into the planner and every LLM step
 
 ### Priority Queue System
@@ -147,6 +157,8 @@ Optional (enable additional tools):
 - Python data analysis: `pandas`, `numpy`, `matplotlib`, `seaborn`
 - YouTube transcripts: `youtube-transcript-api`, `pytube`, `yt-dlp`, `requests`
 - HubSpot OAuth: valid OAuth app (client ID/secret) and redirect URL
+- Canva Design: Canva Personal Access Token (from [Canva Developer Portal](https://www.canva.com/developers/connect/))
+- Figma Design: Figma Personal Access Token (from Figma Account Settings → Security → Personal access tokens)
 - Codex Workspace: Codex CLI available on PATH (or set `CODEX_BIN`), OpenAI API key configured
 
 ## Installation
@@ -200,6 +212,14 @@ Optional (enable additional tools):
         DB_USER=your_db_user
         DB_PASSWORD=your_db_password
         DB_NAME=your_db_name
+
+        # Optional: Canva Design Tools (backend/server_canva.py)
+        # Get your token from: https://www.canva.com/developers/connect/
+        CANVA_API_TOKEN=your_canva_personal_access_token_here
+
+        # Optional: Figma Design Tools (backend/server_figma.py)
+        # Get your token from Figma Account Settings → Security → Personal access tokens
+        FIGMA_ACCESS_TOKEN=your_figma_personal_access_token_here
 
         # Optional: HubSpot OAuth (backend/auth_hubspot.py)
         HUBSPOT_CLIENT_ID=your_hubspot_client_id
@@ -307,6 +327,8 @@ Optional (enable additional tools):
     - Summaries are generated on‑demand by your chosen model (see Settings → Summaries) and are stored for reuse; only stored summaries are used for context.
 -   For YouTube: paste a video URL. The transcript is fetched and saved to the conversation for follow-ups.
 -   For HubSpot: click “Connect HubSpot” to complete OAuth, then describe the email to create/update.
+-   For Canva: set `CANVA_API_TOKEN` in `.env`, then ask the AI to create a design (e.g., “Create a YouTube thumbnail called 'AI in 2025'”), list your designs, or export a design to PDF.
+-   For Figma: set `FIGMA_ACCESS_TOKEN` in `.env`, then ask the AI to read a Figma file (e.g., “Get the structure of Figma file ABC123”), export specific frames as images, extract the design system tokens, or list/post comments.
 -   For Python: upload a CSV file when prompted; follow-up questions reuse the loaded DataFrame for advanced analysis including filtering, grouping, outlier detection, statistical testing, and visualization.
 -   Manage conversations using the sidebar (create new, select, rename, delete, pin for context).
 
@@ -938,6 +960,151 @@ Frontend UX notes:
 - The sidebar shows Codex MCP status; it appears green only when the service is ready and OpenAI is configured.
 - A File Viewer Modal exists for future use via the manifest/file APIs; it is not auto‑triggered to avoid dead links.
 
+## Canva Design Tools (MCP)
+
+Create, browse, and export Canva designs without leaving Osoba. The Canva MCP server connects to the [Canva Connect API](https://www.canva.com/developers/connect/) using your Personal Access Token.
+
+### Setup
+
+Add your token to `backend/.env`:
+
+```dotenv
+CANVA_API_TOKEN=your_canva_personal_access_token_here
+```
+
+Get a token at [canva.com/developers/connect](https://www.canva.com/developers/connect/). The backend starts the Canva service automatically alongside all other MCP services — no separate process needed. To disable it without removing the token, set `DISABLED_MCP_SERVICES=canva_service` in `.env`.
+
+### Tools
+
+| Tool | Parameters | What it does |
+|------|-----------|--------------|
+| `create_design` | `title`, `preset`, `width?`, `height?`, `unit?`, `template_id?`, `brand_template_id?` | Creates a new Canva design and returns its editor URL and thumbnail |
+| `list_designs` | `limit?`, `page_token?` | Lists designs in the account with pagination support |
+| `get_design` | `design_id` | Retrieves metadata and the editor URL for a specific design |
+| `export_design` | `design_id`, `format?`, `width?`, `height?`, `quality?`, `pages?` | Exports a design and returns a download URL |
+
+**Supported presets** (for `create_design`):
+
+| Preset | Dimensions | Use case |
+|--------|-----------|----------|
+| `instagram_post` | 1080×1080 | Square posts |
+| `instagram_story` | 1080×1920 | Stories / Reels |
+| `facebook_post` | 1200×630 | Feed posts |
+| `facebook_cover` | 820×312 | Page cover |
+| `twitter_post` | 1200×675 | Twitter/X posts |
+| `linkedin_banner` | 1584×396 | Profile banner |
+| `youtube_thumbnail` | 1280×720 | Video thumbnails |
+| `presentation` | 1920×1080 | Slides |
+| `a4` | 595×842 pt | Documents |
+| `us_letter` | 612×792 pt | US Letter documents |
+| `custom` | user-defined | Requires `width`, `height`, and `unit` (px/mm/in/pt) |
+
+**Export formats**: `png` (default), `jpg`, `pdf`, `svg`, `mp4`, `gif`
+
+### In Chat
+
+With the Canva service running, ask the AI naturally:
+
+- *"Create a YouTube thumbnail titled 'The Future of AI'"*
+- *"List my recent Canva designs"*
+- *"Export design DABcd1234 to PDF"*
+- *"Create an Instagram story with custom dimensions 1080×1920"*
+
+The AI calls the appropriate tool, then responds with the design's editor URL so you can open it directly in Canva.
+
+### In Tasks
+
+Canva tools are available to the task planner for multi-step autonomous workflows. The planner recognises these tool aliases: `design`, `canva_create`, `export`, `canva_export`, `canva_list`, `canva_get`.
+
+Example task goals:
+- *"Research the top 5 AI tools of 2025 and create a LinkedIn banner summarising the findings"*
+- *"Create a presentation slide deck structure for a product launch, then export it as a PDF"*
+- *"List all my Canva designs, find the most recent presentation, and export it as a PNG"*
+
+The planner will chain `web_search` → `llm.generate` → `create_design` → `export_design` steps automatically, using each step's output as input to the next.
+
+### Files
+
+| File | Purpose |
+|------|---------|
+| `backend/server_canva.py` | FastMCP server — 4 MCP tools |
+| `backend/utils/canva_client.py` | Async httpx client, Pydantic models, polling logic |
+| `backend/tests/test_canva_mcp.py` | 46 unit tests (no API token required) |
+
+## Figma Design Tools (MCP)
+
+Read, inspect, and export Figma designs without leaving Osoba. The Figma MCP server connects to the [Figma REST API](https://www.figma.com/developers/api) using your Personal Access Token.
+
+### Setup
+
+Add your token to `backend/.env`:
+
+```dotenv
+FIGMA_ACCESS_TOKEN=your_figma_personal_access_token_here
+```
+
+Get a token from **Figma → Account Settings → Security → Personal access tokens**. The backend starts the Figma service automatically alongside all other MCP services — no separate process needed. To disable it without removing the token, set `DISABLED_MCP_SERVICES=figma_service` in `.env`.
+
+The file key for all tools is the alphanumeric ID in the Figma file URL:
+`figma.com/file/{file_key}/file-name`
+
+### Tools
+
+| Tool | Parameters | What it does |
+|------|-----------|--------------|
+| `figma_get_file` | `file_key`, `depth?` | Gets the full file structure and metadata (node tree, components, styles) |
+| `figma_get_nodes` | `file_key`, `node_ids`, `depth?` | Gets specific nodes by comma-separated IDs (e.g. `"1:2,3:4"`) |
+| `figma_export_images` | `file_key`, `node_ids`, `format?`, `scale?` | Exports nodes as images, returns temporary download URLs |
+| `figma_get_comments` | `file_key` | Lists all comments on a file |
+| `figma_post_comment` | `file_key`, `message`, `node_id?`, `parent_id?` | Posts a comment, optionally anchored to a node or replying to another comment |
+| `figma_get_design_system` | `file_key` | Extracts color tokens, typography, spacing tokens, and component catalog |
+
+**Export formats** (for `figma_export_images`): `png` (default), `jpg`, `svg`, `pdf`
+
+**Scale** (for `figma_export_images`): `0.01`–`4.0`, default `1.0`
+
+> **Note**: Export URLs returned by `figma_export_images` are temporary (hosted by Figma's CDN). Download them promptly — they expire within a few hours.
+
+### Rate Limiting
+
+The Figma free tier allows **1000 requests/hour**. The client uses a sliding-window token bucket to stay within this limit automatically. If you have a paid plan with higher limits, override via env vars:
+
+```dotenv
+FIGMA_RATE_LIMIT_REQUESTS=5000   # requests per window (default: 1000)
+FIGMA_RATE_LIMIT_WINDOW=3600     # window in seconds (default: 3600)
+```
+
+### In Chat
+
+With the Figma service running, ask the AI naturally:
+
+- *"Get the structure of Figma file ABC123"*
+- *"Export the hero frame (node 1:23) from file ABC123 as a PNG"*
+- *"What comments are on Figma file ABC123?"*
+- *"Extract the design system tokens from our brand file XYZ789"*
+- *"Post a comment on node 5:10 in file ABC123: 'Please increase contrast here'"*
+
+The AI calls the appropriate tool and returns the results — node trees, export URLs, comment threads, or token lists — directly in the chat.
+
+### In Tasks
+
+Figma tools are available to the task planner for multi-step autonomous workflows. The planner recognises these tool aliases: `figma_file`, `figma_nodes`, `figma_images`, `figma_comments`, `figma_comment`, `figma_design_system`, `figma_tokens`.
+
+Example task goals:
+- *"Get the Figma file ABC123, extract all color and typography tokens, then generate a CSS variables file"*
+- *"Export all frames from Figma file ABC123 as PNG images and list their download URLs"*
+- *"Review the design system tokens in Figma file ABC123 and write a summary of the color palette"*
+
+The planner will chain `figma_get_design_system` → `llm.generate` steps automatically to produce the requested deliverable.
+
+### Files
+
+| File | Purpose |
+|------|---------|
+| `backend/server_figma.py` | FastMCP server — 6 MCP tools |
+| `backend/utils/figma_client.py` | Async httpx client, Pydantic models, rate limiter |
+| `backend/tests/test_figma_mcp.py` | 54 unit tests (no API token required) |
+
 ## How It Works
 
 1.  The **User** interacts with the **React Frontend**.
@@ -1006,11 +1173,15 @@ See `TASKS_USER_GUIDE.md` for full details.
    - Choose a model (header → Model Picker).
    - Optional: open Settings to add OpenAI/other provider keys.
    - Use the ✨ Tool Selector to run Smart Web Search, Database, YouTube, Python, HubSpot, or Codex.
+   - For Canva: set `CANVA_API_TOKEN` in `backend/.env` and ask the AI to create or export a design.
+   - For Figma: set `FIGMA_ACCESS_TOKEN` in `backend/.env` and ask the AI to read a file (e.g., "Get structure of Figma file ABC123").
    - Tasks panel supports ad‑hoc and Scheduled tasks.
 
 Prereqs:
 - Ollama running for local models (pull a model, e.g., `ollama pull llama3.1`).
 - MongoDB reachable (for history/tasks).
+- For Canva: a Personal Access Token from [canva.com/developers/connect](https://www.canva.com/developers/connect/).
+- For Figma: a Personal Access Token from Figma Account Settings → Security → Personal access tokens.
 - For Codex: install Codex CLI and configure an OpenAI API key (via Settings or env) before starting runs.
 
 ## Updating
