@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Tuple
 
 from core.config import (
+    CANVA_SERVICE_NAME,
     CODEX_SERVICE_NAME,
     ENABLE_TASKS,
     HUBSPOT_SERVICE_NAME,
@@ -85,6 +86,9 @@ def _resolve_tool(tool: str) -> Tuple[str, str]:
     if tool.startswith("codex."):
         tool_name = tool.split(".", 1)[1]  # Remove "codex." prefix
         return CODEX_SERVICE_NAME, tool_name
+    # Canva service tools
+    if tool in ["create_design", "list_designs", "get_design", "export_design"]:
+        return CANVA_SERVICE_NAME, tool
     raise ValueError(f"Unknown tool: {tool}")
 
 

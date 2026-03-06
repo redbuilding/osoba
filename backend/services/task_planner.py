@@ -66,6 +66,12 @@ ALLOWED_TASK_TOOLS = [
     "codex.get_manifest",            # Get workspace manifest
     "codex.cleanup_workspace",       # Manual cleanup
     
+    # Canva Design MCP (4 tools)
+    "create_design",                 # Create a new Canva design
+    "list_designs",                  # List designs in account
+    "get_design",                    # Get a specific design by ID
+    "export_design",                 # Export design to PNG/JPG/PDF/etc.
+
     # LLM-only (no MCP)
     "llm.generate",                  # Direct LLM generation
 ]
@@ -124,6 +130,15 @@ TOOL_ALIASES = {
     "ttest": "python.perform_hypothesis_test",
     "stats_test": "python.perform_hypothesis_test",
     
+    # Canva design variants
+    "canva_create": "create_design",
+    "design": "create_design",
+    "new_design": "create_design",
+    "canva_list": "list_designs",
+    "canva_get": "get_design",
+    "canva_export": "export_design",
+    "export": "export_design",
+
     # Existing generation variants
     "write": "llm.generate",
     "compose": "llm.generate",
@@ -201,6 +216,14 @@ def _tool_catalog_text() -> str:
         "- codex.read_file(workspace_id: string, relative_path: string) -> text\n"
         "- codex.get_manifest(workspace_id: string) -> {files, metadata}\n"
         "- codex.cleanup_workspace(workspace_id: string) -> {status}\n"
+        "\n"
+        "## Canva Design Tools\n"
+        "- create_design(title: string, preset?: string, width?: int, height?: int, unit?: string, template_id?: string, brand_template_id?: string) -> {status, id, url, thumbnail_url}\n"
+        "  presets: instagram_post, instagram_story, facebook_post, facebook_cover, twitter_post, linkedin_banner, youtube_thumbnail, presentation, a4, a3, us_letter, custom\n"
+        "- list_designs(page_token?: string, limit?: int) -> {status, items, next_page_token}\n"
+        "- get_design(design_id: string) -> {status, id, title, url, thumbnail_url, width, height}\n"
+        "- export_design(design_id: string, format?: string, width?: int, height?: int, quality?: int, pages?: string) -> {status, download_url, job_id}\n"
+        "  formats: png, jpg, pdf, svg, mp4, gif\n"
         "\n"
         "## LLM-only Tools\n"
         "- llm.generate(prompt?: string) -> text (runs local LLM; if prompt omitted, uses step instruction)\n"
