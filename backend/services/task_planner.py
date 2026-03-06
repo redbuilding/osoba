@@ -10,11 +10,12 @@ from services.llm_service import get_default_ollama_model
 logger = get_logger("task_planner")
 
 ALLOWED_TASK_TOOLS = [
-    # Web Search MCP (4 tools)
+    # Web Search MCP (5 tools)
     "web_search",                    # Basic search
     "smart_search_extract",          # Smart extraction (chat uses this by default!)
     "image_search",                  # Image-specific search
     "news_search",                   # News-specific search
+    "fetch_url",                     # Fetch content from a specific URL
     
     # MySQL Database MCP (1 tool)
     "execute_sql_query_tool",        # Read-only SQL queries
@@ -99,6 +100,12 @@ TOOL_ALIASES = {
     # News search variants (NEW)
     "news": "news_search",
     "latest_news": "news_search",
+
+    # Fetch URL variants
+    "fetch": "fetch_url",
+    "get_url": "fetch_url",
+    "scrape_url": "fetch_url",
+    "read_url": "fetch_url",
     
     # HubSpot variants (NEW)
     "hubspot_email": "create_hubspot_marketing_email",
@@ -144,6 +151,7 @@ def _tool_catalog_text() -> str:
         "- smart_search_extract(query: string, max_urls?: int, max_chars_per_url?: int) -> {extracted_content, search_summary}\n"
         "- image_search(query: string) -> {status, images...}\n"
         "- news_search(query: string) -> {status, news_results...}\n"
+        "- fetch_url(url: string, max_chars?: int) -> {status, content, title, url} (fetch content from a known URL)\n"
         "\n"
         "## Database Tools\n"
         "- execute_sql_query_tool(query: string) -> {columns, rows} (read-only SELECT only)\n"

@@ -67,7 +67,7 @@ runner_state = RunnerState()
 def _resolve_tool(tool: str) -> Tuple[str, str]:
     # returns service_name, tool_name
     # Web Search service tools
-    if tool in ["web_search", "smart_search_extract", "image_search", "news_search"]:
+    if tool in ["web_search", "smart_search_extract", "image_search", "news_search", "fetch_url"]:
         return WEB_SEARCH_SERVICE_NAME, tool
     # MySQL Database service
     if tool == "execute_sql_query_tool":

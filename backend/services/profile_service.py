@@ -17,33 +17,39 @@ def generate_system_prompt(profile_data: Dict[str, Any]) -> str:
     name = profile_data.get("name")
     communication_style = profile_data.get("communication_style")
     expertise_areas = profile_data.get("expertise_areas", [])
+    backstory = profile_data.get("backstory")
     role = profile_data.get("role")
     current_projects = profile_data.get("current_projects")
-    
+
     # If no name or style, return empty (no profile data)
     if not name and not communication_style:
         return ""
-    
+
     # Use defaults if missing
     name = name or "Assistant"
     communication_style = communication_style or "professional"
-    
+
     prompt_parts = [
         f"You are {name}, an AI assistant with a {communication_style} communication style."
     ]
-    
+
+    # Add backstory — this defines the persona's character and origin
+    if backstory and backstory.strip():
+        prompt_parts.append(f"Your backstory and character: {backstory.strip()}")
+        prompt_parts.append("Draw on this backstory naturally in your interactions to feel authentic and relatable.")
+
     # Add role information
     if role:
         prompt_parts.append(f"The user's role is: {role}.")
-    
+
     if expertise_areas:
         expertise_str = ", ".join(expertise_areas)
         prompt_parts.append(f"Your areas of expertise include: {expertise_str}.")
-    
+
     # Add current projects context
     if current_projects:
         prompt_parts.append(f"The user is currently working on: {current_projects}.")
-    
+
     # Add style-specific instructions
     style_instructions = {
         "professional": "Maintain a formal, business-appropriate tone. Be concise and direct.",
@@ -53,10 +59,10 @@ def generate_system_prompt(profile_data: Dict[str, Any]) -> str:
         "creative": "Be imaginative and expressive. Think outside the box and offer innovative solutions.",
         "supportive": "Be empathetic and understanding. Provide encouragement and positive reinforcement."
     }
-    
+
     if communication_style in style_instructions:
         prompt_parts.append(style_instructions[communication_style])
-    
+
     return " ".join(prompt_parts)
 
 async def get_profiles_for_user(user_id: str = "default") -> List[Dict[str, Any]]:

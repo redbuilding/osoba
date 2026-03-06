@@ -9,6 +9,7 @@ class AIProfile(BaseModel):
     name: constr(strip_whitespace=True, min_length=1, max_length=100)
     communication_style: str
     expertise_areas: List[str] = Field(max_items=5, default_factory=list)
+    backstory: Optional[str] = Field(None, max_length=1000)
     user_id: str = "default"
     is_active: bool = False
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -23,12 +24,14 @@ class ProfileCreatePayload(BaseModel):
     name: constr(strip_whitespace=True, min_length=1, max_length=100)
     communication_style: str
     expertise_areas: List[str] = Field(max_items=5, default_factory=list)
+    backstory: Optional[str] = Field(None, max_length=1000)
 
 class ProfileUpdatePayload(BaseModel):
     """Payload for updating an existing AI profile."""
     name: Optional[constr(strip_whitespace=True, min_length=1, max_length=100)] = None
     communication_style: Optional[str] = None
     expertise_areas: Optional[List[str]] = Field(None, max_items=5)
+    backstory: Optional[str] = Field(None, max_length=1000)
     is_active: Optional[bool] = None
 
 class ProfileResponse(BaseModel):

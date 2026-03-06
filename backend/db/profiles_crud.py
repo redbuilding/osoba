@@ -89,6 +89,7 @@ def create_profile(profile_data: Dict[str, Any], user_id: str = "default") -> Op
             "name": profile_data["name"],
             "communication_style": profile_data["communication_style"],
             "expertise_areas": profile_data.get("expertise_areas", []),
+            "backstory": profile_data.get("backstory") or None,
             "user_id": user_id,
             "is_active": False,  # New profiles start inactive
             "created_at": now,

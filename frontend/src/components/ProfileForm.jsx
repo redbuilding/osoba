@@ -5,7 +5,8 @@ const ProfileForm = ({ profile, onSave, onCancel, isLoading }) => {
   const [formData, setFormData] = useState({
     name: '',
     communication_style: 'professional',
-    expertise_areas: []
+    expertise_areas: [],
+    backstory: ''
   });
   const [newExpertiseArea, setNewExpertiseArea] = useState('');
   const [errors, setErrors] = useState({});
@@ -24,13 +25,15 @@ const ProfileForm = ({ profile, onSave, onCancel, isLoading }) => {
       setFormData({
         name: profile.name || '',
         communication_style: profile.communication_style || 'professional',
-        expertise_areas: profile.expertise_areas || []
+        expertise_areas: profile.expertise_areas || [],
+        backstory: profile.backstory || ''
       });
     } else {
       setFormData({
         name: '',
         communication_style: 'professional',
-        expertise_areas: []
+        expertise_areas: [],
+        backstory: ''
       });
     }
     setErrors({});
@@ -47,6 +50,10 @@ const ProfileForm = ({ profile, onSave, onCancel, isLoading }) => {
     
     if (formData.expertise_areas.length > 5) {
       newErrors.expertise_areas = 'Maximum 5 expertise areas allowed';
+    }
+
+    if (formData.backstory && formData.backstory.length > 1000) {
+      newErrors.backstory = 'Backstory must be 1000 characters or less';
     }
     
     setErrors(newErrors);
@@ -220,6 +227,33 @@ const ProfileForm = ({ profile, onSave, onCancel, isLoading }) => {
           
           <div className="mt-1 text-xs text-brand-text-secondary">
             {formData.expertise_areas.length}/5 areas added
+          </div>
+        </div>
+
+        {/* Backstory */}
+        <div>
+          <label className="block text-sm font-medium text-brand-text-secondary mb-2">
+            Persona Backstory (Optional)
+          </label>
+          <textarea
+            value={formData.backstory}
+            onChange={(e) => handleInputChange('backstory', e.target.value)}
+            className={`w-full px-3 py-2 border rounded-md bg-brand-main-bg text-brand-text-primary placeholder-brand-text-secondary focus:outline-none focus:ring-2 focus:ring-brand-purple resize-none ${
+              errors.backstory ? 'border-red-600' : 'border-gray-700'
+            }`}
+            placeholder="e.g., A seasoned startup founder who spent 10 years in Silicon Valley before moving to focus on meaningful work. Passionate about clear thinking and helping others cut through complexity."
+            rows={4}
+            maxLength={1000}
+            disabled={isLoading}
+          />
+          {errors.backstory && (
+            <div className="mt-1 flex items-center text-sm text-brand-alert-red">
+              <AlertCircle className="w-4 h-4 mr-1" />
+              {errors.backstory}
+            </div>
+          )}
+          <div className="mt-1 text-xs text-brand-text-secondary">
+            {(formData.backstory || '').length}/1000 characters · This shapes the persona's character and how it relates to you in conversation.
           </div>
         </div>
 

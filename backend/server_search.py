@@ -446,6 +446,60 @@ async def smart_search_extract(
 
 script_logger.info("Smart search and extraction tools defined.")
 
+@mcp.tool()
+async def fetch_url(url: str, max_chars: int = 5000) -> dict:
+    """
+    Fetch and extract readable content from a specific URL.
+
+    Args:
+        url: The URL to fetch content from
+        max_chars: Maximum characters to return (default: 5000)
+
+    Returns:
+        Dictionary with extracted content and metadata
+    """
+    if not url:
+        return {"status": "error", "message": "Missing required parameter 'url'"}
+
+    try:
+        web_fetcher = WebFetcher(
+            user_agent="Osoba-AI-Assistant/1.0 (Polite Content Extraction)",
+            request_delay=1.0,
+            timeout=10
+        )
+        fetch_result = await web_fetcher.fetch_content(url)
+        if fetch_result["status"] != "success":
+            return {
+                "status": "error",
+                "message": fetch_result.get("message", "Failed to fetch URL"),
+                "url": url
+            }
+
+        content_extractor = ContentExtractor(max_chars=max_chars)
+        extraction_result = content_extractor.extract_content(fetch_result["content"], url)
+        if extraction_result["status"] != "success":
+            return {
+                "status": "error",
+                "message": extraction_result.get("message", "Failed to extract content"),
+                "url": url
+            }
+
+        return {
+            "status": "success",
+            "url": fetch_result.get("url", url),
+            "content": extraction_result["content"],
+            "title": extraction_result.get("title", ""),
+            "content_length": extraction_result.get("content_length", 0),
+            "extraction_method": extraction_result.get("method", "unknown"),
+            "fetch_time": fetch_result.get("fetch_time", 0)
+        }
+
+    except Exception as e:
+        script_logger.error(f"fetch_url error for '{url}': {e}")
+        return {"status": "error", "message": str(e), "url": url}
+
+script_logger.info("fetch_url tool defined.")
+
 # For FastMCP, we don't need a main block - the fastmcp CLI handles server startup
 # But keep this for direct execution if needed
 if __name__ == "__main__":
