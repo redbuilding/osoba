@@ -1,18 +1,25 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { PlusSquare, MessageSquare, Loader2, AlertTriangle, Trash2, Pencil, Check, X, Wifi, Server, Share2, Youtube, FileCode, Database, Sparkles, BookOpen } from 'lucide-react';
+import { PlusSquare, MessageSquare, Loader2, AlertTriangle, Trash2, Pencil, Check, X, Wifi, Server, Share2, Youtube, FileCode, Database, Sparkles, BookOpen, Figma, Palette, Zap } from 'lucide-react';
 import SidebarSearch from './SidebarSearch';
 import ConversationPinButton from './ConversationPinButton';
 import { getDocumentStats } from '../services/api';
 
+const MCP_ICONS = {
+  'Web Search': <Wifi size={14} className="mr-2" />,
+  'DB Query':   <Server size={14} className="mr-2" />,
+  'HubSpot':    <Share2 size={14} className="mr-2" />,
+  'YouTube':    <Youtube size={14} className="mr-2" />,
+  'Python':     <FileCode size={14} className="mr-2" />,
+  'Codex':      <Sparkles size={14} className="mr-2 text-brand-purple" />,
+  'Canva':      <Palette size={14} className="mr-2 text-teal-400" />,
+  'Figma':      <Figma size={14} className="mr-2 text-violet-400" />,
+  'Poe AI':     <Zap size={14} className="mr-2 text-amber-400" />,
+};
+
 const MCPStatusIndicator = ({ isReady, name }) => (
   <div className="flex items-center justify-between text-xs text-brand-text-secondary">
     <span className="flex items-center">
-      {name === 'Web Search' && <Wifi size={14} className="mr-2" />}
-      {name === 'DB Query' && <Server size={14} className="mr-2" />}
-      {name === 'HubSpot' && <Share2 size={14} className="mr-2" />}
-      {name === 'YouTube' && <Youtube size={14} className="mr-2" />}
-      {name === 'Python' && <FileCode size={14} className="mr-2" />}
-      {name === 'Codex' && <Sparkles size={14} className="mr-2 text-brand-purple" />}
+      {MCP_ICONS[name] ?? null}
       {name}
     </span>
     <div className="flex items-center">
@@ -41,6 +48,9 @@ const ConversationSidebar = ({
   mcpYoutubeServiceReady,
   mcpPythonServiceReady,
   mcpCodexServiceReady,
+  mcpCanvaServiceReady,
+  mcpFigmaServiceReady,
+  mcpPoeServiceReady,
   openaiConfigured,
   pinnedCount = 0,
   pinnedMax = 5,
@@ -265,6 +275,9 @@ const ConversationSidebar = ({
             <MCPStatusIndicator isReady={mcpHubspotServiceReady} name="HubSpot" />
             <MCPStatusIndicator isReady={mcpYoutubeServiceReady} name="YouTube" />
             <MCPStatusIndicator isReady={mcpCodexServiceReady && openaiConfigured} name="Codex" />
+            <MCPStatusIndicator isReady={mcpCanvaServiceReady} name="Canva" />
+            <MCPStatusIndicator isReady={mcpFigmaServiceReady} name="Figma" />
+            <MCPStatusIndicator isReady={mcpPoeServiceReady} name="Poe AI" />
           </div>
           <div className="mt-3 pt-3 border-t border-gray-700 space-y-2 px-2">
             <div className="flex items-center justify-between text-xs text-brand-text-secondary">

@@ -80,6 +80,20 @@ ALLOWED_TASK_TOOLS = [
     "figma_post_comment",            # Post a comment to a file
     "figma_get_design_system",       # Extract design tokens and components
 
+    # Poe AI Platform MCP (5 tools)
+    "poe_list_models",               # List available Poe models by modality
+    "poe_chat",                      # Text chat with any Poe model
+    "poe_generate_image",            # Image generation via Poe image models
+    "poe_generate_video",            # Video generation via Poe video models
+    "poe_generate_audio",            # Audio generation via Poe audio models
+
+    # CLI System Tools MCP (5 tools)
+    "cli.get_system_health",         # Disk, uptime, platform — no args
+    "cli.list_dir",                  # List artifacts, logs, or scripts directory
+    "cli.read_log",                  # Read tail of a named log file
+    "cli.service_status",            # systemd service status (allowlisted services)
+    "cli.read_workspace_file",       # Read a file from the artifacts directory
+
     # LLM-only (no MCP)
     "llm.generate",                  # Direct LLM generation
 ]
@@ -155,6 +169,27 @@ TOOL_ALIASES = {
     "figma_comment": "figma_post_comment",
     "figma_design_system": "figma_get_design_system",
     "figma_tokens": "figma_get_design_system",
+
+    # CLI system tool variants
+    "cli.system_health": "cli.get_system_health",
+    "cli.health": "cli.get_system_health",
+    "cli.disk": "cli.get_system_health",
+    "cli.ls": "cli.list_dir",
+    "cli.list": "cli.list_dir",
+    "cli.tail": "cli.read_log",
+    "cli.log": "cli.read_log",
+    "cli.logs": "cli.read_log",
+    "cli.status": "cli.service_status",
+    "cli.read_file": "cli.read_workspace_file",
+    "cli.read": "cli.read_workspace_file",
+
+    # Poe platform variants
+    "poe_models": "poe_list_models",
+    "poe_image": "poe_generate_image",
+    "poe_video": "poe_generate_video",
+    "poe_audio": "poe_generate_audio",
+    "poe": "poe_chat",
+    "poe_generate": "poe_chat",
 
     # Existing generation variants
     "write": "llm.generate",
@@ -252,6 +287,25 @@ def _tool_catalog_text() -> str:
         "- figma_get_comments(file_key: string) -> {status, comments}\n"
         "- figma_post_comment(file_key: string, message: string, node_id?: string, parent_id?: string) -> {status, id, message}\n"
         "- figma_get_design_system(file_key: string) -> {status, colors, typography, spacing, effects, components}\n"
+        "\n"
+        "## Poe AI Platform Tools\n"
+        "- poe_list_models(input_modality?: string, output_modality?: string, search?: string, limit?: int) -> {status, count, models}\n"
+        "  modalities: text, image, video, audio\n"
+        "- poe_chat(prompt: string, model?: string, system?: string, temperature?: float, max_tokens?: int, image_urls?: list) -> {status, model, text}\n"
+        "  default model: Claude-Sonnet-4-5\n"
+        "- poe_generate_image(prompt: string, model?: string, system?: string, download_media?: bool) -> {status, model, raw_text, extracted_urls, downloaded}\n"
+        "  default model: gpt-image-1.5; downloaded items contain data_b64 for inline delivery\n"
+        "- poe_generate_video(prompt: string, model: string, system?: string, download_media?: bool) -> {status, model, raw_text, extracted_urls, downloaded}\n"
+        "  model required — use poe_list_models(output_modality='video') to find one\n"
+        "- poe_generate_audio(prompt: string, model: string, system?: string, download_media?: bool) -> {status, model, raw_text, extracted_urls, downloaded}\n"
+        "  model required — use poe_list_models(output_modality='audio') to find one\n"
+        "\n"
+        "## CLI System Tools\n"
+        "- cli.get_system_health() -> {platform, node, release, disk, uptime} (no args; safe system snapshot)\n"
+        "- cli.list_dir(scope: 'artifacts'|'logs'|'scripts') -> {scope, entry_count, entries} (list allowed dirs only)\n"
+        "- cli.read_log(name: string, lines?: int) -> {name, lines_returned, total_lines, content} (tail of a log file; name must be exact filename e.g. 'mcp_backend.log')\n"
+        "- cli.service_status(name: string) -> {service, status, active_state, sub_state, description} (requires service in CLI_ALLOWED_SERVICES)\n"
+        "- cli.read_workspace_file(path_within_scope: string) -> {path, size_bytes, content, truncated} (read file from artifacts dir; relative path only)\n"
         "\n"
         "## LLM-only Tools\n"
         "- llm.generate(prompt?: string) -> text (runs local LLM; if prompt omitted, uses step instruction)\n"
@@ -448,6 +502,141 @@ async def plan_task(goal: str, model: str | None, budget: Dict | None, planner_h
                     params={},
                     success_criteria="Workspace generated with relevant files",
                     max_retries=0,
+                ))
+    except Exception:
+        pass
+
+    # Gate Canva (requires CANVA_API_TOKEN)
+    try:
+        from services.mcp_service import app_state
+        from core.config import CANVA_SERVICE_NAME
+        _canva_cfg = app_state.mcp_configs.get(CANVA_SERVICE_NAME)
+        if _canva_cfg is not None and not _canva_cfg.enabled:
+            _CANVA_TOOLS = {"create_design", "list_designs", "get_design", "export_design"}
+            gated_canva: List[PlanStep] = []
+            for s in plan.steps:
+                if s.tool in _CANVA_TOOLS:
+                    gated_canva.append(PlanStep(
+                        id=s.id,
+                        title=s.title or "Describe design",
+                        instruction=(s.instruction or "Describe the design that would have been created.")
+                                    + " (Canva not configured — CANVA_API_TOKEN missing)",
+                        tool="llm.generate",
+                        params={},
+                        success_criteria=s.success_criteria or "Produced a useful result",
+                        max_retries=s.max_retries or 1,
+                    ))
+                else:
+                    gated_canva.append(s)
+            plan.steps = gated_canva
+    except Exception:
+        pass
+
+    # Gate Figma (requires FIGMA_ACCESS_TOKEN)
+    try:
+        from services.mcp_service import app_state
+        from core.config import FIGMA_SERVICE_NAME
+        _figma_cfg = app_state.mcp_configs.get(FIGMA_SERVICE_NAME)
+        if _figma_cfg is not None and not _figma_cfg.enabled:
+            _FIGMA_TOOLS = {"figma_get_file", "figma_get_nodes", "figma_export_images",
+                            "figma_get_comments", "figma_post_comment", "figma_get_design_system"}
+            gated_figma: List[PlanStep] = []
+            for s in plan.steps:
+                if s.tool in _FIGMA_TOOLS:
+                    gated_figma.append(PlanStep(
+                        id=s.id,
+                        title=s.title or "Describe Figma output",
+                        instruction=(s.instruction or "Describe what the Figma step would have returned.")
+                                    + " (Figma not configured — FIGMA_ACCESS_TOKEN missing)",
+                        tool="llm.generate",
+                        params={},
+                        success_criteria=s.success_criteria or "Produced a useful result",
+                        max_retries=s.max_retries or 1,
+                    ))
+                else:
+                    gated_figma.append(s)
+            plan.steps = gated_figma
+    except Exception:
+        pass
+
+    # Gate Poe (requires POE_API_KEY)
+    try:
+        from services.mcp_service import app_state
+        from core.config import POE_SERVICE_NAME
+        _poe_cfg = app_state.mcp_configs.get(POE_SERVICE_NAME)
+        if _poe_cfg is not None and not _poe_cfg.enabled:
+            _POE_TOOLS = {"poe_list_models", "poe_chat", "poe_generate_image",
+                          "poe_generate_video", "poe_generate_audio"}
+            gated_poe: List[PlanStep] = []
+            for s in plan.steps:
+                if s.tool in _POE_TOOLS:
+                    gated_poe.append(PlanStep(
+                        id=s.id,
+                        title=s.title or "Generate output",
+                        instruction=(s.instruction or "Produce the best possible text response.")
+                                    + " (Poe AI not configured — POE_API_KEY missing)",
+                        tool="llm.generate",
+                        params={},
+                        success_criteria=s.success_criteria or "Produced a useful result",
+                        max_retries=s.max_retries or 1,
+                    ))
+                else:
+                    gated_poe.append(s)
+            plan.steps = gated_poe
+    except Exception:
+        pass
+
+    # Gate CLI (requires CLI_ENABLED=true)
+    try:
+        from services.mcp_service import app_state
+        from core.config import CLI_SERVICE_NAME
+        _cli_cfg = app_state.mcp_configs.get(CLI_SERVICE_NAME)
+        if _cli_cfg is not None and not _cli_cfg.enabled:
+            _CLI_TOOLS = {
+                "cli.get_system_health", "cli.list_dir", "cli.read_log",
+                "cli.service_status", "cli.read_workspace_file",
+            }
+            gated_cli: List[PlanStep] = []
+            for s in plan.steps:
+                if s.tool in _CLI_TOOLS:
+                    gated_cli.append(PlanStep(
+                        id=s.id,
+                        title=s.title or "Describe system context",
+                        instruction=(s.instruction or "Describe what the system tool would have returned.")
+                                    + " (CLI tools not enabled — set CLI_ENABLED=true)",
+                        tool="llm.generate",
+                        params={},
+                        success_criteria=s.success_criteria or "Produced a useful result",
+                        max_retries=s.max_retries or 1,
+                    ))
+                else:
+                    gated_cli.append(s)
+            plan.steps = gated_cli
+    except Exception:
+        pass
+
+    # Heuristic: inject Poe image generation for image creation goals if Poe is available
+    try:
+        from services.mcp_service import app_state
+        from core.config import POE_SERVICE_NAME
+        _poe_cfg = app_state.mcp_configs.get(POE_SERVICE_NAME)
+        _poe_ok = _poe_cfg is not None and _poe_cfg.enabled
+        _image_keywords = [
+            "generate image", "create image", "make image", "draw", "illustrate",
+            "generate a picture", "create a picture", "image of", "picture of",
+            "generate artwork", "create artwork",
+        ]
+        if _poe_ok and not any(s.tool == "poe_generate_image" for s in plan.steps):
+            gl = (goal or "").lower()
+            if any(k in gl for k in _image_keywords):
+                plan.steps.append(PlanStep(
+                    id=f"s{len(plan.steps)+1}",
+                    title="Generate image via Poe",
+                    instruction=goal,
+                    tool="poe_generate_image",
+                    params={},
+                    success_criteria="Image generated and URL or base64 returned",
+                    max_retries=1,
                 ))
     except Exception:
         pass

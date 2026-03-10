@@ -6,8 +6,10 @@ from typing import Any, Dict, Tuple
 
 from core.config import (
     CANVA_SERVICE_NAME,
+    CLI_SERVICE_NAME,
     CODEX_SERVICE_NAME,
     FIGMA_SERVICE_NAME,
+    POE_SERVICE_NAME,
     ENABLE_TASKS,
     HUBSPOT_SERVICE_NAME,
     MYSQL_DB_SERVICE_NAME,
@@ -94,6 +96,13 @@ def _resolve_tool(tool: str) -> Tuple[str, str]:
     if tool in ["figma_get_file", "figma_get_nodes", "figma_export_images",
                 "figma_get_comments", "figma_post_comment", "figma_get_design_system"]:
         return FIGMA_SERVICE_NAME, tool
+    # Poe service tools
+    if tool in ["poe_list_models", "poe_chat", "poe_generate_image",
+                "poe_generate_video", "poe_generate_audio"]:
+        return POE_SERVICE_NAME, tool
+    # CLI service tools (handle dot notation)
+    if tool.startswith("cli."):
+        return CLI_SERVICE_NAME, tool.split(".", 1)[1]
     raise ValueError(f"Unknown tool: {tool}")
 
 

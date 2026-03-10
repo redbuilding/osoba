@@ -75,6 +75,9 @@ import {
   Sparkles,
   User,
   BookOpen,
+  Figma,
+  Palette,
+  Zap,
 } from "lucide-react";
 
 // MCP service names
@@ -83,6 +86,9 @@ const MYSQL_DB_SERVICE_NAME = "mysql_db_service";
 const HUBSPOT_SERVICE_NAME = "hubspot_service";
 const YOUTUBE_SERVICE_NAME = "youtube_service";
 const PYTHON_SERVICE_NAME = "python_service";
+const CANVA_SERVICE_NAME = "canva_service";
+const FIGMA_SERVICE_NAME = "figma_service";
+const POE_SERVICE_NAME = "poe_service";
 
 const App = () => {
   // Chat & loading state
@@ -103,6 +109,9 @@ const App = () => {
   const [mcpYoutubeServiceReady, setMcpYoutubeServiceReady] = useState(false);
   const [mcpPythonServiceReady, setMcpPythonServiceReady] = useState(false);
   const [mcpCodexServiceReady, setMcpCodexServiceReady] = useState(false);
+  const [mcpCanvaServiceReady, setMcpCanvaServiceReady] = useState(false);
+  const [mcpFigmaServiceReady, setMcpFigmaServiceReady] = useState(false);
+  const [mcpPoeServiceReady, setMcpPoeServiceReady] = useState(false);
   const [openaiConfigured, setOpenaiConfigured] = useState(false);
   const [isHubspotAuthenticated, setIsHubspotAuthenticated] = useState(false);
   const [dbConnected, setDbConnected] = useState(false);
@@ -195,6 +204,9 @@ const App = () => {
         status.mcp_services?.[PYTHON_SERVICE_NAME]?.ready || false,
       );
       setMcpCodexServiceReady(status.mcp_services?.["codex_workspace_service"]?.ready || false);
+      setMcpCanvaServiceReady(status.mcp_services?.[CANVA_SERVICE_NAME]?.ready || false);
+      setMcpFigmaServiceReady(status.mcp_services?.[FIGMA_SERVICE_NAME]?.ready || false);
+      setMcpPoeServiceReady(status.mcp_services?.[POE_SERVICE_NAME]?.ready || false);
       setActiveTasksCount(status.tasks?.active || 0);
       setOllamaAvailable(status.ollama_available);
       const newDbConnected = status.db_connected;
@@ -222,6 +234,9 @@ const App = () => {
       setMcpYoutubeServiceReady(false);
       setMcpPythonServiceReady(false);
       setMcpCodexServiceReady(false);
+      setMcpCanvaServiceReady(false);
+      setMcpFigmaServiceReady(false);
+      setMcpPoeServiceReady(false);
       setOpenaiConfigured(false);
       setDbConnected(false);
       setOllamaAvailable(false);
@@ -798,6 +813,27 @@ const App = () => {
         icon: <Youtube size={24} />,
         isReady: mcpYoutubeServiceReady,
       },
+      {
+        id: "canva",
+        name: "Canva Design",
+        description: "Create, list, and export Canva designs.",
+        icon: <Palette size={24} className="text-teal-400" />,
+        isReady: mcpCanvaServiceReady,
+      },
+      {
+        id: "figma",
+        name: "Figma",
+        description: "Read Figma files, extract nodes, and export assets.",
+        icon: <Figma size={24} className="text-violet-400" />,
+        isReady: mcpFigmaServiceReady,
+      },
+      {
+        id: "poe",
+        name: "Poe AI",
+        description: "Chat and generate images, video, and audio via Poe.",
+        icon: <Zap size={24} className="text-amber-400" />,
+        isReady: mcpPoeServiceReady,
+      },
     ],
     [
       mcpSearchServiceReady,
@@ -806,6 +842,9 @@ const App = () => {
       mcpYoutubeServiceReady,
       mcpPythonServiceReady,
       mcpCodexServiceReady,
+      mcpCanvaServiceReady,
+      mcpFigmaServiceReady,
+      mcpPoeServiceReady,
       openaiConfigured,
       isHubspotAuthenticated,
     ],
@@ -869,6 +908,9 @@ const App = () => {
         mcpYoutubeServiceReady={mcpYoutubeServiceReady}
         mcpPythonServiceReady={mcpPythonServiceReady}
         mcpCodexServiceReady={mcpCodexServiceReady}
+        mcpCanvaServiceReady={mcpCanvaServiceReady}
+        mcpFigmaServiceReady={mcpFigmaServiceReady}
+        mcpPoeServiceReady={mcpPoeServiceReady}
         openaiConfigured={openaiConfigured}
         pinnedCount={pinStats.count || conversations.filter(c => c.pinned_for_context).length}
         pinnedMax={pinStats.max || 5}

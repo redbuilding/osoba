@@ -10,7 +10,7 @@ from fastapi import HTTPException
 from fastmcp import Client
 from fastmcp.client.transports import StdioTransport
 
-from core.config import BASE_DIR, WEB_SEARCH_SERVICE_NAME, MYSQL_DB_SERVICE_NAME, HUBSPOT_SERVICE_NAME, YOUTUBE_SERVICE_NAME, PYTHON_SERVICE_NAME, CODEX_SERVICE_NAME, CANVA_SERVICE_NAME, FIGMA_SERVICE_NAME, DISABLED_MCP_SERVICES, get_logger
+from core.config import BASE_DIR, WEB_SEARCH_SERVICE_NAME, MYSQL_DB_SERVICE_NAME, HUBSPOT_SERVICE_NAME, YOUTUBE_SERVICE_NAME, PYTHON_SERVICE_NAME, CODEX_SERVICE_NAME, CANVA_SERVICE_NAME, FIGMA_SERVICE_NAME, POE_SERVICE_NAME, CLI_SERVICE_NAME, CLI_ENABLED, DISABLED_MCP_SERVICES, get_logger
 
 logger = get_logger("mcp_service")
 
@@ -76,12 +76,27 @@ class AppState:
                 name=CANVA_SERVICE_NAME,
                 script_name="server_canva.py",
                 required_tools=["create_design", "list_designs", "get_design", "export_design"],
+                enabled=bool(os.getenv("CANVA_API_TOKEN")),
             ),
             FIGMA_SERVICE_NAME: MCPServiceConfig(
                 name=FIGMA_SERVICE_NAME,
                 script_name="server_figma.py",
                 required_tools=["figma_get_file", "figma_get_nodes", "figma_export_images",
                                  "figma_get_comments", "figma_post_comment", "figma_get_design_system"],
+                enabled=bool(os.getenv("FIGMA_ACCESS_TOKEN")),
+            ),
+            POE_SERVICE_NAME: MCPServiceConfig(
+                name=POE_SERVICE_NAME,
+                script_name="server_poe.py",
+                required_tools=["poe_list_models", "poe_chat", "poe_generate_image",
+                                 "poe_generate_video", "poe_generate_audio"],
+                enabled=bool(os.getenv("POE_API_KEY")),
+            ),
+            CLI_SERVICE_NAME: MCPServiceConfig(
+                name=CLI_SERVICE_NAME,
+                script_name="server_cli.py",
+                required_tools=["get_system_health", "list_dir", "read_log", "read_workspace_file"],
+                enabled=CLI_ENABLED,
             ),
         }
 

@@ -37,6 +37,8 @@ PYTHON_SERVICE_NAME = "python_service"
 CODEX_SERVICE_NAME = "codex_workspace_service"
 CANVA_SERVICE_NAME = "canva_service"
 FIGMA_SERVICE_NAME = "figma_service"
+POE_SERVICE_NAME = "poe_service"
+CLI_SERVICE_NAME = "cli_service"
 MAX_DB_RESULT_CHARS = 5000 # Proxy for token limit (approx 1000-1200 tokens)
 MAX_TABLES_FOR_SCHEMA_CONTEXT = 7 # Max tables to fetch full schema for, to keep prompt size reasonable
 
@@ -69,6 +71,9 @@ DISABLED_MCP_SERVICES = set(
 # Artifacts configuration
 # Root directory to write artifacts (relative to repo root by default)
 ARTIFACTS_ROOT = os.getenv('ARTIFACTS_ROOT', 'artifacts')
+
+# CLI MCP service configuration
+CLI_ENABLED = os.getenv("CLI_ENABLED", "false").lower() == "true"
 
 # Prompt improver feature flag and limits
 ENABLE_PROMPT_IMPROVER = os.getenv('ENABLE_PROMPT_IMPROVER', 'true').lower() == 'true'
