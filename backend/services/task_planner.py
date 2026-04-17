@@ -66,11 +66,17 @@ ALLOWED_TASK_TOOLS = [
     "codex.get_manifest",            # Get workspace manifest
     "codex.cleanup_workspace",       # Manual cleanup
     
-    # Canva Design MCP (4 tools)
+    # Canva Design MCP (10 tools)
     "create_design",                 # Create a new Canva design
     "list_designs",                  # List designs in account
     "get_design",                    # Get a specific design by ID
     "export_design",                 # Export design to PNG/JPG/PDF/etc.
+    "upload_asset",                  # Upload image/video to Canva library
+    "autofill_design",               # Autofill a brand template with data
+    "get_brand_template_dataset",    # Get autofillable fields from a template
+    "import_design",                 # Import PDF/PPTX/DOCX/PSD into Canva
+    "resize_design",                 # Create a resized copy of a design
+    "get_design_pages",              # Get page metadata for a design
 
     # Figma Design MCP (6 tools)
     "figma_get_file",                # Get Figma file structure and metadata
@@ -160,6 +166,12 @@ TOOL_ALIASES = {
     "canva_get": "get_design",
     "canva_export": "export_design",
     "export": "export_design",
+    "canva_upload": "upload_asset",
+    "canva_autofill": "autofill_design",
+    "canva_template_fields": "get_brand_template_dataset",
+    "canva_import": "import_design",
+    "canva_resize": "resize_design",
+    "canva_pages": "get_design_pages",
 
     # Figma design variants
     "figma_file": "figma_get_file",
@@ -270,12 +282,20 @@ def _tool_catalog_text() -> str:
         "- codex.cleanup_workspace(workspace_id: string) -> {status}\n"
         "\n"
         "## Canva Design Tools\n"
-        "- create_design(title: string, preset?: string, width?: int, height?: int, unit?: string, template_id?: string, brand_template_id?: string) -> {status, id, url, thumbnail_url}\n"
+        "- create_design(title: string, preset?: string, width?: int, height?: int, unit?: string, template_id?: string) -> {status, id, url, thumbnail_url}\n"
         "  presets: instagram_post, instagram_story, facebook_post, facebook_cover, twitter_post, linkedin_banner, youtube_thumbnail, presentation, a4, a3, us_letter, custom\n"
         "- list_designs(page_token?: string, limit?: int) -> {status, items, next_page_token}\n"
         "- get_design(design_id: string) -> {status, id, title, url, thumbnail_url, width, height}\n"
         "- export_design(design_id: string, format?: string, width?: int, height?: int, quality?: int, pages?: string) -> {status, download_url, job_id}\n"
         "  formats: png, jpg, pdf, svg, mp4, gif\n"
+        "- upload_asset(name: string, url: string) -> {status, asset_id, name, type}\n"
+        "- autofill_design(brand_template_id: string, data: string, title?: string) -> {status, design_id, url}\n"
+        "  data is a JSON string of field values; use get_brand_template_dataset first to discover fields\n"
+        "- get_brand_template_dataset(brand_template_id: string) -> {status, dataset}\n"
+        "- import_design(title: string, url: string, mime_type?: string) -> {status, designs}\n"
+        "  imports PDF, PPTX, DOCX, PSD, AI, Keynote etc. from a public URL into Canva as editable designs\n"
+        "- resize_design(design_id: string, width: int, height: int) -> {status, design_id, url}\n"
+        "- get_design_pages(design_id: string) -> {status, pages}\n"
         "\n"
         "## Figma Design Tools\n"
         "- figma_get_file(file_key: string, depth?: int) -> {status, name, lastModified, version, document, components, styles}\n"
@@ -292,7 +312,7 @@ def _tool_catalog_text() -> str:
         "- poe_list_models(input_modality?: string, output_modality?: string, search?: string, limit?: int) -> {status, count, models}\n"
         "  modalities: text, image, video, audio\n"
         "- poe_chat(prompt: string, model?: string, system?: string, temperature?: float, max_tokens?: int, image_urls?: list) -> {status, model, text}\n"
-        "  default model: Claude-Sonnet-4-5\n"
+        "  default model: Claude-Sonnet-4-6\n"
         "- poe_generate_image(prompt: string, model?: string, system?: string, download_media?: bool) -> {status, model, raw_text, extracted_urls, downloaded}\n"
         "  default model: gpt-image-1.5; downloaded items contain data_b64 for inline delivery\n"
         "- poe_generate_video(prompt: string, model: string, system?: string, download_media?: bool) -> {status, model, raw_text, extracted_urls, downloaded}\n"

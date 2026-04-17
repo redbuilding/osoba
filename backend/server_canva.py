@@ -49,12 +49,15 @@ script_logger.info("FastMCP CanvaServer instance created.")
 # Import after env is loaded so CANVA_BASE_URL override is respected
 from utils.canva_client import (  # noqa: E402
     CanvaAPIError,
+    AssetUploadRequest,
     CreateDesignRequest,
     DesignPreset,
     DesignSize,
     DesignUnit,
     ExportDesignRequest,
     ExportFormat,
+    ImportDesignRequest,
+    ResizeDesignRequest,
     CanvaClient,
 )
 
@@ -71,14 +74,13 @@ async def create_design(
     height: Optional[int] = None,
     unit: str = "px",
     template_id: Optional[str] = None,
-    brand_template_id: Optional[str] = None,
 ) -> dict:
     """
     Create a new Canva design.
 
     Use a standard preset (e.g. 'instagram_post', 'presentation', 'a4', 'youtube_thumbnail')
-    or pass width + height + unit for a custom size. Optionally base it on an existing
-    template or brand template (autofill).
+    or pass width + height + unit for a custom size. For brand template autofill, use
+    the autofill_design tool instead.
 
     Args:
         title: Design title (required)
@@ -89,7 +91,6 @@ async def create_design(
         height: Custom height (required when preset='custom')
         unit: Dimension unit for custom size: px, mm, in, pt. Default: px
         template_id: Optional Canva template ID to base the design on
-        brand_template_id: Optional brand template ID (triggers Autofill workflow)
 
     Returns:
         dict with design id, title, url, thumbnail_url, width, height, created_at
@@ -115,7 +116,6 @@ async def create_design(
             preset=preset_enum,
             size=size,
             template_id=template_id,
-            brand_template_id=brand_template_id,
         )
     except Exception as e:
         return {"status": "error", "message": str(e)}
@@ -253,6 +253,210 @@ async def export_design(
         return {"status": "error", "message": e.message, "error_code": e.error_code}
     except Exception as e:
         script_logger.error(f"Unexpected error in export_design: {e}")
+        return {"status": "error", "message": str(e)}
+
+
+@mcp.tool()
+async def upload_asset(name: str, url: str) -> dict:
+    """
+    Upload an image or video to the user's Canva asset library from a URL.
+
+    The URL must be publicly accessible. Supported: JPEG, PNG, HEIC, GIF, TIFF,
+    WEBP images (max 50MB) and M4V, MKV, MP4, MPEG, MOV, WebM videos (max 100MB via URL).
+
+    Args:
+        name: A name for the asset (1-255 chars)
+        url: Public URL of the image or video file
+
+    Returns:
+        dict with asset_id, name, type, thumbnail_url
+    """
+    try:
+        request = AssetUploadRequest(name=name, url=url)
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+    try:
+        async with _make_client() as client:
+            result = await client.upload_asset_url(request)
+            script_logger.info(f"Asset uploaded: {result.get('asset_id')}")
+            return {"status": "success", **result}
+    except CanvaAPIError as e:
+        script_logger.error(f"Canva API error in upload_asset: {e.message}")
+        return {"status": "error", "message": e.message, "error_code": e.error_code}
+    except Exception as e:
+        script_logger.error(f"Unexpected error in upload_asset: {e}")
+        return {"status": "error", "message": str(e)}
+
+
+@mcp.tool()
+async def autofill_design(
+    brand_template_id: str,
+    data: str,
+    title: Optional[str] = None,
+) -> dict:
+    """
+    Create a design by autofilling a brand template with data.
+
+    First use get_brand_template_dataset to discover available fields, then pass
+    field values as a JSON string. Requires Canva Enterprise.
+
+    Args:
+        brand_template_id: The brand template ID
+        data: JSON string mapping field names to values, e.g.
+              '{"HEADLINE": {"type": "text", "text": "Hello"},
+                "PHOTO": {"type": "image", "asset_id": "Msd59349ff"}}'
+        title: Optional title for the new design
+
+    Returns:
+        dict with design_id, url, thumbnail_url
+    """
+    import json as _json
+    try:
+        parsed_data = _json.loads(data)
+    except (ValueError, TypeError):
+        return {"status": "error", "message": "data must be a valid JSON string"}
+    try:
+        async with _make_client() as client:
+            result = await client.create_autofill(brand_template_id, parsed_data, title=title)
+            script_logger.info(f"Autofill design created: {result.get('design_id')}")
+            return {"status": "success", **result}
+    except CanvaAPIError as e:
+        script_logger.error(f"Canva API error in autofill_design: {e.message}")
+        return {"status": "error", "message": e.message, "error_code": e.error_code}
+    except Exception as e:
+        script_logger.error(f"Unexpected error in autofill_design: {e}")
+        return {"status": "error", "message": str(e)}
+
+
+@mcp.tool()
+async def get_brand_template_dataset(brand_template_id: str) -> dict:
+    """
+    Get the autofillable data fields from a brand template.
+
+    Returns field names and their types (text, image, chart) so you know what
+    data to pass to autofill_design. Requires Canva Enterprise.
+
+    Args:
+        brand_template_id: The brand template ID
+
+    Returns:
+        dict with dataset mapping field names to their types
+    """
+    if not brand_template_id:
+        return {"status": "error", "message": "brand_template_id is required"}
+    try:
+        async with _make_client() as client:
+            result = await client.get_brand_template_dataset(brand_template_id)
+            script_logger.info(f"Retrieved dataset for template: {brand_template_id}")
+            return {"status": "success", **result}
+    except CanvaAPIError as e:
+        script_logger.error(f"Canva API error in get_brand_template_dataset: {e.message}")
+        return {"status": "error", "message": e.message, "error_code": e.error_code}
+    except Exception as e:
+        script_logger.error(f"Unexpected error in get_brand_template_dataset: {e}")
+        return {"status": "error", "message": str(e)}
+
+
+@mcp.tool()
+async def import_design(
+    title: str,
+    url: str,
+    mime_type: Optional[str] = None,
+) -> dict:
+    """
+    Import a file from a URL into Canva as an editable design.
+
+    Supports PDF, PPTX, DOCX, PSD, AI, Keynote, and many more formats.
+    The URL must be publicly accessible.
+
+    Args:
+        title: Title for the imported design
+        url: Public URL of the file to import
+        mime_type: Optional MIME type (auto-detected if omitted)
+
+    Returns:
+        dict with designs list (each with id, url, title, page_count)
+    """
+    try:
+        request = ImportDesignRequest(title=title, url=url, mime_type=mime_type)
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+    try:
+        async with _make_client() as client:
+            result = await client.import_design_url(request)
+            script_logger.info(f"Design imported: {result.get('designs', [{}])[0].get('id', '?')}")
+            return {"status": "success", **result}
+    except CanvaAPIError as e:
+        script_logger.error(f"Canva API error in import_design: {e.message}")
+        return {"status": "error", "message": e.message, "error_code": e.error_code}
+    except Exception as e:
+        script_logger.error(f"Unexpected error in import_design: {e}")
+        return {"status": "error", "message": str(e)}
+
+
+@mcp.tool()
+async def resize_design(
+    design_id: str,
+    width: int,
+    height: int,
+) -> dict:
+    """
+    Create a resized copy of an existing design.
+
+    The original design is unchanged; a new design is created at the specified
+    dimensions. Useful for repurposing designs across formats (e.g. Instagram
+    post → LinkedIn banner).
+
+    Args:
+        design_id: The source design ID
+        width: New width in pixels (40-8000)
+        height: New height in pixels (40-8000)
+
+    Returns:
+        dict with new design_id, url, thumbnail_url
+    """
+    try:
+        request = ResizeDesignRequest(design_id=design_id, width=width, height=height)
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+    try:
+        async with _make_client() as client:
+            result = await client.resize_design(request)
+            script_logger.info(f"Design resized: {result.get('design_id')}")
+            return {"status": "success", **result}
+    except CanvaAPIError as e:
+        script_logger.error(f"Canva API error in resize_design: {e.message}")
+        return {"status": "error", "message": e.message, "error_code": e.error_code}
+    except Exception as e:
+        script_logger.error(f"Unexpected error in resize_design: {e}")
+        return {"status": "error", "message": str(e)}
+
+
+@mcp.tool()
+async def get_design_pages(design_id: str) -> dict:
+    """
+    Get page metadata for a multi-page design.
+
+    Returns page dimensions, thumbnails, and count for each page in the design.
+
+    Args:
+        design_id: The Canva design ID
+
+    Returns:
+        dict with pages list and page count
+    """
+    if not design_id:
+        return {"status": "error", "message": "design_id is required"}
+    try:
+        async with _make_client() as client:
+            result = await client.get_design_pages(design_id)
+            script_logger.info(f"Retrieved pages for design: {design_id}")
+            return {"status": "success", **result}
+    except CanvaAPIError as e:
+        script_logger.error(f"Canva API error in get_design_pages: {e.message}")
+        return {"status": "error", "message": e.message, "error_code": e.error_code}
+    except Exception as e:
+        script_logger.error(f"Unexpected error in get_design_pages: {e}")
         return {"status": "error", "message": str(e)}
 
 

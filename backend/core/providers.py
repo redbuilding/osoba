@@ -21,14 +21,14 @@ PROVIDER_CONFIGS = {
         'default_api_base': None,  # Uses LiteLLM default
         'model_prefix': 'openai/',
         'default_models': [
-            'gpt-5.2',
-            'gpt-5-nano',
-            'gpt-5',
+            'gpt-5.4',
+            'gpt-5.4-mini',
+            'gpt-5.4-nano',
             'gpt-4.1',
         ],
         'supports_streaming': True,
         'requires_max_tokens': False,
-        'health_check_model': 'gpt-5.2'
+        'health_check_model': 'gpt-5.4'
     },
     'anthropic': {
         'name': 'Anthropic',
@@ -37,8 +37,8 @@ PROVIDER_CONFIGS = {
         'default_api_base': None,
         'model_prefix': 'anthropic/',
         'default_models': [
-            'claude-opus-4-5',
-            'claude-sonnet-4-5',
+            'claude-opus-4-7',
+            'claude-sonnet-4-6',
             'claude-haiku-4-5',
         ],
         'supports_streaming': True,
@@ -80,10 +80,13 @@ PROVIDER_CONFIGS = {
             'openrouter/meta-llama/llama-4-scout',
             'openrouter/meta-llama/llama-3.3-70b-instruct',
             'openrouter/meta-llama/llama-3.1-405b',
-            'openrouter/x-ai/grok-4',
+            'openrouter/x-ai/grok-4.20',
             'openrouter/x-ai/grok-4.1-fast',
             'openrouter/openai/gpt-oss-120b',
             'openrouter/openai/gpt-oss-20b',
+            'openrouter/google/gemma-4-31b-it:free',
+            'openrouter/google/gemma-4-26b-a4b-it:free',
+            'openrouter/qwen/qwen3.6-plus',
         ],
         'supports_streaming': True,
         'requires_max_tokens': False,

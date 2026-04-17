@@ -74,7 +74,7 @@ def _make_error_response(status_code: int, error_body: dict):
 SAMPLE_MODELS_RESPONSE = {
     "data": [
         {
-            "id": "Claude-Sonnet-4-5",
+            "id": "Claude-Sonnet-4-6",
             "owned_by": "anthropic",
             "description": "Fast and capable text model",
             "architecture": {
@@ -232,13 +232,13 @@ class TestUtilHelpers:
 
     def test_model_info_valid(self):
         m = self.ModelInfo(
-            id="Claude-Sonnet-4-5",
+            id="Claude-Sonnet-4-6",
             owned_by="anthropic",
             description="Test model",
             input_modalities=["text"],
             output_modalities=["text"],
         )
-        assert m.id == "Claude-Sonnet-4-5"
+        assert m.id == "Claude-Sonnet-4-6"
         assert m.input_modalities == ["text"]
 
     def test_model_info_optional_fields(self):
@@ -267,7 +267,7 @@ async def test_client_list_models_all():
 
     assert result["count"] == 3
     ids = [m["id"] for m in result["models"]]
-    assert "Claude-Sonnet-4-5" in ids
+    assert "Claude-Sonnet-4-6" in ids
     assert "gpt-image-1.5" in ids
 
 
@@ -337,14 +337,14 @@ async def test_client_chat_completions():
         mock_http.post = AsyncMock(return_value=mock_resp)
 
         result = await client.chat_completions(
-            model="Claude-Sonnet-4-5",
+            model="Claude-Sonnet-4-6",
             messages=[{"role": "user", "content": "Hello"}],
         )
 
     assert result["choices"][0]["message"]["content"] == "Hello! How can I help you today?"
     call_kwargs = mock_http.post.call_args
     payload = call_kwargs[1]["json"]
-    assert payload["model"] == "Claude-Sonnet-4-5"
+    assert payload["model"] == "Claude-Sonnet-4-6"
     assert payload["stream"] is False
 
 
@@ -361,7 +361,7 @@ async def test_client_chat_completions_with_temperature():
         mock_http.post = AsyncMock(return_value=mock_resp)
 
         await client.chat_completions(
-            model="Claude-Sonnet-4-5",
+            model="Claude-Sonnet-4-6",
             messages=[{"role": "user", "content": "Hi"}],
             temperature=0.7,
             max_tokens=100,
@@ -389,7 +389,7 @@ async def test_client_api_error_propagates():
 
         with pytest.raises(PoeAPIError) as exc_info:
             await client.chat_completions(
-                model="Claude-Sonnet-4-5",
+                model="Claude-Sonnet-4-6",
                 messages=[{"role": "user", "content": "test"}],
             )
 
@@ -434,7 +434,7 @@ async def test_tool_poe_list_models_success(server_mod):
     mock_result = {
         "count": 2,
         "models": [
-            {"id": "Claude-Sonnet-4-5", "owned_by": "anthropic", "description": "Text model",
+            {"id": "Claude-Sonnet-4-6", "owned_by": "anthropic", "description": "Text model",
              "input_modalities": ["text"], "output_modalities": ["text"], "pricing": None},
             {"id": "gpt-image-1.5", "owned_by": "openai", "description": "Image model",
              "input_modalities": ["text"], "output_modalities": ["image"], "pricing": None},
@@ -497,11 +497,11 @@ async def test_tool_poe_chat_success(server_mod):
     with patch.object(server_mod, "_make_client", return_value=mock_client):
         result = await server_mod.poe_chat(
             prompt="Hello there",
-            model="Claude-Sonnet-4-5",
+            model="Claude-Sonnet-4-6",
         )
 
     assert result["status"] == "success"
-    assert result["model"] == "Claude-Sonnet-4-5"
+    assert result["model"] == "Claude-Sonnet-4-6"
     assert result["text"] == "Hello! How can I help you today?"
 
 
@@ -515,7 +515,7 @@ async def test_tool_poe_chat_with_system_and_temperature(server_mod):
     with patch.object(server_mod, "_make_client", return_value=mock_client):
         result = await server_mod.poe_chat(
             prompt="Write a haiku",
-            model="Claude-Sonnet-4-5",
+            model="Claude-Sonnet-4-6",
             system="You are a poet",
             temperature=0.9,
             max_tokens=50,
@@ -553,7 +553,7 @@ async def test_tool_poe_chat_with_image_urls(server_mod):
     with patch.object(server_mod, "_make_client", return_value=mock_client):
         result = await server_mod.poe_chat(
             prompt="Describe this",
-            model="Claude-Sonnet-4-5",
+            model="Claude-Sonnet-4-6",
             image_urls=["https://example.com/pic.png"],
         )
 
@@ -885,7 +885,7 @@ class TestTaskPlanner:
 
     def test_poe_catalog_includes_default_model(self):
         catalog = self._tool_catalog_text()
-        assert "Claude-Sonnet-4-5" in catalog
+        assert "Claude-Sonnet-4-6" in catalog
 
     def test_existing_tools_unaffected(self):
         for tool in ["web_search", "smart_search_extract", "execute_sql_query_tool",

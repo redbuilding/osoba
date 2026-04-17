@@ -1,6 +1,6 @@
 // frontend/src/components/ChatInput.jsx
 import React, { useState, useRef } from "react";
-import { Send, Sparkles, Search, Database, Share2, Youtube, FileCode, Paperclip, X, BookOpen } from "lucide-react";
+import { Send, Sparkles, Search, Database, Share2, Youtube, FileCode, Paperclip, X, BookOpen, Palette, Figma, Zap } from "lucide-react";
 
 const ChatInput = ({
   onSendMessage,
@@ -90,6 +90,27 @@ const ChatInput = ({
           text: "Codex workspace is active. Your message will run Codex to generate files.",
           colorClass: "text-brand-purple",
           buttonColorClass: "bg-brand-purple text-white hover:bg-brand-button-grad-to",
+        };
+      case "canva":
+        return {
+          Icon: Palette,
+          text: "Canva is active. Ask to create, list, export, import, or resize designs.",
+          colorClass: "text-teal-400",
+          buttonColorClass: "bg-teal-600 text-white hover:bg-teal-700",
+        };
+      case "figma":
+        return {
+          Icon: Figma,
+          text: "Figma is active. Ask about files, nodes, exports, comments, or design tokens.",
+          colorClass: "text-violet-400",
+          buttonColorClass: "bg-violet-600 text-white hover:bg-violet-700",
+        };
+      case "poe":
+        return {
+          Icon: Zap,
+          text: "Poe AI is active. Chat, generate images, video, or audio via Poe models.",
+          colorClass: "text-amber-400",
+          buttonColorClass: "bg-amber-600 text-white hover:bg-amber-700",
         };
       default:
         return null;

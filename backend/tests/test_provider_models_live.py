@@ -23,14 +23,14 @@ PROMPT = [
 
 MODELS = {
     "openai": [
-        "openai/gpt-5.2",
-        "openai/gpt-5-nano",
-        "openai/gpt-5",
+        "openai/gpt-5.4",
+        "openai/gpt-5.4-mini",
+        "openai/gpt-5.4-nano",
         "openai/gpt-4.1",
     ],
     "anthropic": [
-        "anthropic/claude-opus-4-5",
-        "anthropic/claude-sonnet-4-5",
+        "anthropic/claude-opus-4-7",
+        "anthropic/claude-sonnet-4-6",
         "anthropic/claude-haiku-4-5",
     ],
     "openrouter": [
@@ -46,10 +46,13 @@ MODELS = {
         "openrouter/meta-llama/llama-4-scout",
         "openrouter/meta-llama/llama-3.3-70b-instruct",
         "openrouter/meta-llama/llama-3.1-405b",
-        "openrouter/x-ai/grok-4",
+        "openrouter/x-ai/grok-4.20",
         "openrouter/x-ai/grok-4.1-fast",
         "openrouter/openai/gpt-oss-120b",
         "openrouter/openai/gpt-oss-20b",
+        "openrouter/google/gemma-4-31b-it:free",
+        "openrouter/google/gemma-4-26b-a4b-it:free",
+        "openrouter/qwen/qwen3.6-plus",
     ],
 }
 

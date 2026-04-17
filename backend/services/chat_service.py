@@ -9,7 +9,8 @@ from fastapi import Request
 
 from core.config import (
     get_logger, WEB_SEARCH_SERVICE_NAME, MYSQL_DB_SERVICE_NAME, HUBSPOT_SERVICE_NAME, YOUTUBE_SERVICE_NAME,
-    PYTHON_SERVICE_NAME, MAX_DB_RESULT_CHARS, MAX_TABLES_FOR_SCHEMA_CONTEXT, DEFAULT_REPEAT_PENALTY
+    PYTHON_SERVICE_NAME, CANVA_SERVICE_NAME, FIGMA_SERVICE_NAME, POE_SERVICE_NAME,
+    MAX_DB_RESULT_CHARS, MAX_TABLES_FOR_SCHEMA_CONTEXT, DEFAULT_REPEAT_PENALTY
 )
 from core.models import ChatPayload, ChatMessage, ChatResponse
 from db.mongodb import get_conversations_collection
@@ -564,6 +565,125 @@ Your JSON response:
 ```
 """
 
+    async def _handle_canva(self):
+        if not app_state.mcp_service_ready.get(CANVA_SERVICE_NAME):
+            return self._set_error("⚠️ Canva design service is currently unavailable.")
+        logger.info(f"[CHAT_SVC] Canva tool for: '{self.user_msg_content}'")
+        try:
+            tool_prompt = (
+                "You are a Canva design assistant. Select the correct tool and parameters.\n"
+                "Respond with a single JSON object: {\"tool_name\": ..., \"parameters\": {...}}\n\n"
+                "Available tools:\n"
+                "- create_design(title: str, preset?: str, width?: int, height?: int, unit?: str, template_id?: str)\n"
+                "  presets: instagram_post, instagram_story, facebook_post, facebook_cover, twitter_post, linkedin_banner, youtube_thumbnail, presentation, a4, a3, us_letter, custom\n"
+                "- list_designs(limit?: int, page_token?: str)\n"
+                "- get_design(design_id: str)\n"
+                "- export_design(design_id: str, format?: str, width?: int, height?: int, quality?: int, pages?: str)\n"
+                "  formats: png, jpg, pdf, svg, mp4, gif\n"
+                "- upload_asset(name: str, url: str)\n"
+                "- autofill_design(brand_template_id: str, data: str, title?: str) — data is JSON string\n"
+                "- get_brand_template_dataset(brand_template_id: str)\n"
+                "- import_design(title: str, url: str, mime_type?: str)\n"
+                "- resize_design(design_id: str, width: int, height: int)\n"
+                "- get_design_pages(design_id: str)\n"
+            )
+            result = await self._llm_tool_dispatch(CANVA_SERVICE_NAME, tool_prompt, "🎨 Canva", "canva-indicator-custom")
+            if result:
+                self.prompt_for_llm = result
+        except Exception as e:
+            logger.error(f"[CHAT_SVC] Canva tool failed: {e}", exc_info=True)
+            self._set_error(f"⚠️ Canva tool failed: {str(e)}")
+
+    async def _handle_figma(self):
+        if not app_state.mcp_service_ready.get(FIGMA_SERVICE_NAME):
+            return self._set_error("⚠️ Figma design service is currently unavailable.")
+        logger.info(f"[CHAT_SVC] Figma tool for: '{self.user_msg_content}'")
+        try:
+            tool_prompt = (
+                "You are a Figma design assistant. Select the correct tool and parameters.\n"
+                "Respond with a single JSON object: {\"tool_name\": ..., \"parameters\": {...}}\n\n"
+                "Available tools:\n"
+                "- figma_get_file(file_key: str, depth?: int) — file_key from figma.com/file/{file_key}/...\n"
+                "- figma_get_nodes(file_key: str, node_ids: str, depth?: int) — node_ids comma-separated e.g. '1:2,3:4'\n"
+                "- figma_export_images(file_key: str, node_ids: str, format?: str, scale?: float) — formats: png, jpg, svg, pdf\n"
+                "- figma_get_comments(file_key: str)\n"
+                "- figma_post_comment(file_key: str, message: str, node_id?: str, parent_id?: str)\n"
+                "- figma_get_design_system(file_key: str) — extracts color, typography, spacing tokens and components\n"
+            )
+            result = await self._llm_tool_dispatch(FIGMA_SERVICE_NAME, tool_prompt, "🖼️ Figma", "figma-indicator-custom")
+            if result:
+                self.prompt_for_llm = result
+        except Exception as e:
+            logger.error(f"[CHAT_SVC] Figma tool failed: {e}", exc_info=True)
+            self._set_error(f"⚠️ Figma tool failed: {str(e)}")
+
+    async def _handle_poe(self):
+        if not app_state.mcp_service_ready.get(POE_SERVICE_NAME):
+            return self._set_error("⚠️ Poe AI service is currently unavailable.")
+        logger.info(f"[CHAT_SVC] Poe tool for: '{self.user_msg_content}'")
+        try:
+            tool_prompt = (
+                "You are a Poe AI assistant. Select the correct tool and parameters.\n"
+                "Respond with a single JSON object: {\"tool_name\": ..., \"parameters\": {...}}\n\n"
+                "Available tools:\n"
+                "- poe_list_models(input_modality?: str, output_modality?: str, search?: str, limit?: int)\n"
+                "  modalities: text, image, video, audio\n"
+                "- poe_chat(prompt: str, model?: str, system?: str, temperature?: float, max_tokens?: int, image_urls?: list)\n"
+                "  default model: Claude-Sonnet-4-6\n"
+                "- poe_generate_image(prompt: str, model?: str, system?: str, download_media?: bool)\n"
+                "  default model: gpt-image-1.5\n"
+                "- poe_generate_video(prompt: str, model: str, system?: str, download_media?: bool)\n"
+                "  model required — use poe_list_models(output_modality='video') to find one\n"
+                "- poe_generate_audio(prompt: str, model: str, system?: str, download_media?: bool)\n"
+                "  model required — use poe_list_models(output_modality='audio') to find one\n"
+            )
+            result = await self._llm_tool_dispatch(POE_SERVICE_NAME, tool_prompt, "⚡ Poe", "poe-indicator-custom")
+            if result:
+                self.prompt_for_llm = result
+        except Exception as e:
+            logger.error(f"[CHAT_SVC] Poe tool failed: {e}", exc_info=True)
+            self._set_error(f"⚠️ Poe tool failed: {str(e)}")
+
+    async def _llm_tool_dispatch(self, service_name: str, tool_prompt: str, label: str, css_class: str) -> Optional[str]:
+        """Shared helper: LLM selects a tool, executes it via MCP, returns formatted prompt."""
+        raw_resp = await chat_with_provider(
+            [{"role": "system", "content": tool_prompt}, {"role": "user", "content": self.user_msg_content}],
+            self.model_name,
+        )
+        match = re.search(r"```json\s*([\s\S]+?)\s*```", raw_resp or "", re.I)
+        candidate = (match.group(1) if match else (raw_resp or "")).strip()
+        try:
+            tool_call = json.loads(candidate)
+            tool_name = tool_call.get("tool_name")
+            tool_params = tool_call.get("parameters", {})
+            if not tool_name:
+                raise ValueError("Missing 'tool_name'")
+        except (json.JSONDecodeError, ValueError):
+            raise Exception(f"Could not decide which tool to use. (LLM response: {candidate})")
+
+        logger.info(f"[CHAT_SVC] Calling {label} tool '{tool_name}' with params: {tool_params}")
+        req_id = await submit_mcp_request(service_name, "tool", {"tool": tool_name, "params": tool_params})
+        resp = await wait_mcp_response(service_name, req_id, timeout=120)
+        if resp.get("status") == "error":
+            raise Exception(f"{label} tool '{tool_name}' failed: {resp.get('error')}")
+
+        parts = resp.get("data", [])
+        output = ""
+        for part in parts:
+            if part.get("type") == "text":
+                output += part.get("content", "") + "\n"
+            elif part.get("type") == "image":
+                img_b64 = part.get("data")
+                mime = part.get("mimeType", "image/png")
+                self._add_indicator(f"<img src='data:{mime};base64,{img_b64}' alt='Generated image' class='my-2 rounded-md border border-gray-600' />")
+
+        self._add_indicator(f"<div class='{css_class}'><b>{label}:</b> Used tool <code>{tool_name}</code>.</div>")
+        return (
+            f"Based on the result from the {label} tool '{tool_name}', answer the user's original question.\n\n"
+            f"Tool Output:\n---\n{output.strip()}\n---\n\n"
+            f"User's question: '{self.user_msg_content}'"
+        )
+
     async def _inject_profile_system_prompt(self):
         """
         Inject system prompt from active AI profile and conversation context as the first message in conversation history.
@@ -768,6 +888,9 @@ Your JSON response:
         if not self.error_message_obj and self.payload.use_hubspot: await self._handle_hubspot()
         if not self.error_message_obj and self.payload.use_youtube: await self._handle_youtube()
         if not self.error_message_obj and self.payload.use_python: await self._handle_python()
+        if not self.error_message_obj and self.payload.use_canva: await self._handle_canva()
+        if not self.error_message_obj and self.payload.use_figma: await self._handle_figma()
+        if not self.error_message_obj and self.payload.use_poe: await self._handle_poe()
 
 
     def _save_assistant_message(self, content: str, raw_content: str):

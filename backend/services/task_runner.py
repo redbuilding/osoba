@@ -90,7 +90,9 @@ def _resolve_tool(tool: str) -> Tuple[str, str]:
         tool_name = tool.split(".", 1)[1]  # Remove "codex." prefix
         return CODEX_SERVICE_NAME, tool_name
     # Canva service tools
-    if tool in ["create_design", "list_designs", "get_design", "export_design"]:
+    if tool in ["create_design", "list_designs", "get_design", "export_design",
+                "upload_asset", "autofill_design", "get_brand_template_dataset",
+                "import_design", "resize_design", "get_design_pages"]:
         return CANVA_SERVICE_NAME, tool
     # Figma service tools
     if tool in ["figma_get_file", "figma_get_nodes", "figma_export_images",

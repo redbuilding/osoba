@@ -22,6 +22,9 @@ class ChatPayload(BaseModel):
     use_hubspot: bool = False
     use_youtube: bool = False
     use_python: bool = False
+    use_canva: bool = False
+    use_figma: bool = False
+    use_poe: bool = False
     csv_data_b64: Optional[str] = None
     conversation_id: Optional[str] = None
     model_name: Optional[str] = None

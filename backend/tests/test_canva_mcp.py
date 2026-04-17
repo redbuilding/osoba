@@ -195,7 +195,7 @@ async def test_client_get_design():
 async def test_client_create_design_with_preset():
     from utils.canva_client import CanvaClient, CreateDesignRequest, DesignPreset
     client = CanvaClient(api_token="fake_token")
-    client.client.post = AsyncMock(return_value=_make_mock_response(SAMPLE_DESIGN_RESPONSE))
+    client.client.post = AsyncMock(return_value=_make_mock_response({"design": SAMPLE_DESIGN_RESPONSE}))
 
     request = CreateDesignRequest(title="My Slides", preset=DesignPreset.PRESENTATION)
     design = await client.create_design(request)
@@ -204,7 +204,7 @@ async def test_client_create_design_with_preset():
     call_kwargs = client.client.post.call_args
     payload = call_kwargs[1]["json"]
     assert payload["title"] == "My Slides"
-    assert payload["preset"] == "presentation"
+    assert payload["design_type"] == {"type": "preset", "name": "presentation"}
     await client.close()
 
 
@@ -213,17 +213,18 @@ async def test_client_export_design_completes_immediately():
     from utils.canva_client import CanvaClient, ExportDesignRequest, ExportFormat
     client = CanvaClient(api_token="fake_token")
     export_response = {
-        "id": "job_001",
-        "status": "completed",
-        "url": "https://cdn.canva.com/export/file.png",
-        "file_size_bytes": 204800,
+        "job": {
+            "id": "job_001",
+            "status": "success",
+            "urls": ["https://cdn.canva.com/export/file.png"],
+        }
     }
     client.client.post = AsyncMock(return_value=_make_mock_response(export_response))
 
     request = ExportDesignRequest(design_id="design_001", format=ExportFormat.PNG)
     result = await client.export_design(request)
 
-    assert result["status"] == "completed"
+    assert result["status"] == "success"
     assert result["download_url"] == "https://cdn.canva.com/export/file.png"
     assert result["job_id"] == "job_001"
     await client.close()
@@ -234,17 +235,16 @@ async def test_client_export_design_polls_until_done():
     from utils.canva_client import CanvaClient, ExportDesignRequest, ExportFormat
     client = CanvaClient(api_token="fake_token")
 
-    # POST starts the job (pending)
-    post_response = _make_mock_response({"id": "job_002", "status": "pending"})
-    # GET polls: first still in_progress, then completed
+    # POST starts the job (in_progress)
+    post_response = _make_mock_response({"job": {"id": "job_002", "status": "in_progress"}})
+    # GET polls: first still in_progress, then success
     poll_responses = [
-        _make_mock_response({"id": "job_002", "status": "in_progress"}),
-        _make_mock_response({
+        _make_mock_response({"job": {"id": "job_002", "status": "in_progress"}}),
+        _make_mock_response({"job": {
             "id": "job_002",
-            "status": "completed",
-            "url": "https://cdn.canva.com/export/file2.pdf",
-            "file_size_bytes": 1024,
-        }),
+            "status": "success",
+            "urls": ["https://cdn.canva.com/export/file2.pdf"],
+        }}),
     ]
     client.client.post = AsyncMock(return_value=post_response)
     client.client.get = AsyncMock(side_effect=poll_responses)
@@ -253,7 +253,7 @@ async def test_client_export_design_polls_until_done():
         request = ExportDesignRequest(design_id="design_001", format=ExportFormat.PDF)
         result = await client.export_design(request)
 
-    assert result["status"] == "completed"
+    assert result["status"] == "success"
     assert result["download_url"] == "https://cdn.canva.com/export/file2.pdf"
     assert client.client.get.call_count == 2
     await client.close()
@@ -384,10 +384,11 @@ async def test_tool_get_design_missing_id(server_mod):
 @pytest.mark.asyncio
 async def test_tool_export_design_success(server_mod):
     mock_result = {
-        "job_id": "job_001", "status": "completed",
+        "job_id": "job_001", "status": "success",
         "design_id": "design_001", "format": "png",
         "download_url": "https://cdn.canva.com/export/out.png",
-        "file_size_bytes": 50000, "error_code": None, "error_message": None,
+        "download_urls": ["https://cdn.canva.com/export/out.png"],
+        "error_code": None, "error_message": None,
     }
     mock_client = AsyncMock()
     mock_client.__aenter__ = AsyncMock(return_value=mock_client)
@@ -397,9 +398,9 @@ async def test_tool_export_design_success(server_mod):
     with patch.object(server_mod, "_make_client", return_value=mock_client):
         result = await server_mod.export_design("design_001", format="png")
 
-    # Export tools return the job status ("completed"/"failed") as "status",
+    # Export tools return the job status ("success"/"failed") as "status",
     # not the tool-call sentinel "success" used by create/list/get.
-    assert result["status"] == "completed"
+    assert result["status"] == "success"
     assert result["download_url"] == "https://cdn.canva.com/export/out.png"
     assert result["job_id"] == "job_001"
 
@@ -414,10 +415,11 @@ async def test_tool_export_design_invalid_format(server_mod):
 @pytest.mark.asyncio
 async def test_tool_export_design_pages_parsed(server_mod):
     mock_result = {
-        "job_id": "job_002", "status": "completed",
+        "job_id": "job_002", "status": "success",
         "design_id": "design_001", "format": "pdf",
         "download_url": "https://cdn.canva.com/export/out.pdf",
-        "file_size_bytes": 10000, "error_code": None, "error_message": None,
+        "download_urls": ["https://cdn.canva.com/export/out.pdf"],
+        "error_code": None, "error_message": None,
     }
     mock_client = AsyncMock()
     mock_client.__aenter__ = AsyncMock(return_value=mock_client)
@@ -427,7 +429,7 @@ async def test_tool_export_design_pages_parsed(server_mod):
     with patch.object(server_mod, "_make_client", return_value=mock_client):
         result = await server_mod.export_design("design_001", format="pdf", pages="1,3")
 
-    assert result["status"] == "completed"
+    assert result["status"] == "success"
     # Verify pages were parsed and passed to the client
     called_request = mock_client.export_design.call_args[0][0]
     assert called_request.pages == [1, 3]
@@ -438,6 +440,242 @@ async def test_tool_export_design_invalid_pages(server_mod):
     result = await server_mod.export_design("design_001", pages="one,two")
     assert result["status"] == "error"
     assert "comma-separated integers" in result["message"]
+
+
+# ---------------------------------------------------------------------------
+# 3b. New Pydantic models
+# ---------------------------------------------------------------------------
+
+class TestNewModels:
+    def setup_method(self):
+        from utils.canva_client import AssetUploadRequest, ImportDesignRequest, ResizeDesignRequest
+        self.AssetUploadRequest = AssetUploadRequest
+        self.ImportDesignRequest = ImportDesignRequest
+        self.ResizeDesignRequest = ResizeDesignRequest
+
+    def test_asset_upload_request_valid(self):
+        req = self.AssetUploadRequest(name="photo.jpg", url="https://example.com/photo.jpg")
+        assert req.name == "photo.jpg"
+
+    def test_import_design_request_valid(self):
+        req = self.ImportDesignRequest(title="My Deck", url="https://example.com/deck.pptx")
+        assert req.mime_type is None
+
+    def test_resize_design_request_valid(self):
+        req = self.ResizeDesignRequest(design_id="d1", width=1080, height=1080)
+        assert req.width == 1080
+
+    def test_resize_design_request_bounds(self):
+        from pydantic import ValidationError
+        with pytest.raises(ValidationError):
+            self.ResizeDesignRequest(design_id="d1", width=10, height=100)  # below 40
+
+
+# ---------------------------------------------------------------------------
+# 3c. CanvaClient — new methods
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_client_upload_asset_url():
+    from utils.canva_client import CanvaClient, AssetUploadRequest
+    client = CanvaClient(api_token="fake_token")
+    resp = _make_mock_response({
+        "job": {"id": "j1", "status": "success", "asset": {"id": "a1", "name": "photo", "type": "image", "thumbnail": {"url": "https://t.co/thumb"}}}
+    })
+    client.client.post = AsyncMock(return_value=resp)
+    result = await client.upload_asset_url(AssetUploadRequest(name="photo", url="https://example.com/photo.jpg"))
+    assert result["asset_id"] == "a1"
+    assert result["status"] == "success"
+    await client.close()
+
+
+@pytest.mark.asyncio
+async def test_client_upload_asset_polls():
+    from utils.canva_client import CanvaClient, AssetUploadRequest
+    client = CanvaClient(api_token="fake_token")
+    post_resp = _make_mock_response({"job": {"id": "j2", "status": "in_progress"}})
+    poll_resp = _make_mock_response({"job": {"id": "j2", "status": "success", "asset": {"id": "a2", "name": "vid", "type": "video", "thumbnail": {}}}})
+    client.client.post = AsyncMock(return_value=post_resp)
+    client.client.get = AsyncMock(return_value=poll_resp)
+    with patch("utils.canva_client.asyncio.sleep", new_callable=AsyncMock):
+        result = await client.upload_asset_url(AssetUploadRequest(name="vid", url="https://example.com/vid.mp4"))
+    assert result["asset_id"] == "a2"
+    await client.close()
+
+
+@pytest.mark.asyncio
+async def test_client_create_autofill():
+    from utils.canva_client import CanvaClient
+    client = CanvaClient(api_token="fake_token")
+    resp = _make_mock_response({
+        "job": {"id": "af1", "status": "success", "result": {"design": {
+            "id": "d_af", "title": "Filled", "urls": {"edit_url": "https://canva.com/edit/d_af", "view_url": "https://canva.com/view/d_af"},
+            "thumbnail": {"url": "https://t.co/thumb"},
+        }}}
+    })
+    client.client.post = AsyncMock(return_value=resp)
+    result = await client.create_autofill("tmpl_1", {"HEADLINE": {"type": "text", "text": "Hi"}})
+    assert result["design_id"] == "d_af"
+    assert result["url"] == "https://canva.com/edit/d_af"
+    await client.close()
+
+
+@pytest.mark.asyncio
+async def test_client_get_brand_template_dataset():
+    from utils.canva_client import CanvaClient
+    client = CanvaClient(api_token="fake_token")
+    resp = _make_mock_response({"dataset": {"CITY": {"type": "text"}, "BG": {"type": "image"}}})
+    client.client.get = AsyncMock(return_value=resp)
+    result = await client.get_brand_template_dataset("tmpl_1")
+    assert "CITY" in result["dataset"]
+    await client.close()
+
+
+@pytest.mark.asyncio
+async def test_client_import_design_url():
+    from utils.canva_client import CanvaClient, ImportDesignRequest
+    client = CanvaClient(api_token="fake_token")
+    resp = _make_mock_response({
+        "job": {"id": "imp1", "status": "success", "result": {"designs": [
+            {"id": "d_imp", "title": "Imported", "urls": {"edit_url": "https://canva.com/edit/d_imp", "view_url": "https://canva.com/view/d_imp"}, "thumbnail": {"url": "https://t.co/thumb"}, "page_count": 5}
+        ]}}
+    })
+    client.client.post = AsyncMock(return_value=resp)
+    result = await client.import_design_url(ImportDesignRequest(title="Imported", url="https://example.com/deck.pptx"))
+    assert result["designs"][0]["id"] == "d_imp"
+    assert result["designs"][0]["page_count"] == 5
+    await client.close()
+
+
+@pytest.mark.asyncio
+async def test_client_resize_design():
+    from utils.canva_client import CanvaClient, ResizeDesignRequest
+    client = CanvaClient(api_token="fake_token")
+    resp = _make_mock_response({
+        "job": {"id": "rz1", "status": "success", "result": {"design": {
+            "id": "d_rz", "title": "Resized", "urls": {"edit_url": "https://canva.com/edit/d_rz", "view_url": "https://canva.com/view/d_rz"},
+            "thumbnail": {"url": "https://t.co/thumb"},
+        }}}
+    })
+    client.client.post = AsyncMock(return_value=resp)
+    result = await client.resize_design(ResizeDesignRequest(design_id="d1", width=1080, height=1080))
+    assert result["design_id"] == "d_rz"
+    await client.close()
+
+
+@pytest.mark.asyncio
+async def test_client_get_design_pages():
+    from utils.canva_client import CanvaClient
+    client = CanvaClient(api_token="fake_token")
+    resp = _make_mock_response({"items": [{"width": 1920, "height": 1080}], "page_count": 1})
+    client.client.get = AsyncMock(return_value=resp)
+    result = await client.get_design_pages("d1")
+    assert result["page_count"] == 1
+    await client.close()
+
+
+# ---------------------------------------------------------------------------
+# 3d. server_canva tool functions — new tools
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_tool_upload_asset_success(server_mod):
+    mock_result = {"job_id": "j1", "status": "success", "asset_id": "a1", "name": "photo", "type": "image", "thumbnail_url": None}
+    mock_client = AsyncMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=None)
+    mock_client.upload_asset_url = AsyncMock(return_value=mock_result)
+    with patch.object(server_mod, "_make_client", return_value=mock_client):
+        result = await server_mod.upload_asset(name="photo", url="https://example.com/photo.jpg")
+    assert result["status"] == "success"
+    assert result["asset_id"] == "a1"
+
+
+@pytest.mark.asyncio
+async def test_tool_autofill_design_success(server_mod):
+    mock_result = {"job_id": "af1", "status": "success", "design_id": "d_af", "title": "Filled", "url": "https://canva.com/edit/d_af", "view_url": None, "thumbnail_url": None}
+    mock_client = AsyncMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=None)
+    mock_client.create_autofill = AsyncMock(return_value=mock_result)
+    with patch.object(server_mod, "_make_client", return_value=mock_client):
+        result = await server_mod.autofill_design(
+            brand_template_id="tmpl_1",
+            data='{"HEADLINE": {"type": "text", "text": "Hello"}}',
+        )
+    assert result["status"] == "success"
+    assert result["design_id"] == "d_af"
+
+
+@pytest.mark.asyncio
+async def test_tool_autofill_design_invalid_json(server_mod):
+    result = await server_mod.autofill_design(brand_template_id="tmpl_1", data="not json")
+    assert result["status"] == "error"
+    assert "valid JSON" in result["message"]
+
+
+@pytest.mark.asyncio
+async def test_tool_get_brand_template_dataset_success(server_mod):
+    mock_result = {"dataset": {"CITY": {"type": "text"}}}
+    mock_client = AsyncMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=None)
+    mock_client.get_brand_template_dataset = AsyncMock(return_value=mock_result)
+    with patch.object(server_mod, "_make_client", return_value=mock_client):
+        result = await server_mod.get_brand_template_dataset("tmpl_1")
+    assert result["status"] == "success"
+    assert "CITY" in result["dataset"]
+
+
+@pytest.mark.asyncio
+async def test_tool_get_brand_template_dataset_missing_id(server_mod):
+    result = await server_mod.get_brand_template_dataset("")
+    assert result["status"] == "error"
+
+
+@pytest.mark.asyncio
+async def test_tool_import_design_success(server_mod):
+    mock_result = {"job_id": "imp1", "status": "success", "designs": [{"id": "d_imp", "title": "Imported", "url": "https://canva.com/edit/d_imp", "view_url": None, "thumbnail_url": None, "page_count": 3}]}
+    mock_client = AsyncMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=None)
+    mock_client.import_design_url = AsyncMock(return_value=mock_result)
+    with patch.object(server_mod, "_make_client", return_value=mock_client):
+        result = await server_mod.import_design(title="Imported", url="https://example.com/deck.pptx")
+    assert result["status"] == "success"
+    assert result["designs"][0]["id"] == "d_imp"
+
+
+@pytest.mark.asyncio
+async def test_tool_resize_design_success(server_mod):
+    mock_result = {"job_id": "rz1", "status": "success", "design_id": "d_rz", "title": "Resized", "url": "https://canva.com/edit/d_rz", "view_url": None, "thumbnail_url": None}
+    mock_client = AsyncMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=None)
+    mock_client.resize_design = AsyncMock(return_value=mock_result)
+    with patch.object(server_mod, "_make_client", return_value=mock_client):
+        result = await server_mod.resize_design(design_id="d1", width=1080, height=1080)
+    assert result["status"] == "success"
+    assert result["design_id"] == "d_rz"
+
+
+@pytest.mark.asyncio
+async def test_tool_get_design_pages_success(server_mod):
+    mock_result = {"items": [{"width": 1920, "height": 1080}], "page_count": 1}
+    mock_client = AsyncMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=None)
+    mock_client.get_design_pages = AsyncMock(return_value=mock_result)
+    with patch.object(server_mod, "_make_client", return_value=mock_client):
+        result = await server_mod.get_design_pages("d1")
+    assert result["status"] == "success"
+    assert result["page_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_tool_get_design_pages_missing_id(server_mod):
+    result = await server_mod.get_design_pages("")
+    assert result["status"] == "error"
 
 
 # ---------------------------------------------------------------------------
@@ -471,6 +709,30 @@ class TestTaskRunnerRouting:
         assert svc == self.CANVA_SERVICE_NAME
         assert tool == "export_design"
 
+    def test_upload_asset_routes_to_canva(self):
+        svc, tool = self._resolve_tool("upload_asset")
+        assert svc == self.CANVA_SERVICE_NAME
+
+    def test_autofill_design_routes_to_canva(self):
+        svc, tool = self._resolve_tool("autofill_design")
+        assert svc == self.CANVA_SERVICE_NAME
+
+    def test_get_brand_template_dataset_routes_to_canva(self):
+        svc, tool = self._resolve_tool("get_brand_template_dataset")
+        assert svc == self.CANVA_SERVICE_NAME
+
+    def test_import_design_routes_to_canva(self):
+        svc, tool = self._resolve_tool("import_design")
+        assert svc == self.CANVA_SERVICE_NAME
+
+    def test_resize_design_routes_to_canva(self):
+        svc, tool = self._resolve_tool("resize_design")
+        assert svc == self.CANVA_SERVICE_NAME
+
+    def test_get_design_pages_routes_to_canva(self):
+        svc, tool = self._resolve_tool("get_design_pages")
+        assert svc == self.CANVA_SERVICE_NAME
+
     def test_unknown_tool_raises(self):
         with pytest.raises(ValueError, match="Unknown tool"):
             self._resolve_tool("canva_magic_tool")
@@ -501,10 +763,10 @@ class TestMCPServiceRegistry:
 
     def test_canva_required_tools(self):
         config = self.app_state.mcp_configs[self.CANVA_SERVICE_NAME]
-        assert "create_design" in config.required_tools
-        assert "list_designs" in config.required_tools
-        assert "get_design" in config.required_tools
-        assert "export_design" in config.required_tools
+        for tool in ["create_design", "list_designs", "get_design", "export_design",
+                      "upload_asset", "autofill_design", "get_brand_template_dataset",
+                      "import_design", "resize_design", "get_design_pages"]:
+            assert tool in config.required_tools
 
     def test_canva_service_name_constant(self):
         from core.config import CANVA_SERVICE_NAME
@@ -523,10 +785,10 @@ class TestTaskPlanner:
         self._tool_catalog_text = _tool_catalog_text
 
     def test_canva_tools_in_allowed_list(self):
-        assert "create_design" in self.ALLOWED_TASK_TOOLS
-        assert "list_designs" in self.ALLOWED_TASK_TOOLS
-        assert "get_design" in self.ALLOWED_TASK_TOOLS
-        assert "export_design" in self.ALLOWED_TASK_TOOLS
+        for tool in ["create_design", "list_designs", "get_design", "export_design",
+                      "upload_asset", "autofill_design", "get_brand_template_dataset",
+                      "import_design", "resize_design", "get_design_pages"]:
+            assert tool in self.ALLOWED_TASK_TOOLS
 
     def test_canva_alias_canva_create(self):
         assert self._normalize_tool("canva_create") == "create_design"
@@ -543,13 +805,28 @@ class TestTaskPlanner:
     def test_canva_alias_canva_get(self):
         assert self._normalize_tool("canva_get") == "get_design"
 
+    def test_canva_alias_canva_upload(self):
+        assert self._normalize_tool("canva_upload") == "upload_asset"
+
+    def test_canva_alias_canva_autofill(self):
+        assert self._normalize_tool("canva_autofill") == "autofill_design"
+
+    def test_canva_alias_canva_import(self):
+        assert self._normalize_tool("canva_import") == "import_design"
+
+    def test_canva_alias_canva_resize(self):
+        assert self._normalize_tool("canva_resize") == "resize_design"
+
+    def test_canva_alias_canva_pages(self):
+        assert self._normalize_tool("canva_pages") == "get_design_pages"
+
     def test_canva_catalog_section_present(self):
         catalog = self._tool_catalog_text()
         assert "Canva" in catalog
-        assert "create_design" in catalog
-        assert "list_designs" in catalog
-        assert "get_design" in catalog
-        assert "export_design" in catalog
+        for tool in ["create_design", "list_designs", "get_design", "export_design",
+                      "upload_asset", "autofill_design", "get_brand_template_dataset",
+                      "import_design", "resize_design", "get_design_pages"]:
+            assert tool in catalog
 
     def test_canva_catalog_includes_presets(self):
         catalog = self._tool_catalog_text()

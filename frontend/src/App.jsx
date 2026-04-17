@@ -536,6 +536,9 @@ const App = () => {
       use_hubspot: activeTool === "hubspot",
       use_youtube: activeTool === "youtube",
       use_python: activeTool === "python",
+      use_canva: activeTool === "canva",
+      use_figma: activeTool === "figma",
+      use_poe: activeTool === "poe",
       csv_data_b64: activeTool === "python" && uploadedCsv ? uploadedCsv.data_b64 : null,
       conversation_id: currentConversationId,
       model_name: modelForThisMsg,
@@ -816,7 +819,7 @@ const App = () => {
       {
         id: "canva",
         name: "Canva Design",
-        description: "Create, list, and export Canva designs.",
+        description: "Create, import, resize, autofill, and export Canva designs.",
         icon: <Palette size={24} className="text-teal-400" />,
         isReady: mcpCanvaServiceReady,
       },

@@ -105,6 +105,23 @@ class ExportDesignRequest(BaseModel):
         return v
 
 
+class AssetUploadRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255)
+    url: str = Field(..., min_length=8, max_length=2048)
+
+
+class ImportDesignRequest(BaseModel):
+    title: str = Field(..., min_length=1, max_length=255)
+    url: str = Field(..., min_length=1, max_length=2048)
+    mime_type: Optional[str] = None
+
+
+class ResizeDesignRequest(BaseModel):
+    design_id: str = Field(..., min_length=1)
+    width: int = Field(..., ge=40, le=8000)
+    height: int = Field(..., ge=40, le=8000)
+
+
 class CanvaAPIError(Exception):
     def __init__(
         self,
@@ -161,30 +178,26 @@ class CanvaClient:
             )
 
     def _parse_design(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        created_at = datetime.now(timezone.utc).isoformat()
-        updated_at = datetime.now(timezone.utc).isoformat()
-        if "created_at" in data:
+        # Handle created_at/updated_at as either ISO string or Unix timestamp
+        def _parse_ts(val: Any) -> str:
+            if val is None:
+                return datetime.now(timezone.utc).isoformat()
+            if isinstance(val, (int, float)):
+                return datetime.fromtimestamp(val, tz=timezone.utc).isoformat()
             try:
-                created_at = datetime.fromisoformat(
-                    data["created_at"].replace("Z", "+00:00")
-                ).isoformat()
+                return datetime.fromisoformat(str(val).replace("Z", "+00:00")).isoformat()
             except (ValueError, AttributeError):
-                pass
-        if "updated_at" in data:
-            try:
-                updated_at = datetime.fromisoformat(
-                    data["updated_at"].replace("Z", "+00:00")
-                ).isoformat()
-            except (ValueError, AttributeError):
-                pass
+                return datetime.now(timezone.utc).isoformat()
+
+        urls = data.get("urls", {})
         return {
-            "id": data["id"],
+            "id": data.get("id", ""),
             "title": data.get("title", "Untitled"),
-            "created_at": created_at,
-            "updated_at": updated_at,
+            "created_at": _parse_ts(data.get("created_at")),
+            "updated_at": _parse_ts(data.get("updated_at")),
             "width": data.get("width", 0),
             "height": data.get("height", 0),
-            "url": data.get("urls", {}).get("edit", data.get("url", "")),
+            "url": urls.get("edit_url", urls.get("edit", data.get("url", ""))),
             "thumbnail_url": data.get("thumbnail", {}).get("url"),
             "type": data.get("type"),
             "owner_id": data.get("owner", {}).get("id"),
@@ -196,19 +209,48 @@ class CanvaClient:
             return await self._create_design_via_autofill(request)
         return await self._create_design_regular(request)
 
+    # Preset → dimensions mapping for presets that aren't native Canva design types
+    _PRESET_DIMENSIONS = {
+        "instagram_post": (1080, 1080),
+        "instagram_story": (1080, 1920),
+        "facebook_post": (1200, 630),
+        "facebook_cover": (820, 312),
+        "twitter_post": (1200, 675),
+        "linkedin_banner": (1584, 396),
+        "youtube_thumbnail": (1280, 720),
+        "a4": (595, 842),
+        "a3": (842, 1191),
+        "us_letter": (612, 792),
+    }
+    # Presets that map directly to Canva's native design types
+    _NATIVE_PRESETS = {"presentation", "doc", "email", "whiteboard"}
+
     async def _create_design_regular(self, request: CreateDesignRequest) -> Dict[str, Any]:
-        payload: Dict[str, Any] = {"title": request.title}
+        payload: Dict[str, Any] = {"type": "type_and_asset"}
+        if request.title:
+            payload["title"] = request.title
         if request.preset and request.preset.value != "custom":
-            payload["preset"] = request.preset.value
+            preset_val = request.preset.value
+            if preset_val in self._NATIVE_PRESETS:
+                payload["design_type"] = {"type": "preset", "name": preset_val}
+            elif preset_val in self._PRESET_DIMENSIONS:
+                w, h = self._PRESET_DIMENSIONS[preset_val]
+                payload["design_type"] = {"type": "custom", "width": w, "height": h}
+            else:
+                payload["design_type"] = {"type": "preset", "name": preset_val}
         elif request.size:
-            payload["width"] = request.size.width
-            payload["height"] = request.size.height
-            payload["unit"] = request.size.unit.value
+            payload["design_type"] = {
+                "type": "custom",
+                "width": request.size.width,
+                "height": request.size.height,
+            }
         if request.template_id:
-            payload["template_id"] = request.template_id
+            payload["asset_id"] = request.template_id
         response = await self.client.post("/designs", json=payload)
         await self._handle_error(response)
-        return self._parse_design(response.json())
+        data = response.json()
+        design = data.get("design", data)
+        return self._parse_design(design)
 
     async def _create_design_via_autofill(self, request: CreateDesignRequest) -> Dict[str, Any]:
         payload = {
@@ -267,28 +309,28 @@ class CanvaClient:
     async def get_design(self, design_id: str) -> Dict[str, Any]:
         response = await self.client.get(f"/designs/{design_id}")
         await self._handle_error(response)
-        return self._parse_design(response.json())
+        data = response.json()
+        return self._parse_design(data.get("design", data))
 
     async def export_design(self, request: ExportDesignRequest) -> Dict[str, Any]:
-        payload: Dict[str, Any] = {"format": request.format.value}
-        if request.width:
-            payload["width"] = request.width
-        if request.height:
-            payload["height"] = request.height
+        fmt_obj: Dict[str, Any] = {"type": request.format.value}
         if request.quality:
-            payload["quality"] = request.quality
+            fmt_obj["export_quality"] = "pro"
         if request.pages:
-            payload["pages"] = request.pages
-        response = await self.client.post(
-            f"/designs/{request.design_id}/exports", json=payload
-        )
+            fmt_obj["pages"] = request.pages
+        payload: Dict[str, Any] = {
+            "design_id": request.design_id,
+            "format": fmt_obj,
+        }
+        response = await self.client.post("/exports", json=payload)
         await self._handle_error(response)
         data = response.json()
-        job_id = data["id"]
-        status = ExportStatus(data.get("status", "pending"))
-        if status not in (ExportStatus.COMPLETED, ExportStatus.FAILED):
-            return await self._poll_export_job(job_id, request.design_id, request.format.value)
-        return self._build_export_result(data, request.design_id, request.format.value)
+        job = data.get("job", data)
+        job_id = job["id"]
+        status = job.get("status", "in_progress")
+        if status in ("success", "failed"):
+            return self._build_export_result(job, request.design_id, request.format.value)
+        return await self._poll_export_job(job_id, request.design_id, request.format.value)
 
     async def _poll_export_job(
         self, job_id: str, design_id: str, fmt: str
@@ -298,10 +340,11 @@ class CanvaClient:
             response = await self.client.get(f"/exports/{job_id}")
             await self._handle_error(response)
             data = response.json()
-            status = ExportStatus(data.get("status", "pending"))
-            if status in (ExportStatus.COMPLETED, ExportStatus.FAILED):
-                return self._build_export_result(data, design_id, fmt)
-            logger.debug(f"Export job {job_id} status={status.value} (attempt {attempt + 1})")
+            job = data.get("job", data)
+            status = job.get("status", "in_progress")
+            if status in ("success", "failed"):
+                return self._build_export_result(job, design_id, fmt)
+            logger.debug(f"Export job {job_id} status={status} (attempt {attempt + 1})")
             await asyncio.sleep(EXPORT_POLL_INTERVAL)
         raise CanvaAPIError(
             f"Export job {job_id} did not complete within {DEFAULT_EXPORT_TIMEOUT}s",
@@ -311,16 +354,225 @@ class CanvaClient:
     def _build_export_result(
         self, data: Dict[str, Any], design_id: str, fmt: str
     ) -> Dict[str, Any]:
+        urls = data.get("urls", [])
+        error = data.get("error", {})
         return {
             "job_id": data.get("id", ""),
             "status": data.get("status", "unknown"),
             "design_id": design_id,
             "format": fmt,
-            "download_url": data.get("url"),
-            "file_size_bytes": data.get("file_size_bytes"),
-            "error_code": data.get("error_code"),
-            "error_message": data.get("error_message"),
+            "download_url": urls[0] if urls else None,
+            "download_urls": urls,
+            "error_code": error.get("code"),
+            "error_message": error.get("message"),
         }
+
+    # ------------------------------------------------------------------
+    # Asset uploads
+    # ------------------------------------------------------------------
+
+    async def upload_asset_url(self, request: AssetUploadRequest) -> Dict[str, Any]:
+        payload = {"name": request.name, "url": request.url}
+        response = await self.client.post("/url-asset-uploads", json=payload)
+        await self._handle_error(response)
+        data = response.json()
+        job = data.get("job", data)
+        if job.get("status") == "success":
+            return self._build_asset_result(job)
+        return await self._poll_asset_job(job["id"])
+
+    async def _poll_asset_job(self, job_id: str) -> Dict[str, Any]:
+        max_attempts = DEFAULT_EXPORT_TIMEOUT // EXPORT_POLL_INTERVAL
+        for attempt in range(max_attempts):
+            response = await self.client.get(f"/url-asset-uploads/{job_id}")
+            await self._handle_error(response)
+            job = response.json().get("job", response.json())
+            if job.get("status") == "success":
+                return self._build_asset_result(job)
+            if job.get("status") == "failed":
+                err = job.get("error", {})
+                raise CanvaAPIError(
+                    err.get("message", "Asset upload failed"),
+                    error_code=err.get("code", "ASSET_UPLOAD_FAILED"),
+                )
+            await asyncio.sleep(EXPORT_POLL_INTERVAL)
+        raise CanvaAPIError(f"Asset upload job {job_id} timed out", error_code="ASSET_UPLOAD_TIMEOUT")
+
+    def _build_asset_result(self, job: Dict[str, Any]) -> Dict[str, Any]:
+        asset = job.get("asset", {})
+        return {
+            "job_id": job.get("id", ""),
+            "status": job.get("status", "unknown"),
+            "asset_id": asset.get("id"),
+            "name": asset.get("name"),
+            "type": asset.get("type"),
+            "thumbnail_url": asset.get("thumbnail", {}).get("url"),
+        }
+
+    # ------------------------------------------------------------------
+    # Autofill (first-class)
+    # ------------------------------------------------------------------
+
+    async def create_autofill(
+        self, brand_template_id: str, data: Dict[str, Any], title: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        payload: Dict[str, Any] = {"brand_template_id": brand_template_id, "data": data}
+        if title:
+            payload["title"] = title
+        response = await self.client.post("/autofills", json=payload)
+        await self._handle_error(response)
+        job = response.json().get("job", response.json())
+        if job.get("status") == "success":
+            return self._parse_autofill_result(job)
+        return await self._poll_autofill_job_v2(job["id"])
+
+    async def _poll_autofill_job_v2(self, job_id: str) -> Dict[str, Any]:
+        max_attempts = DEFAULT_EXPORT_TIMEOUT // EXPORT_POLL_INTERVAL
+        for attempt in range(max_attempts):
+            response = await self.client.get(f"/autofills/{job_id}")
+            await self._handle_error(response)
+            job = response.json().get("job", response.json())
+            if job.get("status") == "success":
+                return self._parse_autofill_result(job)
+            if job.get("status") == "failed":
+                err = job.get("error", {})
+                raise CanvaAPIError(
+                    err.get("message", "Autofill failed"),
+                    error_code=err.get("code", "AUTOFILL_FAILED"),
+                )
+            await asyncio.sleep(EXPORT_POLL_INTERVAL)
+        raise CanvaAPIError(f"Autofill job {job_id} timed out", error_code="AUTOFILL_TIMEOUT")
+
+    def _parse_autofill_result(self, job: Dict[str, Any]) -> Dict[str, Any]:
+        result = job.get("result", {})
+        design = result.get("design", {})
+        urls = design.get("urls", {})
+        return {
+            "job_id": job.get("id", ""),
+            "status": job.get("status", "unknown"),
+            "design_id": design.get("id"),
+            "title": design.get("title"),
+            "url": urls.get("edit_url", design.get("url", "")),
+            "view_url": urls.get("view_url"),
+            "thumbnail_url": design.get("thumbnail", {}).get("url"),
+        }
+
+    # ------------------------------------------------------------------
+    # Brand template dataset
+    # ------------------------------------------------------------------
+
+    async def get_brand_template_dataset(self, brand_template_id: str) -> Dict[str, Any]:
+        response = await self.client.get(f"/brand-templates/{brand_template_id}/dataset")
+        await self._handle_error(response)
+        return response.json()
+
+    # ------------------------------------------------------------------
+    # Design import (URL)
+    # ------------------------------------------------------------------
+
+    async def import_design_url(self, request: ImportDesignRequest) -> Dict[str, Any]:
+        payload: Dict[str, Any] = {"title": request.title, "url": request.url}
+        if request.mime_type:
+            payload["mime_type"] = request.mime_type
+        response = await self.client.post("/url-imports", json=payload)
+        await self._handle_error(response)
+        job = response.json().get("job", response.json())
+        if job.get("status") == "success":
+            return self._parse_import_result(job)
+        return await self._poll_import_job(job["id"])
+
+    async def _poll_import_job(self, job_id: str) -> Dict[str, Any]:
+        max_attempts = DEFAULT_EXPORT_TIMEOUT // EXPORT_POLL_INTERVAL
+        for attempt in range(max_attempts):
+            response = await self.client.get(f"/url-imports/{job_id}")
+            await self._handle_error(response)
+            job = response.json().get("job", response.json())
+            if job.get("status") == "success":
+                return self._parse_import_result(job)
+            if job.get("status") == "failed":
+                err = job.get("error", {})
+                raise CanvaAPIError(
+                    err.get("message", "Design import failed"),
+                    error_code=err.get("code", "IMPORT_FAILED"),
+                )
+            await asyncio.sleep(EXPORT_POLL_INTERVAL)
+        raise CanvaAPIError(f"Import job {job_id} timed out", error_code="IMPORT_TIMEOUT")
+
+    def _parse_import_result(self, job: Dict[str, Any]) -> Dict[str, Any]:
+        result = job.get("result", {})
+        designs = result.get("designs", [])
+        parsed = []
+        for d in designs:
+            urls = d.get("urls", {})
+            parsed.append({
+                "id": d.get("id"),
+                "title": d.get("title"),
+                "url": urls.get("edit_url", d.get("url", "")),
+                "view_url": urls.get("view_url"),
+                "thumbnail_url": d.get("thumbnail", {}).get("url"),
+                "page_count": d.get("page_count"),
+            })
+        return {
+            "job_id": job.get("id", ""),
+            "status": job.get("status", "unknown"),
+            "designs": parsed,
+        }
+
+    # ------------------------------------------------------------------
+    # Resize
+    # ------------------------------------------------------------------
+
+    async def resize_design(self, request: ResizeDesignRequest) -> Dict[str, Any]:
+        payload = {
+            "design_id": request.design_id,
+            "design_type": {"type": "custom", "width": request.width, "height": request.height},
+        }
+        response = await self.client.post("/resizes", json=payload)
+        await self._handle_error(response)
+        job = response.json().get("job", response.json())
+        if job.get("status") == "success":
+            return self._parse_resize_result(job)
+        return await self._poll_resize_job(job["id"])
+
+    async def _poll_resize_job(self, job_id: str) -> Dict[str, Any]:
+        max_attempts = DEFAULT_EXPORT_TIMEOUT // EXPORT_POLL_INTERVAL
+        for attempt in range(max_attempts):
+            response = await self.client.get(f"/resizes/{job_id}")
+            await self._handle_error(response)
+            job = response.json().get("job", response.json())
+            if job.get("status") == "success":
+                return self._parse_resize_result(job)
+            if job.get("status") == "failed":
+                err = job.get("error", {})
+                raise CanvaAPIError(
+                    err.get("message", "Resize failed"),
+                    error_code=err.get("code", "RESIZE_FAILED"),
+                )
+            await asyncio.sleep(EXPORT_POLL_INTERVAL)
+        raise CanvaAPIError(f"Resize job {job_id} timed out", error_code="RESIZE_TIMEOUT")
+
+    def _parse_resize_result(self, job: Dict[str, Any]) -> Dict[str, Any]:
+        result = job.get("result", {})
+        design = result.get("design", {})
+        urls = design.get("urls", {})
+        return {
+            "job_id": job.get("id", ""),
+            "status": job.get("status", "unknown"),
+            "design_id": design.get("id"),
+            "title": design.get("title"),
+            "url": urls.get("edit_url", design.get("url", "")),
+            "view_url": urls.get("view_url"),
+            "thumbnail_url": design.get("thumbnail", {}).get("url"),
+        }
+
+    # ------------------------------------------------------------------
+    # Design pages
+    # ------------------------------------------------------------------
+
+    async def get_design_pages(self, design_id: str) -> Dict[str, Any]:
+        response = await self.client.get(f"/designs/{design_id}/pages")
+        await self._handle_error(response)
+        return response.json()
 
     async def close(self):
         await self.client.aclose()

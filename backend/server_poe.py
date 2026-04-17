@@ -154,7 +154,7 @@ async def poe_list_models(
 @mcp.tool()
 async def poe_chat(
     prompt: str,
-    model: str = "Claude-Sonnet-4-5",
+    model: str = "Claude-Sonnet-4-6",
     system: Optional[str] = None,
     temperature: Optional[float] = None,
     max_tokens: Optional[int] = None,
@@ -167,7 +167,7 @@ async def poe_chat(
 
     Args:
         prompt: The user message to send
-        model: Poe model ID (default: Claude-Sonnet-4-5). Use poe_list_models to browse.
+        model: Poe model ID (default: Claude-Sonnet-4-6). Use poe_list_models to browse.
         system: Optional system prompt to prepend
         temperature: Sampling temperature 0-2 (optional)
         max_tokens: Maximum tokens to generate (optional)

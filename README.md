@@ -22,7 +22,7 @@ The project consists of several key components:
 
 - **MCP Python Data Analysis Server**: Comprehensive data analysis toolkit including CSV loading, data profiling, filtering, grouping/aggregation, outlier detection, data type conversion, statistical hypothesis testing, and visualization (base64 images) for complete analytical workflows.
 
-- **MCP Canva Design Server**: Create, browse, and export Canva designs directly from chat or autonomous tasks. Supports all standard size presets (Instagram, YouTube, presentation, A4, and more), custom dimensions, brand template autofill, and export to PNG, JPG, PDF, SVG, MP4, or GIF. Requires a Canva Personal Access Token.
+- **MCP Canva Design Server**: Create, browse, export, import, resize, and autofill Canva designs directly from chat or autonomous tasks. Supports standard size presets (Instagram, YouTube, presentation, and more), custom dimensions, brand template autofill (Enterprise), asset uploads, design imports (PDF/PPTX/DOCX/PSD), and export to PNG, JPG, PDF, PPTX, SVG, MP4, or GIF. Requires a Canva Connect API access token (OAuth 2.0).
 
 - **MCP Figma Design Server**: Read Figma files, extract specific nodes, export frames and components as images (PNG/JPG/SVG/PDF), manage comments, and extract the full design system (color tokens, typography, spacing, components) — all from chat or tasks. Requires a Figma Personal Access Token.
 
@@ -66,7 +66,7 @@ This architecture demonstrates how MCP enables local models to access external t
 - 📈 **Live Task Progress**: Tasks stream progress via SSE; per‑step outputs (tables/images/text) render in the UI.
 - 🧩 **LLM‑only Steps (No MCP)**: Tasks can include steps that run directly on Ollama (e.g., summaries/reasoning) without using any MCP tool.
 - 🚦 **Priority Task Queue**: Memory-safe task execution with priority scheduling - scheduled tasks run first, user tasks queue behind them, only one task executes at a time to prevent system overload, especially important for local, memory-constrained systems.
-- 🎨 **Canva Design Tools (MCP)**: Create Canva designs from chat or tasks using standard presets (Instagram, YouTube thumbnail, presentation, A4, and more) or custom dimensions. Browse existing designs, retrieve editor links, and export to PNG, JPG, PDF, SVG, MP4, or GIF — all without leaving Osoba. Requires a Canva Personal Access Token.
+- 🎨 **Canva Design Tools (MCP)**: Create Canva designs from chat or tasks using standard presets (Instagram, YouTube thumbnail, presentation, A4, and more) or custom dimensions. Browse existing designs, upload assets, import files (PDF/PPTX/DOCX/PSD) as editable designs, resize designs for different platforms, autofill brand templates, and export to PNG, JPG, PDF, PPTX, SVG, MP4, or GIF — all without leaving Osoba. Requires a Canva Connect API access token.
 - 🖼️ **Figma Design Tools (MCP)**: Read Figma file structures, extract specific nodes by ID, export frames and components as images, list and post comments, and extract the full design system (color, typography, spacing tokens and component catalog). Useful for design review workflows, design-to-code handoffs, and automated design auditing. Requires a Figma Personal Access Token.
 - ✨ **Codex Workspace (MCP)**: Launch Codex to generate/edit files in an isolated workspace; inline run status in chat; artifacts persisted for review; gated on OpenAI key.
 - 🗓️ **Scheduled Tasks (Timezone‑Aware)**: Recurring cron or one‑time schedules computed in local timezone with DST safety; auto‑disable after first run for one‑time schedules; “Run now” with model override.
@@ -77,10 +77,10 @@ This architecture demonstrates how MCP enables local models to access external t
 
 The task system has **full access to all MCP tools** available in the chat interface, enabling autonomous execution of complex workflows:
 
-**Available Tools (44 total)**:
+**Available Tools (50 total)**:
 - **Web Search** (5 tools): Basic search, smart content extraction, image search, news search, direct URL fetch
 - **Python Data Analysis** (17 tools): Data loading, inspection, cleaning, transformation, statistical analysis, visualization
-- **Canva Design** (4 tools): Create designs, list designs, get design details, export to file
+- **Canva Design** (10 tools): Create designs, list designs, get design details, export to file, upload assets, autofill brand templates, get template fields, import designs, resize designs, get design pages
 - **Figma Design** (6 tools): Get file structure, get nodes, export images, list comments, post comment, extract design system
 - **HubSpot Business** (2 tools): Create/update marketing emails (requires OAuth)
 - **Codex Workspace** (7 tools): Code generation and workspace management (requires OpenAI API key)
@@ -157,7 +157,7 @@ Optional (enable additional tools):
 - Python data analysis: `pandas`, `numpy`, `matplotlib`, `seaborn`
 - YouTube transcripts: `youtube-transcript-api`, `pytube`, `yt-dlp`, `requests`
 - HubSpot OAuth: valid OAuth app (client ID/secret) and redirect URL
-- Canva Design: Canva Personal Access Token (from [Canva Developer Portal](https://www.canva.com/developers/connect/))
+- Canva Design: Canva Connect API access token (see [Setup instructions](#canva-design-tools-mcp))
 - Figma Design: Figma Personal Access Token (from Figma Account Settings → Security → Personal access tokens)
 - Codex Workspace: Codex CLI available on PATH (or set `CODEX_BIN`), OpenAI API key configured
 
@@ -214,7 +214,7 @@ Optional (enable additional tools):
         DB_NAME=your_db_name
 
         # Optional: Canva Design Tools (backend/server_canva.py)
-        # Get your token from: https://www.canva.com/developers/connect/
+        # Get your token from: https://www.canva.com/developers/
         CANVA_API_TOKEN=your_canva_personal_access_token_here
 
         # Optional: Figma Design Tools (backend/server_figma.py)
@@ -327,7 +327,7 @@ Optional (enable additional tools):
     - Summaries are generated on‑demand by your chosen model (see Settings → Summaries) and are stored for reuse; only stored summaries are used for context.
 -   For YouTube: paste a video URL. The transcript is fetched and saved to the conversation for follow-ups.
 -   For HubSpot: click “Connect HubSpot” to complete OAuth, then describe the email to create/update.
--   For Canva: set `CANVA_API_TOKEN` in `.env`, then ask the AI to create a design (e.g., “Create a YouTube thumbnail called 'AI in 2025'”), list your designs, or export a design to PDF.
+-   For Canva: set `CANVA_API_TOKEN` in `.env`, then ask the AI to create a design (e.g., “Create a YouTube thumbnail called 'AI in 2025'”), list your designs, upload assets, import files, or export a design to PDF.
 -   For Figma: set `FIGMA_ACCESS_TOKEN` in `.env`, then ask the AI to read a Figma file (e.g., “Get the structure of Figma file ABC123”), export specific frames as images, extract the design system tokens, or list/post comments.
 -   For Python: upload a CSV file when prompted; follow-up questions reuse the loaded DataFrame for advanced analysis including filtering, grouping, outlier detection, statistical testing, and visualization.
 -   Manage conversations using the sidebar (create new, select, rename, delete, pin for context).
@@ -906,7 +906,7 @@ The smart search feature is **automatically enabled** for all web searches - use
 - The Model Picker shows models by provider. Non‑Ollama models only appear once the provider is configured.
 - Provider model naming/prefixes (examples):
   - Ollama: `llama3.1` (no prefix).
-  - OpenAI: `openai/gpt-5.2`.
+  - OpenAI: `openai/gpt-5.4`.
   - Anthropic: `anthropic/claude-haiku-4-5`.
   - Google: `gemini/gemini-flash-latest`.
   - OpenRouter: `openrouter/meta-llama/llama-3.3-70b-instruct`.
@@ -962,31 +962,45 @@ Frontend UX notes:
 
 ## Canva Design Tools (MCP)
 
-Create, browse, and export Canva designs without leaving Osoba. The Canva MCP server connects to the [Canva Connect API](https://www.canva.com/developers/connect/) using your Personal Access Token.
+Create, browse, import, resize, and export Canva designs without leaving Osoba. The Canva MCP server connects to the [Canva Connect API](https://www.canva.com/developers/connect/) using an OAuth 2.0 access token.
 
 ### Setup
 
-Add your token to `backend/.env`:
+1. Go to [canva.com/developers](https://www.canva.com/developers/) and log in (MFA required).
+2. Navigate to [Your integrations](https://www.canva.com/developers/integrations) → **Create an integration**.
+3. Under **Scopes**, enable: `design:content` (Read and Write), `design:meta` (Read), `asset` (Read and Write). For autofill, also enable `brandtemplate:meta` (Read) and `brandtemplate:content` (Read).
+4. Under **Authentication**, add a redirect URL (e.g. `http://127.0.0.1:3000/redirect`).
+5. Generate a test token: go to any [API reference page](https://www.canva.dev/docs/connect/api-reference/designs/list-designs/) → scroll to "Try it out" → click **"Generate an access token"** → complete the in-browser OAuth flow → copy the token.
+6. Add the token to `backend/.env`:
 
 ```dotenv
-CANVA_API_TOKEN=your_canva_personal_access_token_here
+CANVA_API_TOKEN=your_access_token_here
 ```
 
-Get a token at [canva.com/developers/connect](https://www.canva.com/developers/connect/). The backend starts the Canva service automatically alongside all other MCP services — no separate process needed. To disable it without removing the token, set `DISABLED_MCP_SERVICES=canva_service` in `.env`.
+> **Note:** Test tokens expire after 4 hours. For persistent use, you would need to implement the full OAuth 2.0 Authorization Code flow with refresh tokens.
+
+The backend starts the Canva service automatically alongside all other MCP services — no separate process needed. To disable it without removing the token, set `DISABLED_MCP_SERVICES=canva_service` in `.env`.
 
 ### Tools
 
 | Tool | Parameters | What it does |
 |------|-----------|--------------|
-| `create_design` | `title`, `preset`, `width?`, `height?`, `unit?`, `template_id?`, `brand_template_id?` | Creates a new Canva design and returns its editor URL and thumbnail |
-| `list_designs` | `limit?`, `page_token?` | Lists designs in the account with pagination support |
-| `get_design` | `design_id` | Retrieves metadata and the editor URL for a specific design |
-| `export_design` | `design_id`, `format?`, `width?`, `height?`, `quality?`, `pages?` | Exports a design and returns a download URL |
+| `create_design` | `title`, `preset?`, `width?`, `height?`, `unit?`, `template_id?` | Creates a new blank Canva design at the specified dimensions |
+| `list_designs` | `limit?`, `page_token?` | Lists designs in the account with pagination |
+| `get_design` | `design_id` | Retrieves metadata and editor URL for a design |
+| `get_design_pages` | `design_id` | Gets page metadata for multi-page designs |
+| `export_design` | `design_id`, `format?`, `pages?` | Exports a design and returns a download URL |
+| `upload_asset` | `name`, `url` | Uploads an image/video from a public URL to the user's Canva library |
+| `autofill_design` | `brand_template_id`, `data`, `title?` | Creates a design by filling a brand template with text/image data (Enterprise) |
+| `get_brand_template_dataset` | `brand_template_id` | Discovers autofillable fields in a brand template (Enterprise) |
+| `import_design` | `title`, `url`, `mime_type?` | Imports a file (PDF, PPTX, DOCX, PSD, AI, Keynote, etc.) from a URL as an editable Canva design |
+| `resize_design` | `design_id`, `width`, `height` | Creates a resized copy of an existing design (Pro/Enterprise) |
 
 **Supported presets** (for `create_design`):
 
 | Preset | Dimensions | Use case |
 |--------|-----------|----------|
+| `presentation` | Native Canva type | Slides |
 | `instagram_post` | 1080×1080 | Square posts |
 | `instagram_story` | 1080×1920 | Stories / Reels |
 | `facebook_post` | 1200×630 | Feed posts |
@@ -994,27 +1008,28 @@ Get a token at [canva.com/developers/connect](https://www.canva.com/developers/c
 | `twitter_post` | 1200×675 | Twitter/X posts |
 | `linkedin_banner` | 1584×396 | Profile banner |
 | `youtube_thumbnail` | 1280×720 | Video thumbnails |
-| `presentation` | 1920×1080 | Slides |
-| `a4` | 595×842 pt | Documents |
-| `us_letter` | 612×792 pt | US Letter documents |
-| `custom` | user-defined | Requires `width`, `height`, and `unit` (px/mm/in/pt) |
+| `a4` | 595×842 | Documents |
+| `us_letter` | 612×792 | US Letter documents |
+| `custom` | user-defined | Requires `width` and `height` in pixels |
 
-**Export formats**: `png` (default), `jpg`, `pdf`, `svg`, `mp4`, `gif`
+**Export formats**: `png` (default), `jpg`, `pdf`, `pptx`, `svg`, `mp4`, `gif`
 
 ### In Chat
 
-With the Canva service running, ask the AI naturally:
+Select the Canva tool from the ✨ Tool Selector, then ask naturally:
 
-- *"Create a YouTube thumbnail titled 'The Future of AI'"*
 - *"List my recent Canva designs"*
+- *"Create a YouTube thumbnail titled 'The Future of AI'"*
 - *"Export design DABcd1234 to PDF"*
-- *"Create an Instagram story with custom dimensions 1080×1920"*
+- *"Upload this image to my Canva library: https://example.com/photo.jpg"*
+- *"Get the pages of design DABcd1234"*
+- *"Import this presentation into Canva: https://example.com/deck.pptx"*
 
-The AI calls the appropriate tool, then responds with the design's editor URL so you can open it directly in Canva.
+The AI selects the appropriate tool, executes it, and responds with results (editor URLs, download links, asset IDs, etc.).
 
 ### In Tasks
 
-Canva tools are available to the task planner for multi-step autonomous workflows. The planner recognises these tool aliases: `design`, `canva_create`, `export`, `canva_export`, `canva_list`, `canva_get`.
+Canva tools are available to the task planner for multi-step autonomous workflows. The planner recognises these tool aliases: `design`, `canva_create`, `export`, `canva_export`, `canva_list`, `canva_get`, `canva_upload`, `canva_autofill`, `canva_import`, `canva_resize`, `canva_pages`.
 
 Example task goals:
 - *"Research the top 5 AI tools of 2025 and create a LinkedIn banner summarising the findings"*
@@ -1027,9 +1042,9 @@ The planner will chain `web_search` → `llm.generate` → `create_design` → `
 
 | File | Purpose |
 |------|---------|
-| `backend/server_canva.py` | FastMCP server — 4 MCP tools |
+| `backend/server_canva.py` | FastMCP server — 10 MCP tools |
 | `backend/utils/canva_client.py` | Async httpx client, Pydantic models, polling logic |
-| `backend/tests/test_canva_mcp.py` | 46 unit tests (no API token required) |
+| `backend/tests/test_canva_mcp.py` | 77 unit tests (no API token required) |
 
 ## Figma Design Tools (MCP)
 
@@ -1173,14 +1188,14 @@ See `TASKS_USER_GUIDE.md` for full details.
    - Choose a model (header → Model Picker).
    - Optional: open Settings to add OpenAI/other provider keys.
    - Use the ✨ Tool Selector to run Smart Web Search, Database, YouTube, Python, HubSpot, or Codex.
-   - For Canva: set `CANVA_API_TOKEN` in `backend/.env` and ask the AI to create or export a design.
+   - For Canva: set `CANVA_API_TOKEN` in `backend/.env` and ask the AI to create, import, or export a design.
    - For Figma: set `FIGMA_ACCESS_TOKEN` in `backend/.env` and ask the AI to read a file (e.g., "Get structure of Figma file ABC123").
    - Tasks panel supports ad‑hoc and Scheduled tasks.
 
 Prereqs:
 - Ollama running for local models (pull a model, e.g., `ollama pull llama3.1`).
 - MongoDB reachable (for history/tasks).
-- For Canva: a Personal Access Token from [canva.com/developers/connect](https://www.canva.com/developers/connect/).
+- For Canva: a Canva Connect API access token (see [Setup instructions](#canva-design-tools-mcp)).
 - For Figma: a Personal Access Token from Figma Account Settings → Security → Personal access tokens.
 - For Codex: install Codex CLI and configure an OpenAI API key (via Settings or env) before starting runs.
 

@@ -75,7 +75,9 @@ class AppState:
             CANVA_SERVICE_NAME: MCPServiceConfig(
                 name=CANVA_SERVICE_NAME,
                 script_name="server_canva.py",
-                required_tools=["create_design", "list_designs", "get_design", "export_design"],
+                required_tools=["create_design", "list_designs", "get_design", "export_design",
+                                "upload_asset", "autofill_design", "get_brand_template_dataset",
+                                "import_design", "resize_design", "get_design_pages"],
                 enabled=bool(os.getenv("CANVA_API_TOKEN")),
             ),
             FIGMA_SERVICE_NAME: MCPServiceConfig(
