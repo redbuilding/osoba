@@ -1,14 +1,14 @@
 # 🔍 🤖 🌐 Osoba
 
-A powerful, modern UI that integrates local and hosted LLMs with intelligent web search and content extraction, SQL, YouTube transcript analysis, HubSpot actions, Python data analysis, Canva design creation, Figma design inspection — and a Codex MCP server for safe code scaffolding — all via the Model Context Protocol (MCP). Features include personalized AI assistance through user profiles and conversation context, a Document Knowledge Base for persistent reference material, provider settings, multi‑provider model picking, streaming chat, persistent conversations, a robust Tasks system, and Scheduled tasks with timezone‑aware timing.
+A powerful, modern UI that integrates local and hosted LLMs with intelligent web search and content extraction, SQL, YouTube transcript analysis, HubSpot actions, Python data analysis, Canva design creation, Figma design inspection, Poe multi-model AI (text, image, video, audio generation) — and a Codex MCP server for safe code scaffolding — all via the Model Context Protocol (MCP). Features include personalized AI assistance through user profiles and conversation context, a Document Knowledge Base for persistent reference material, provider settings, multi‑provider model picking, streaming chat, persistent conversations, a robust Tasks system, and Scheduled tasks with timezone‑aware timing.
 
 ## Overview
 
-Osoba showcases how to extend both local and hosted models through MCP tool use. It combines locally running LLMs via Ollama with intelligent web search and content extraction, SQL querying, YouTube transcript ingestion, HubSpot business actions, Python-based CSV analysis/visualization, Canva design creation and export, Figma file/design inspection and export — and a Codex Workspace server for code generation inside an isolated workspace. A multi‑provider layer adds OpenAI, Anthropic, Google, OpenRouter, Groq, and SambaNova. Conversations and tasks persist in MongoDB.
+Osoba showcases how to extend both local and hosted models through MCP tool use. It combines locally running LLMs via Ollama with intelligent web search and content extraction, SQL querying, YouTube transcript ingestion, HubSpot business actions, Python-based CSV analysis/visualization, Canva design creation and export, Figma file/design inspection and export, Poe multi-model AI for text chat and media generation (image, video, audio) — and a Codex Workspace server for code generation inside an isolated workspace. A multi‑provider layer adds OpenAI, Anthropic, Google, OpenRouter, Groq, and SambaNova. Conversations and tasks persist in MongoDB.
 
 The project consists of several key components:
 
-- **Backend (FastAPI)**: Manages chat logic, model provider routing, MCP service communication (including starting and managing MCP services like web search, SQL, YouTube, HubSpot, Python, Canva, Figma, Codex), tasks/scheduler, and persistence.
+- **Backend (FastAPI)**: Manages chat logic, model provider routing, MCP service communication (including starting and managing MCP services like web search, SQL, YouTube, HubSpot, Python, Canva, Figma, Poe, Codex), tasks/scheduler, and persistence.
 
 - **Frontend (React)**: A modern, responsive web interface for users to interact with the chat application.
 
@@ -25,6 +25,8 @@ The project consists of several key components:
 - **MCP Canva Design Server**: Create, browse, export, import, resize, and autofill Canva designs directly from chat or autonomous tasks. Supports standard size presets (Instagram, YouTube, presentation, and more), custom dimensions, brand template autofill (Enterprise), asset uploads, design imports (PDF/PPTX/DOCX/PSD), and export to PNG, JPG, PDF, PPTX, SVG, MP4, or GIF. Requires a Canva Connect API access token (OAuth 2.0).
 
 - **MCP Figma Design Server**: Read Figma files, extract specific nodes, export frames and components as images (PNG/JPG/SVG/PDF), manage comments, and extract the full design system (color tokens, typography, spacing, components) — all from chat or tasks. Requires a Figma Personal Access Token.
+
+- **MCP Poe AI Models Server**: Access hundreds of AI models on the Poe platform through a single OpenAI-compatible API. Generate text with frontier LLMs (Claude, GPT, Gemini, Grok, Llama), create images with models like GPT-Image-1.5, Flux, and Stable Diffusion (with aspect ratio control), generate video and audio — all from chat or tasks. Requires a Poe API key.
 
 - **MCP Codex Workspace Server**: Creates per‑run workspaces and launches the Codex CLI within an isolated directory, persists artifacts (JSONL events, manifest), enforces a configurable output policy, and exposes async run APIs for a streaming‑friendly UX. Gated on a valid OpenAI API key.
 
@@ -68,6 +70,7 @@ This architecture demonstrates how MCP enables local models to access external t
 - 🚦 **Priority Task Queue**: Memory-safe task execution with priority scheduling - scheduled tasks run first, user tasks queue behind them, only one task executes at a time to prevent system overload, especially important for local, memory-constrained systems.
 - 🎨 **Canva Design Tools (MCP)**: Create Canva designs from chat or tasks using standard presets (Instagram, YouTube thumbnail, presentation, A4, and more) or custom dimensions. Browse existing designs, upload assets, import files (PDF/PPTX/DOCX/PSD) as editable designs, resize designs for different platforms, autofill brand templates, and export to PNG, JPG, PDF, PPTX, SVG, MP4, or GIF — all without leaving Osoba. Requires a Canva Connect API access token.
 - 🖼️ **Figma Design Tools (MCP)**: Read Figma file structures, extract specific nodes by ID, export frames and components as images, list and post comments, and extract the full design system (color, typography, spacing tokens and component catalog). Useful for design review workflows, design-to-code handoffs, and automated design auditing. Requires a Figma Personal Access Token.
+- 🤖 **Poe AI Models (MCP)**: Access hundreds of AI models via the Poe platform — generate text with frontier LLMs, create images with GPT-Image-1.5, Flux, or Stable Diffusion (with 9:16/16:9 aspect ratio control), generate video and audio. Use from chat or autonomous tasks. Requires a Poe API key.
 - ✨ **Codex Workspace (MCP)**: Launch Codex to generate/edit files in an isolated workspace; inline run status in chat; artifacts persisted for review; gated on OpenAI key.
 - 🗓️ **Scheduled Tasks (Timezone‑Aware)**: Recurring cron or one‑time schedules computed in local timezone with DST safety; auto‑disable after first run for one‑time schedules; “Run now” with model override.
 
@@ -77,11 +80,12 @@ This architecture demonstrates how MCP enables local models to access external t
 
 The task system has **full access to all MCP tools** available in the chat interface, enabling autonomous execution of complex workflows:
 
-**Available Tools (50 total)**:
+**Available Tools (55 total)**:
 - **Web Search** (5 tools): Basic search, smart content extraction, image search, news search, direct URL fetch
 - **Python Data Analysis** (17 tools): Data loading, inspection, cleaning, transformation, statistical analysis, visualization
 - **Canva Design** (10 tools): Create designs, list designs, get design details, export to file, upload assets, autofill brand templates, get template fields, import designs, resize designs, get design pages
 - **Figma Design** (6 tools): Get file structure, get nodes, export images, list comments, post comment, extract design system
+- **Poe AI Models** (5 tools): List models by modality, text chat, image generation (with aspect ratio), video generation, audio generation
 - **HubSpot Business** (2 tools): Create/update marketing emails (requires OAuth)
 - **Codex Workspace** (7 tools): Code generation and workspace management (requires OpenAI API key)
 - **Database** (1 tool): Read-only SQL queries
@@ -93,6 +97,7 @@ The task system has **full access to all MCP tools** available in the chat inter
 - Advanced data analysis with outlier detection and statistical hypothesis testing
 - Canva design workflows: research a topic then automatically create and export a design
 - Figma design workflows: extract design tokens, export assets, and review file structure for design-to-code handoffs
+- Poe AI workflows: generate images with aspect ratio control, then upload to Canva or use in multi-step creative pipelines
 - Marketing automation with HubSpot integration
 - Code generation with fine-grained Codex workspace management
 - Multi-step workflows combining search, analysis, design, and generation
@@ -159,6 +164,7 @@ Optional (enable additional tools):
 - HubSpot OAuth: valid OAuth app (client ID/secret) and redirect URL
 - Canva Design: Canva Connect API access token (see [Setup instructions](#canva-design-tools-mcp))
 - Figma Design: Figma Personal Access Token (from Figma Account Settings → Security → Personal access tokens)
+- Poe AI Models: Poe API key (from [poe.com/api/keys](https://poe.com/api/keys), requires Poe subscription)
 - Codex Workspace: Codex CLI available on PATH (or set `CODEX_BIN`), OpenAI API key configured
 
 ## Installation
@@ -220,6 +226,10 @@ Optional (enable additional tools):
         # Optional: Figma Design Tools (backend/server_figma.py)
         # Get your token from Figma Account Settings → Security → Personal access tokens
         FIGMA_ACCESS_TOKEN=your_figma_personal_access_token_here
+
+        # Optional: Poe AI Models (backend/server_poe.py)
+        # Get your key from https://poe.com/api/keys (requires Poe subscription)
+        POE_API_KEY=your_poe_api_key_here
 
         # Optional: HubSpot OAuth (backend/auth_hubspot.py)
         HUBSPOT_CLIENT_ID=your_hubspot_client_id
@@ -316,7 +326,7 @@ Optional (enable additional tools):
 
 -   Open your browser to the frontend URL (e.g., `http://localhost:5173`).
 -   Use the chat interface to send messages; responses stream live with indicators when tools run.
--   Click the ✨ Tool Selector to enable one of: Smart Web Search, Database, YouTube, HubSpot, Python, Codex (requires OpenAI configured).
+-   Click the ✨ Tool Selector to enable one of: Smart Web Search, Database, YouTube, HubSpot, Python, Canva, Figma, Poe, Codex (requires OpenAI configured).
 -   Use Settings (header) to configure provider API keys and unlock non‑Ollama models and Codex.
 -   **Configure User Profile**: In Settings → User Profile, add your role, expertise areas, current projects, and communication preferences for personalized AI assistance.
 -   **Set Your Goals**: In Settings → Goals & Priorities, define your short-term, medium-term, and long-term goals (up to 2000 characters). The AI will use these goals to provide contextual assistance and proactive insights.
@@ -329,6 +339,7 @@ Optional (enable additional tools):
 -   For HubSpot: click “Connect HubSpot” to complete OAuth, then describe the email to create/update.
 -   For Canva: set `CANVA_API_TOKEN` in `.env`, then ask the AI to create a design (e.g., “Create a YouTube thumbnail called 'AI in 2025'”), list your designs, upload assets, import files, or export a design to PDF.
 -   For Figma: set `FIGMA_ACCESS_TOKEN` in `.env`, then ask the AI to read a Figma file (e.g., “Get the structure of Figma file ABC123”), export specific frames as images, extract the design system tokens, or list/post comments.
+-   For Poe: set `POE_API_KEY` in `.env`, then ask the AI to generate images (e.g., "Generate a 16:9 landscape image of a mountain sunset"), chat with frontier models, or generate video/audio.
 -   For Python: upload a CSV file when prompted; follow-up questions reuse the loaded DataFrame for advanced analysis including filtering, grouping, outlier detection, statistical testing, and visualization.
 -   Manage conversations using the sidebar (create new, select, rename, delete, pin for context).
 
@@ -1120,6 +1131,67 @@ The planner will chain `figma_get_design_system` → `llm.generate` steps automa
 | `backend/utils/figma_client.py` | Async httpx client, Pydantic models, rate limiter |
 | `backend/tests/test_figma_mcp.py` | 54 unit tests (no API token required) |
 
+## Poe AI Models (MCP)
+
+Access hundreds of AI models on the Poe platform — text, image, video, and audio generation — without leaving Osoba. The Poe MCP server connects to the [Poe OpenAI-compatible API](https://creator.poe.com/docs/api) using your API key.
+
+### Setup
+
+1. Go to [poe.com/api/keys](https://poe.com/api/keys) (requires a Poe subscription).
+2. Generate an API key.
+3. Add it to `backend/.env`:
+
+```dotenv
+POE_API_KEY=your_poe_api_key_here
+```
+
+The backend starts the Poe service automatically alongside all other MCP services — no separate process needed. To disable it without removing the key, set `DISABLED_MCP_SERVICES=poe_service` in `.env`.
+
+### Tools
+
+| Tool | Parameters | What it does |
+|------|-----------|--------------|
+| `poe_list_models` | `input_modality?`, `output_modality?`, `search?`, `limit?` | Lists available Poe models, filterable by modality (text/image/video/audio) or name |
+| `poe_chat` | `prompt`, `model?`, `system?`, `temperature?`, `max_tokens?`, `image_urls?` | Text chat with any Poe model (default: Claude-Sonnet-4-6) |
+| `poe_generate_image` | `prompt`, `model?`, `system?`, `aspect_ratio?`, `download_media?` | Generates an image and returns URLs + optional base64 data |
+| `poe_generate_video` | `prompt`, `model`, `system?`, `download_media?` | Generates a video (model required — use `poe_list_models` to find one) |
+| `poe_generate_audio` | `prompt`, `model`, `system?`, `download_media?` | Generates audio/TTS/music (model required) |
+
+**Aspect ratios** (for `poe_generate_image`): `9:16` (portrait, e.g. stories/reels), `16:9` (landscape, e.g. YouTube thumbnails). Omit for the model's default (usually 1:1 square).
+
+**Default image model**: `gpt-image-1.5` (OpenAI's latest). Other popular options include `Flux-Pro-1.1`, `DALL-E-3`, `SD3.5-Large`, and more — use `poe_list_models(output_modality="image")` to discover all available models.
+
+### In Chat
+
+Select the Poe tool from the ✨ Tool Selector, then ask naturally:
+
+- *"List the available image generation models on Poe"*
+- *"Generate a 16:9 landscape image of a futuristic cityscape at sunset"*
+- *"Use Flux-Pro to create a minimalist logo for a coffee shop"*
+- *"Generate a 9:16 portrait image of a neon-lit Tokyo alley"*
+- *"Chat with GPT-5.4 about quantum computing"*
+
+The AI selects the appropriate tool, executes it, and responds with results (image URLs, text responses, etc.).
+
+### In Tasks
+
+Poe tools are available to the task planner for multi-step autonomous workflows. The planner recognises these tool aliases: `poe`, `poe_models`, `poe_image`, `poe_video`, `poe_audio`, `poe_generate`.
+
+Example task goals:
+- *"Generate a 16:9 landscape image of a mountain sunset and upload it to my Canva library"*
+- *"Research the top AI trends of 2025, then generate an image illustrating each trend"*
+- *"List all image models on Poe, then generate the same prompt with three different models for comparison"*
+
+The planner can chain `poe_generate_image` → `upload_asset` (Canva) → `autofill_design` steps to create complete design workflows from generated images.
+
+### Files
+
+| File | Purpose |
+|------|---------|
+| `backend/server_poe.py` | FastMCP server — 5 MCP tools |
+| `backend/utils/poe_client.py` | Async httpx client, Pydantic models, media download |
+| `backend/tests/test_poe_mcp.py` | 87 unit tests (no API key required) |
+
 ## How It Works
 
 1.  The **User** interacts with the **React Frontend**.
@@ -1187,9 +1259,10 @@ See `TASKS_USER_GUIDE.md` for full details.
 3. In the app:
    - Choose a model (header → Model Picker).
    - Optional: open Settings to add OpenAI/other provider keys.
-   - Use the ✨ Tool Selector to run Smart Web Search, Database, YouTube, Python, HubSpot, or Codex.
+   - Use the ✨ Tool Selector to run Smart Web Search, Database, YouTube, Python, HubSpot, Poe, or Codex.
    - For Canva: set `CANVA_API_TOKEN` in `backend/.env` and ask the AI to create, import, or export a design.
    - For Figma: set `FIGMA_ACCESS_TOKEN` in `backend/.env` and ask the AI to read a file (e.g., "Get structure of Figma file ABC123").
+   - For Poe: set `POE_API_KEY` in `backend/.env` and ask the AI to generate images or chat with frontier models.
    - Tasks panel supports ad‑hoc and Scheduled tasks.
 
 Prereqs:
@@ -1197,6 +1270,7 @@ Prereqs:
 - MongoDB reachable (for history/tasks).
 - For Canva: a Canva Connect API access token (see [Setup instructions](#canva-design-tools-mcp)).
 - For Figma: a Personal Access Token from Figma Account Settings → Security → Personal access tokens.
+- For Poe: a Poe API key from [poe.com/api/keys](https://poe.com/api/keys) (requires Poe subscription).
 - For Codex: install Codex CLI and configure an OpenAI API key (via Settings or env) before starting runs.
 
 ## Updating

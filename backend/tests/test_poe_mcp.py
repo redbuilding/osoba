@@ -640,6 +640,73 @@ async def test_tool_poe_generate_image_missing_prompt(server_mod):
 
 
 @pytest.mark.asyncio
+async def test_tool_poe_generate_image_aspect_ratio_portrait(server_mod):
+    mock_client = AsyncMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=None)
+    mock_client.chat_completions = AsyncMock(return_value=SAMPLE_IMAGE_RESPONSE)
+
+    with patch.object(server_mod, "_make_client", return_value=mock_client):
+        result = await server_mod.poe_generate_image(
+            prompt="A tall portrait photo",
+            model="gpt-image-1.5",
+            aspect_ratio="9:16",
+            download_media=False,
+        )
+
+    assert result["status"] == "success"
+    mock_client.chat_completions.assert_called_once()
+    call_kwargs = mock_client.chat_completions.call_args[1]
+    assert call_kwargs["extra_body"] == {"aspect_ratio": "9:16"}
+
+
+@pytest.mark.asyncio
+async def test_tool_poe_generate_image_aspect_ratio_landscape(server_mod):
+    mock_client = AsyncMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=None)
+    mock_client.chat_completions = AsyncMock(return_value=SAMPLE_IMAGE_RESPONSE)
+
+    with patch.object(server_mod, "_make_client", return_value=mock_client):
+        result = await server_mod.poe_generate_image(
+            prompt="A wide landscape",
+            model="gpt-image-1.5",
+            aspect_ratio="16:9",
+            download_media=False,
+        )
+
+    assert result["status"] == "success"
+    call_kwargs = mock_client.chat_completions.call_args[1]
+    assert call_kwargs["extra_body"] == {"aspect_ratio": "16:9"}
+
+
+@pytest.mark.asyncio
+async def test_tool_poe_generate_image_aspect_ratio_invalid(server_mod):
+    result = await server_mod.poe_generate_image(
+        prompt="A photo", model="gpt-image-1.5", aspect_ratio="4:3"
+    )
+    assert result["status"] == "error"
+    assert "aspect_ratio" in result["message"]
+
+
+@pytest.mark.asyncio
+async def test_tool_poe_generate_image_no_aspect_ratio(server_mod):
+    mock_client = AsyncMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=None)
+    mock_client.chat_completions = AsyncMock(return_value=SAMPLE_IMAGE_RESPONSE)
+
+    with patch.object(server_mod, "_make_client", return_value=mock_client):
+        result = await server_mod.poe_generate_image(
+            prompt="A photo", model="gpt-image-1.5", download_media=False,
+        )
+
+    assert result["status"] == "success"
+    call_kwargs = mock_client.chat_completions.call_args[1]
+    assert call_kwargs.get("extra_body") is None
+
+
+@pytest.mark.asyncio
 async def test_tool_poe_generate_video_success(server_mod):
     mock_client = AsyncMock()
     mock_client.__aenter__ = AsyncMock(return_value=mock_client)

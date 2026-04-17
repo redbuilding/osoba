@@ -213,6 +213,7 @@ class PoeClient:
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
         stream: bool = False,
+        extra_body: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Call Poe chat/completions. Returns the full API response dict."""
         payload: Dict[str, Any] = {
@@ -224,6 +225,8 @@ class PoeClient:
             payload["temperature"] = temperature
         if max_tokens is not None:
             payload["max_tokens"] = max_tokens
+        if extra_body:
+            payload.update(extra_body)
 
         timeout = httpx.Timeout(120.0, connect=15.0)
         async with httpx.AsyncClient(timeout=timeout) as client:

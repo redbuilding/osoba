@@ -213,6 +213,7 @@ async def _generate_media(
     max_tokens: Optional[int],
     download_media: bool,
     max_download_bytes: int,
+    extra_body: Optional[Dict[str, Any]] = None,
 ) -> dict:
     """Shared implementation for the three generate_* tools."""
     messages = _build_messages(prompt, system=system)
@@ -223,6 +224,7 @@ async def _generate_media(
             temperature=temperature,
             max_tokens=max_tokens,
             stream=False,
+            extra_body=extra_body,
         )
         text = _extract_text(resp)
         urls = extract_urls(text)
@@ -255,6 +257,7 @@ async def poe_generate_image(
     prompt: str,
     model: str = "gpt-image-1.5",
     system: Optional[str] = None,
+    aspect_ratio: Optional[str] = None,
     download_media: bool = True,
     max_download_bytes: int = POE_MAX_DOWNLOAD_BYTES,
 ) -> dict:
@@ -271,6 +274,10 @@ async def poe_generate_image(
         prompt: Image generation prompt
         model: Poe image model ID (default: gpt-image-1.5)
         system: Optional system prompt
+        aspect_ratio: Aspect ratio for the generated image. Supported values:
+            '9:16' (portrait, e.g. stories/reels) or '16:9' (landscape,
+            e.g. YouTube thumbnails). If omitted, the model uses its default
+            (usually 1:1 square).
         download_media: If True, download Poe-hosted image URLs and include
             base64 data inline (default: True)
         max_download_bytes: Maximum bytes to download per image (default: 25MB)
@@ -281,6 +288,12 @@ async def poe_generate_image(
     """
     if not prompt:
         return {"status": "error", "message": "prompt is required"}
+    VALID_ASPECTS = {"9:16", "16:9"}
+    if aspect_ratio and aspect_ratio not in VALID_ASPECTS:
+        return {"status": "error", "message": f"aspect_ratio must be one of {sorted(VALID_ASPECTS)} or omitted for default"}
+    extra_body = None
+    if aspect_ratio:
+        extra_body = {"aspect_ratio": aspect_ratio}
     try:
         return await _generate_media(
             prompt=prompt,
@@ -290,6 +303,7 @@ async def poe_generate_image(
             max_tokens=None,
             download_media=download_media,
             max_download_bytes=max_download_bytes,
+            extra_body=extra_body,
         )
     except PoeAPIError as e:
         script_logger.error(f"Poe API error in poe_generate_image: {e.message}")
