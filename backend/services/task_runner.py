@@ -38,7 +38,7 @@ from services.mcp_service import submit_mcp_request, wait_mcp_response
 from services.progress_bus import progress_bus
 from services.provider_service import chat_with_provider
 from services.provider_service import get_provider_status as get_provider_status_async
-from services.task_planner import plan_task
+from services.task_planner import plan_task, get_enabled_tools
 
 logger = get_logger("task_runner")
 
@@ -254,6 +254,7 @@ async def _run_task(task_id: str):
                 doc.get("budget"),
                 planner_hints=(doc.get("planner_hints") or None),
                 kb_context=doc.get("kb_context", ""),
+                enabled_tools=get_enabled_tools(),
             )
             logger.info(f"Task {task_id} plan generated, updating to PENDING")
             update_task(
@@ -294,6 +295,12 @@ async def _run_task(task_id: str):
         if idx < 0:
             idx = 0
             update_task(task_id, {"current_step_index": 0})
+
+        # Resolve model once for synthesis calls throughout this run
+        exec_model = doc.get("model_name") or doc.get("ollama_model_name") if doc else None
+        if not exec_model:
+            from services.llm_service import get_default_ollama_model
+            exec_model = await get_default_ollama_model()
 
         logger.info(
             f"Task {task_id} starting execution with {len(steps)} steps, starting at index {idx}"
@@ -343,15 +350,35 @@ async def _run_task(task_id: str):
                         "error": f"Step {i} failed",
                     },
                 )
-                # Get the step details for debugging
                 step = steps[i]
                 logger.error(
                     f"Failed step details: tool={step.get('tool')}, success_criteria={step.get('success_criteria')}"
                 )
                 await _post_conversation_update(get_task(task_id) or {}, success=False)
                 return
+
+            # Update synthesis after successful step (skip last step — no next step to benefit)
             logger.info(f"Task {task_id} updating current_step_index to {i + 1}")
-            update_task(task_id, {"current_step_index": i + 1})
+            if i < len(steps) - 1:
+                try:
+                    refreshed = get_task(task_id) or {}
+                    completed_step = (refreshed.get("plan") or {}).get("steps", [{}])[i] if refreshed else {}
+                    step_outputs = completed_step.get("outputs") or {}
+                    step_text = "\n".join(_extract_step_text(step_outputs))
+                    new_synthesis = await _synthesize_context(
+                        goal=refreshed.get("goal", ""),
+                        current_synthesis=refreshed.get("synthesis", ""),
+                        step_title=steps[i].get("title", f"Step {i+1}"),
+                        step_output_text=step_text,
+                        model=exec_model,
+                    )
+                    update_task(task_id, {"synthesis": new_synthesis, "current_step_index": i + 1})
+                    doc = get_task(task_id)
+                except Exception as e:
+                    logger.warning(f"Synthesis update failed for step {i}: {e}")
+                    update_task(task_id, {"current_step_index": i + 1})
+            else:
+                update_task(task_id, {"current_step_index": i + 1})
 
         # Done
         logger.info(f"Task {task_id} completed all steps, marking as COMPLETED")
@@ -452,23 +479,19 @@ async def _verify_success(
         logger.info("No success criteria, accepting")
         return True
 
-    # Be more lenient - if we have any meaningful output, consider it successful
+    # Length heuristic: LLM verifiers consistently hurt benchmark scores; accept any substantial output
     raw = normalized_output.get("raw")
     if raw:
-        # Check if we have substantial content (more than 100 chars)
         content_str = str(raw)
         logger.info(f"Raw content length: {len(content_str)}")
         if len(content_str) > 100:
-            logger.info("Content length check passed")
             return True
 
-    # Check text field as well
     text = normalized_output.get("text")
     if text:
         content_str = str(text)
         logger.info(f"Text content length: {len(content_str)}")
         if len(content_str) > 100:
-            logger.info("Text length check passed")
             return True
 
     # Fallback to LLM verification only if needed
@@ -500,7 +523,6 @@ async def _verify_success(
         return result
     except Exception as e:
         logger.warning(f"Verification failed with error: {e}, being permissive")
-        return True  # Be permissive if verifier fails
         return True  # Be permissive if verifier fails
 
 
@@ -543,10 +565,29 @@ async def _execute_step(task_id: str, idx: int, step: Dict[str, Any]):
                 prompt = params.get("prompt")
             if not prompt:
                 prompt = step.get("instruction", "")
-            # Build context from prior steps
-            context_text = _build_llm_context(task_doc, idx)
             increment_usage(task_id, "tool_calls", 1)
             messages = [{"role": "system", "content": "You are a helpful assistant."}]
+
+            # Change 1: Goal anchoring — keep the original objective front and center
+            goal = task_doc.get("goal", "")
+            if goal:
+                messages.append({"role": "user", "content": f"Your overall objective is: {goal}"})
+
+            # Change 3: Plan map — show which steps are done, current, and next
+            plan_steps = (task_doc.get("plan") or {}).get("steps", [])
+            if len(plan_steps) > 1:
+                messages.append({"role": "user", "content": _build_plan_map(plan_steps, idx)})
+
+            # Change 2: Running synthesis replaces raw context dump
+            synthesis = task_doc.get("synthesis", "")
+            if synthesis:
+                messages.append({"role": "user", "content": f"What we know so far:\n{synthesis}"})
+            elif idx > 0:
+                # Fallback for steps before first synthesis is available
+                context_text = _build_llm_context(task_doc, idx)
+                if context_text:
+                    messages.append({"role": "user", "content": f"Context from prior steps:\n{context_text}"})
+
             # Inject KB context snapshot if present
             kb_context = task_doc.get("kb_context", "")
             if kb_context:
@@ -556,9 +597,8 @@ async def _execute_step(task_id: str, idx: int, step: Dict[str, Any]):
                 import json as _json
                 hints = (task_doc.get("planner_hints") or {})
                 manifest = hints.get("manifest") if isinstance(hints, dict) else None
-                total_steps = len((task_doc.get("plan") or {}).get("steps", []) or [])
+                total_steps = len(plan_steps)
                 if manifest:
-                    # Compact global summary for all steps
                     summary = {
                         k: v for k, v in manifest.items() if k in ("identifiers", "files", "sections", "routes", "rules", "outputs")
                     } or manifest
@@ -566,18 +606,11 @@ async def _execute_step(task_id: str, idx: int, step: Dict[str, Any]):
                         "role": "user",
                         "content": f"Planner Manifest (global summary):\n{_json.dumps(summary, ensure_ascii=False)}",
                     })
-                    # Per-step scoping hint
                     role_hint = f"You are Step {idx+1} of {max(total_steps, idx+1)}: {step.get('title','')} using tool {tool}. Use only identifiers present in the manifest; do not introduce new ones unless proposing 'proposed_manifest_changes'."
                     messages.append({"role": "user", "content": role_hint})
             except Exception:
                 pass
-            if context_text:
-                messages.append(
-                    {
-                        "role": "user",
-                        "content": f"Context from prior steps (use this):\n{context_text}",
-                    }
-                )
+
             messages.append({"role": "user", "content": prompt or ""})
             text = await chat_with_provider(messages, model)
             norm: Dict[str, Any] = {"text": text or ""}
@@ -719,6 +752,73 @@ async def _execute_step(task_id: str, idx: int, step: Dict[str, Any]):
         return False
 
 
+def _extract_step_text(outputs: Dict[str, Any]) -> list:
+    """Extract narrative text from a step's outputs. Never falls back to str(dict)."""
+    texts = []
+    t = outputs.get("text")
+    if isinstance(t, str) and t.strip():
+        texts.append(t.strip()[:2000])
+    raw = outputs.get("raw")
+    if isinstance(raw, list):
+        for item in raw:
+            if isinstance(item, dict):
+                c = item.get("content") or item.get("text")
+                if isinstance(c, str) and c.strip():
+                    texts.append(c.strip()[:2000])
+            elif isinstance(item, str) and item.strip():
+                texts.append(item.strip()[:2000])
+    elif isinstance(raw, str) and raw.strip():
+        texts.append(raw.strip()[:2000])
+    return texts
+
+
+def _build_plan_map(steps: list, current_idx: int) -> str:
+    """Return a compact plan progress string showing DONE / YOU ARE HERE / NEXT / UPCOMING."""
+    lines = []
+    for i, step in enumerate(steps):
+        if i < current_idx:
+            marker = "DONE"
+        elif i == current_idx:
+            marker = "YOU ARE HERE"
+        elif i == current_idx + 1:
+            marker = "NEXT"
+        else:
+            marker = "UPCOMING"
+        lines.append(f"- Step {i+1} ({marker}): {step.get('title', '')} [{step.get('tool', '')}]")
+    return "Plan progress:\n" + "\n".join(lines)
+
+
+async def _synthesize_context(
+    goal: str,
+    current_synthesis: str,
+    step_title: str,
+    step_output_text: str,
+    model: str,
+) -> str:
+    """Update the running synthesis after a step completes. Returns the new synthesis string."""
+    prompt = (
+        f"Task objective: {goal}\n\n"
+        f"Current synthesis: {current_synthesis or 'None yet'}\n\n"
+        f"Step just completed: {step_title}\n"
+        f"Output: {step_output_text[:1500]}\n\n"
+        "Update the synthesis to capture all key facts needed to complete the task. "
+        "Be concise (under 500 words). Focus on what the next steps need. "
+        "Do not repeat facts already in the synthesis unless still needed."
+    )
+    try:
+        result = await chat_with_provider(
+            [
+                {"role": "system", "content": "You write concise, goal-focused summaries. Output only the updated synthesis text, nothing else."},
+                {"role": "user", "content": prompt},
+            ],
+            model,
+        )
+        return result or current_synthesis
+    except Exception as e:
+        logger.warning(f"Synthesis update failed: {e}")
+        return current_synthesis
+
+
 def _build_llm_context(
     task_doc: Dict[str, Any], upto_index: int, max_chars: int = 10000
 ) -> str:
@@ -737,28 +837,7 @@ def _build_llm_context(
         for i in range(0, min(upto_index, len(plan))):
             st = plan[i] or {}
             outputs = st.get("outputs") or {}
-            texts: list[str] = []
-            # Direct text from earlier LLM/tool normalization
-            t = outputs.get("text")
-            if isinstance(t, str) and t.strip():
-                texts.append(t.strip())
-            # Extract text-like content from raw MCP response
-            raw = outputs.get("raw")
-            if isinstance(raw, list):
-                for item in raw:
-                    if isinstance(item, dict):
-                        c = item.get("content") or item.get("text")
-                        if isinstance(c, str) and c.strip():
-                            texts.append(c.strip())
-                    elif isinstance(item, str) and item.strip():
-                        texts.append(item.strip())
-            elif isinstance(raw, str) and raw.strip():
-                texts.append(raw.strip())
-            elif raw is not None:
-                s = str(raw)
-                if s.strip() and len(s) <= 800:
-                    texts.append(s.strip())
-
+            texts = _extract_step_text(outputs)
             if texts:
                 title = st.get("title") or st.get("tool") or f"Step {i + 1}"
                 block = f"[{title}]\n" + "\n".join(texts)

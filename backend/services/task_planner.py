@@ -1,7 +1,19 @@
 import json
-from typing import Dict, List
+from typing import Dict, List, Optional, Set
 
-from core.config import get_logger
+from core.config import (
+    CANVA_SERVICE_NAME,
+    CLI_SERVICE_NAME,
+    CODEX_SERVICE_NAME,
+    FIGMA_SERVICE_NAME,
+    HUBSPOT_SERVICE_NAME,
+    MYSQL_DB_SERVICE_NAME,
+    POE_SERVICE_NAME,
+    PYTHON_SERVICE_NAME,
+    WEB_SEARCH_SERVICE_NAME,
+    YOUTUBE_SERVICE_NAME,
+    get_logger,
+)
 from core.models import Plan, PlanStep
 from services.provider_service import chat_with_provider
 from services.llm_service import get_default_ollama_model
@@ -223,113 +235,187 @@ def _normalize_tool(name: str | None) -> str | None:
     return TOOL_ALIASES.get(key, key)
 
 
-def _tool_catalog_text() -> str:
-    return (
-        "## Web Search Tools\n"
-        "- web_search(query: string) -> {status, organic_results...}\n"
-        "- smart_search_extract(query: string, max_urls?: int, max_chars_per_url?: int) -> {extracted_content, search_summary}\n"
-        "- image_search(query: string) -> {status, images...}\n"
-        "- news_search(query: string) -> {status, news_results...}\n"
-        "- fetch_url(url: string, max_chars?: int) -> {status, content, title, url} (fetch content from a known URL)\n"
-        "\n"
-        "## Database Tools\n"
-        "- execute_sql_query_tool(query: string) -> {columns, rows} (read-only SELECT only)\n"
-        "\n"
-        "## YouTube Tools\n"
-        "- get_youtube_transcript(youtube_url: string) -> text\n"
-        "\n"
-        "## Python Data Analysis Tools\n"
-        "# Data Loading\n"
-        "- python.load_csv(csv_b64: string) -> text (returns dataframe ID)\n"
-        "\n"
-        "# Data Inspection\n"
-        "- python.get_head(df_id: string, n?: int) -> text (first N rows)\n"
-        "- python.get_data_info(df_id: string) -> text (dtypes, memory, non-null counts)\n"
-        "- python.get_descriptive_statistics(df_id: string) -> text (mean, std, min, max, quartiles)\n"
-        "- python.get_value_counts(df_id: string, column_name: string) -> text (frequency counts)\n"
-        "- python.get_correlation_matrix(df_id: string) -> text (correlation between numeric columns)\n"
-        "\n"
-        "# Data Cleaning\n"
-        "- python.check_missing_values(df_id: string) -> text (count of NaN per column)\n"
-        "- python.handle_missing_values(df_id: string, strategy: 'drop'|'fill'|'interpolate', columns?: list, value?: any) -> text\n"
-        "- python.detect_outliers(df_id: string, method: 'iqr'|'zscore', columns?: list) -> text (outlier indices)\n"
-        "- python.convert_data_types(df_id: string, type_map_json: string) -> text (convert column types)\n"
-        "\n"
-        "# Data Transformation\n"
-        "- python.rename_columns(df_id: string, rename_map_json: string) -> text\n"
-        "- python.drop_columns(df_id: string, columns_to_drop: list) -> text\n"
-        "- python.filter_dataframe(df_id: string, condition: string) -> text (pandas query syntax)\n"
-        "- python.group_and_aggregate(df_id: string, group_by: list, agg_functions: string) -> text\n"
-        "\n"
-        "# Data Analysis\n"
-        "- python.query_dataframe(df_id: string, query_string: string) -> text (may return new df_id)\n"
-        "- python.perform_hypothesis_test(df_id: string, test_type: 'ttest'|'correlation'|'chisquare', col1: string, col2?: string) -> text\n"
-        "\n"
-        "# Visualization\n"
-        "- python.create_plot(df_id: string, plot_type: 'scatter'|'histogram'|'bar'|'box', x_col: string, y_col?: string) -> image_b64\n"
-        "\n"
-        "## HubSpot Business Tools\n"
-        "- create_hubspot_marketing_email(email_json: string) -> {status, email_id} (requires OAuth)\n"
-        "- update_hubspot_marketing_email(email_id: string, updates_json: string) -> {status} (requires OAuth)\n"
-        "\n"
-        "## Codex Workspace Tools\n"
-        "- codex.run(instruction: string, model?: string, timeout_seconds?: int) -> {text, artifacts, output_policy} (high-level, requires OpenAI)\n"
-        "- codex.create_workspace(name_hint: string, keep?: bool) -> {workspace_id}\n"
-        "- codex.start_codex_run(workspace_id: string, instruction: string) -> {run_id}\n"
-        "- codex.get_codex_run(run_id: string) -> {status, summary, artifacts}\n"
-        "- codex.read_file(workspace_id: string, relative_path: string) -> text\n"
-        "- codex.get_manifest(workspace_id: string) -> {files, metadata}\n"
-        "- codex.cleanup_workspace(workspace_id: string) -> {status}\n"
-        "\n"
-        "## Canva Design Tools\n"
-        "- create_design(title: string, preset?: string, width?: int, height?: int, unit?: string, template_id?: string) -> {status, id, url, thumbnail_url}\n"
-        "  presets: instagram_post, instagram_story, facebook_post, facebook_cover, twitter_post, linkedin_banner, youtube_thumbnail, presentation, a4, a3, us_letter, custom\n"
-        "- list_designs(page_token?: string, limit?: int) -> {status, items, next_page_token}\n"
-        "- get_design(design_id: string) -> {status, id, title, url, thumbnail_url, width, height}\n"
-        "- export_design(design_id: string, format?: string, width?: int, height?: int, quality?: int, pages?: string) -> {status, download_url, job_id}\n"
-        "  formats: png, jpg, pdf, svg, mp4, gif\n"
-        "- upload_asset(name: string, url: string) -> {status, asset_id, name, type}\n"
-        "- autofill_design(brand_template_id: string, data: string, title?: string) -> {status, design_id, url}\n"
-        "  data is a JSON string of field values; use get_brand_template_dataset first to discover fields\n"
-        "- get_brand_template_dataset(brand_template_id: string) -> {status, dataset}\n"
-        "- import_design(title: string, url: string, mime_type?: string) -> {status, designs}\n"
-        "  imports PDF, PPTX, DOCX, PSD, AI, Keynote etc. from a public URL into Canva as editable designs\n"
-        "- resize_design(design_id: string, width: int, height: int) -> {status, design_id, url}\n"
-        "- get_design_pages(design_id: string) -> {status, pages}\n"
-        "\n"
-        "## Figma Design Tools\n"
-        "- figma_get_file(file_key: string, depth?: int) -> {status, name, lastModified, version, document, components, styles}\n"
-        "  file_key is found in the Figma URL: figma.com/file/{file_key}/...\n"
-        "- figma_get_nodes(file_key: string, node_ids: string, depth?: int) -> {status, name, nodes}\n"
-        "  node_ids: comma-separated IDs e.g. '1:2,3:4'\n"
-        "- figma_export_images(file_key: string, node_ids: string, format?: string, scale?: float) -> {status, images}\n"
-        "  formats: png, jpg, svg, pdf — returns map of node_id -> download URL\n"
-        "- figma_get_comments(file_key: string) -> {status, comments}\n"
-        "- figma_post_comment(file_key: string, message: string, node_id?: string, parent_id?: string) -> {status, id, message}\n"
-        "- figma_get_design_system(file_key: string) -> {status, colors, typography, spacing, effects, components}\n"
-        "\n"
-        "## Poe AI Platform Tools\n"
-        "- poe_list_models(input_modality?: string, output_modality?: string, search?: string, limit?: int) -> {status, count, models}\n"
-        "  modalities: text, image, video, audio\n"
-        "- poe_chat(prompt: string, model?: string, system?: string, temperature?: float, max_tokens?: int, image_urls?: list) -> {status, model, text}\n"
-        "  default model: Claude-Sonnet-4-6\n"
-        "- poe_generate_image(prompt: string, model?: string, system?: string, aspect_ratio?: string, download_media?: bool) -> {status, model, raw_text, extracted_urls, downloaded}\n"
-        "  default model: gpt-image-1.5; aspect_ratio: '9:16' (portrait) or '16:9' (landscape); downloaded items contain data_b64 for inline delivery\n"
-        "- poe_generate_video(prompt: string, model: string, system?: string, download_media?: bool) -> {status, model, raw_text, extracted_urls, downloaded}\n"
-        "  model required — use poe_list_models(output_modality='video') to find one\n"
-        "- poe_generate_audio(prompt: string, model: string, system?: string, download_media?: bool) -> {status, model, raw_text, extracted_urls, downloaded}\n"
-        "  model required — use poe_list_models(output_modality='audio') to find one\n"
-        "\n"
-        "## CLI System Tools\n"
-        "- cli.get_system_health() -> {platform, node, release, disk, uptime} (no args; safe system snapshot)\n"
-        "- cli.list_dir(scope: 'artifacts'|'logs'|'scripts') -> {scope, entry_count, entries} (list allowed dirs only)\n"
-        "- cli.read_log(name: string, lines?: int) -> {name, lines_returned, total_lines, content} (tail of a log file; name must be exact filename e.g. 'mcp_backend.log')\n"
-        "- cli.service_status(name: string) -> {service, status, active_state, sub_state, description} (requires service in CLI_ALLOWED_SERVICES)\n"
-        "- cli.read_workspace_file(path_within_scope: string) -> {path, size_bytes, content, truncated} (read file from artifacts dir; relative path only)\n"
-        "\n"
-        "## LLM-only Tools\n"
-        "- llm.generate(prompt?: string) -> text (runs local LLM; if prompt omitted, uses step instruction)\n"
-    )
+_CATEGORY_KEYWORDS: Dict[str, List[str]] = {
+    "web":      ["search", "research", "find", "look up", "article", "news", "website", "url", "web", "fetch", "browse"],
+    "data":     ["csv", "data", "analyz", "statistic", "correlation", "plot", "chart", "dataframe", "outlier", "hypothesis", "dataset"],
+    "canva":    ["canva", "design", "template", "brand", "poster", "social media", "instagram", "facebook", "linkedin", "thumbnail"],
+    "figma":    ["figma", "component", "design system", "token", "wireframe", "ui design", "mockup"],
+    "poe":      ["image", "picture", "photo", "illustrat", "draw", "artwork", "video", "audio", "sound", "music", "poe", "generate image", "generate video"],
+    "database": ["database", "sql", "query", "table", "mysql", "db"],
+    "codex":    ["code", "scaffold", "build app", "web app", "script", "function", "program", "codex", "repository", "init repo"],
+    "youtube":  ["youtube", "transcript", "video transcript"],
+    "hubspot":  ["email", "hubspot", "marketing", "newsletter", "campaign"],
+    "cli":      ["system", "disk", "log", "service", "health", "uptime", "cli", "server status"],
+}
+
+_SERVICE_TOOL_GROUPS: Dict[str, List[str]] = {
+    WEB_SEARCH_SERVICE_NAME: ["web_search", "smart_search_extract", "image_search", "news_search", "fetch_url"],
+    MYSQL_DB_SERVICE_NAME:   ["execute_sql_query_tool"],
+    YOUTUBE_SERVICE_NAME:    ["get_youtube_transcript"],
+    HUBSPOT_SERVICE_NAME:    ["create_hubspot_marketing_email", "update_hubspot_marketing_email"],
+    PYTHON_SERVICE_NAME:     [t for t in ALLOWED_TASK_TOOLS if t.startswith("python.")],
+    CODEX_SERVICE_NAME:      [t for t in ALLOWED_TASK_TOOLS if t.startswith("codex.")],
+    CANVA_SERVICE_NAME:      ["create_design", "list_designs", "get_design", "export_design",
+                               "upload_asset", "autofill_design", "get_brand_template_dataset",
+                               "import_design", "resize_design", "get_design_pages"],
+    FIGMA_SERVICE_NAME:      ["figma_get_file", "figma_get_nodes", "figma_export_images",
+                               "figma_get_comments", "figma_post_comment", "figma_get_design_system"],
+    POE_SERVICE_NAME:        ["poe_list_models", "poe_chat", "poe_generate_image",
+                               "poe_generate_video", "poe_generate_audio"],
+    CLI_SERVICE_NAME:        ["cli.get_system_health", "cli.list_dir", "cli.read_log",
+                               "cli.service_status", "cli.read_workspace_file"],
+}
+
+
+def _classify_goal_intent(goal: str) -> Set[str]:
+    """Return tool categories relevant to a goal. Always includes 'llm'. Defaults to web+llm."""
+    gl = goal.lower()
+    categories: Set[str] = {"llm"}
+    for category, keywords in _CATEGORY_KEYWORDS.items():
+        if any(kw in gl for kw in keywords):
+            categories.add(category)
+    if categories == {"llm"}:
+        categories.add("web")
+    return categories
+
+
+def get_enabled_tools(mcp_app_state=None) -> List[str]:
+    """Return the subset of ALLOWED_TASK_TOOLS whose backing MCP service is currently enabled."""
+    try:
+        from services.mcp_service import app_state as _app_state
+        state = mcp_app_state or _app_state
+        enabled: Set[str] = {"llm.generate"}
+        for service, tools in _SERVICE_TOOL_GROUPS.items():
+            cfg = state.mcp_configs.get(service)
+            if cfg and cfg.enabled:
+                enabled.update(tools)
+        return [t for t in ALLOWED_TASK_TOOLS if t in enabled]
+    except Exception:
+        return list(ALLOWED_TASK_TOOLS)
+
+
+def _tool_catalog_text(categories: Optional[Set[str]] = None) -> str:
+    _CATALOG_SECTIONS: Dict[str, str] = {
+        "web": (
+            "## Web Search Tools\n"
+            "- web_search(query: string) -> {status, organic_results...}\n"
+            "- smart_search_extract(query: string, max_urls?: int, max_chars_per_url?: int) -> {extracted_content, search_summary}\n"
+            "- image_search(query: string) -> {status, images...}\n"
+            "- news_search(query: string) -> {status, news_results...}\n"
+            "- fetch_url(url: string, max_chars?: int) -> {status, content, title, url} (fetch content from a known URL)\n"
+        ),
+        "database": (
+            "## Database Tools\n"
+            "- execute_sql_query_tool(query: string) -> {columns, rows} (read-only SELECT only)\n"
+        ),
+        "youtube": (
+            "## YouTube Tools\n"
+            "- get_youtube_transcript(youtube_url: string) -> text\n"
+        ),
+        "data": (
+            "## Python Data Analysis Tools\n"
+            "# Data Loading\n"
+            "- python.load_csv(csv_b64: string) -> text (returns dataframe ID)\n"
+            "\n"
+            "# Data Inspection\n"
+            "- python.get_head(df_id: string, n?: int) -> text (first N rows)\n"
+            "- python.get_data_info(df_id: string) -> text (dtypes, memory, non-null counts)\n"
+            "- python.get_descriptive_statistics(df_id: string) -> text (mean, std, min, max, quartiles)\n"
+            "- python.get_value_counts(df_id: string, column_name: string) -> text (frequency counts)\n"
+            "- python.get_correlation_matrix(df_id: string) -> text (correlation between numeric columns)\n"
+            "\n"
+            "# Data Cleaning\n"
+            "- python.check_missing_values(df_id: string) -> text (count of NaN per column)\n"
+            "- python.handle_missing_values(df_id: string, strategy: 'drop'|'fill'|'interpolate', columns?: list, value?: any) -> text\n"
+            "- python.detect_outliers(df_id: string, method: 'iqr'|'zscore', columns?: list) -> text (outlier indices)\n"
+            "- python.convert_data_types(df_id: string, type_map_json: string) -> text (convert column types)\n"
+            "\n"
+            "# Data Transformation\n"
+            "- python.rename_columns(df_id: string, rename_map_json: string) -> text\n"
+            "- python.drop_columns(df_id: string, columns_to_drop: list) -> text\n"
+            "- python.filter_dataframe(df_id: string, condition: string) -> text (pandas query syntax)\n"
+            "- python.group_and_aggregate(df_id: string, group_by: list, agg_functions: string) -> text\n"
+            "\n"
+            "# Data Analysis\n"
+            "- python.query_dataframe(df_id: string, query_string: string) -> text (may return new df_id)\n"
+            "- python.perform_hypothesis_test(df_id: string, test_type: 'ttest'|'correlation'|'chisquare', col1: string, col2?: string) -> text\n"
+            "\n"
+            "# Visualization\n"
+            "- python.create_plot(df_id: string, plot_type: 'scatter'|'histogram'|'bar'|'box', x_col: string, y_col?: string) -> image_b64\n"
+        ),
+        "hubspot": (
+            "## HubSpot Business Tools\n"
+            "- create_hubspot_marketing_email(email_json: string) -> {status, email_id} (requires OAuth)\n"
+            "- update_hubspot_marketing_email(email_id: string, updates_json: string) -> {status} (requires OAuth)\n"
+        ),
+        "codex": (
+            "## Codex Workspace Tools\n"
+            "- codex.run(instruction: string, model?: string, timeout_seconds?: int) -> {text, artifacts, output_policy} (high-level, requires OpenAI)\n"
+            "- codex.create_workspace(name_hint: string, keep?: bool) -> {workspace_id}\n"
+            "- codex.start_codex_run(workspace_id: string, instruction: string) -> {run_id}\n"
+            "- codex.get_codex_run(run_id: string) -> {status, summary, artifacts}\n"
+            "- codex.read_file(workspace_id: string, relative_path: string) -> text\n"
+            "- codex.get_manifest(workspace_id: string) -> {files, metadata}\n"
+            "- codex.cleanup_workspace(workspace_id: string) -> {status}\n"
+        ),
+        "canva": (
+            "## Canva Design Tools\n"
+            "- create_design(title: string, preset?: string, width?: int, height?: int, unit?: string, template_id?: string) -> {status, id, url, thumbnail_url}\n"
+            "  presets: instagram_post, instagram_story, facebook_post, facebook_cover, twitter_post, linkedin_banner, youtube_thumbnail, presentation, a4, a3, us_letter, custom\n"
+            "- list_designs(page_token?: string, limit?: int) -> {status, items, next_page_token}\n"
+            "- get_design(design_id: string) -> {status, id, title, url, thumbnail_url, width, height}\n"
+            "- export_design(design_id: string, format?: string, width?: int, height?: int, quality?: int, pages?: string) -> {status, download_url, job_id}\n"
+            "  formats: png, jpg, pdf, svg, mp4, gif\n"
+            "- upload_asset(name: string, url: string) -> {status, asset_id, name, type}\n"
+            "- autofill_design(brand_template_id: string, data: string, title?: string) -> {status, design_id, url}\n"
+            "  data is a JSON string of field values; use get_brand_template_dataset first to discover fields\n"
+            "- get_brand_template_dataset(brand_template_id: string) -> {status, dataset}\n"
+            "- import_design(title: string, url: string, mime_type?: string) -> {status, designs}\n"
+            "  imports PDF, PPTX, DOCX, PSD, AI, Keynote etc. from a public URL into Canva as editable designs\n"
+            "- resize_design(design_id: string, width: int, height: int) -> {status, design_id, url}\n"
+            "- get_design_pages(design_id: string) -> {status, pages}\n"
+        ),
+        "figma": (
+            "## Figma Design Tools\n"
+            "- figma_get_file(file_key: string, depth?: int) -> {status, name, lastModified, version, document, components, styles}\n"
+            "  file_key is found in the Figma URL: figma.com/file/{file_key}/...\n"
+            "- figma_get_nodes(file_key: string, node_ids: string, depth?: int) -> {status, name, nodes}\n"
+            "  node_ids: comma-separated IDs e.g. '1:2,3:4'\n"
+            "- figma_export_images(file_key: string, node_ids: string, format?: string, scale?: float) -> {status, images}\n"
+            "  formats: png, jpg, svg, pdf — returns map of node_id -> download URL\n"
+            "- figma_get_comments(file_key: string) -> {status, comments}\n"
+            "- figma_post_comment(file_key: string, message: string, node_id?: string, parent_id?: string) -> {status, id, message}\n"
+            "- figma_get_design_system(file_key: string) -> {status, colors, typography, spacing, effects, components}\n"
+        ),
+        "poe": (
+            "## Poe AI Platform Tools\n"
+            "- poe_list_models(input_modality?: string, output_modality?: string, search?: string, limit?: int) -> {status, count, models}\n"
+            "  modalities: text, image, video, audio\n"
+            "- poe_chat(prompt: string, model?: string, system?: string, temperature?: float, max_tokens?: int, image_urls?: list) -> {status, model, text}\n"
+            "  default model: Claude-Sonnet-4-6\n"
+            "- poe_generate_image(prompt: string, model?: string, system?: string, aspect_ratio?: string, download_media?: bool) -> {status, model, raw_text, extracted_urls, downloaded}\n"
+            "  default model: gpt-image-1.5; aspect_ratio: '9:16' (portrait) or '16:9' (landscape); downloaded items contain data_b64 for inline delivery\n"
+            "- poe_generate_video(prompt: string, model: string, system?: string, download_media?: bool) -> {status, model, raw_text, extracted_urls, downloaded}\n"
+            "  model required — use poe_list_models(output_modality='video') to find one\n"
+            "- poe_generate_audio(prompt: string, model: string, system?: string, download_media?: bool) -> {status, model, raw_text, extracted_urls, downloaded}\n"
+            "  model required — use poe_list_models(output_modality='audio') to find one\n"
+        ),
+        "cli": (
+            "## CLI System Tools\n"
+            "- cli.get_system_health() -> {platform, node, release, disk, uptime} (no args; safe system snapshot)\n"
+            "- cli.list_dir(scope: 'artifacts'|'logs'|'scripts') -> {scope, entry_count, entries} (list allowed dirs only)\n"
+            "- cli.read_log(name: string, lines?: int) -> {name, lines_returned, total_lines, content} (tail of a log file; name must be exact filename e.g. 'mcp_backend.log')\n"
+            "- cli.service_status(name: string) -> {service, status, active_state, sub_state, description} (requires service in CLI_ALLOWED_SERVICES)\n"
+            "- cli.read_workspace_file(path_within_scope: string) -> {path, size_bytes, content, truncated} (read file from artifacts dir; relative path only)\n"
+        ),
+        "llm": (
+            "## LLM-only Tools\n"
+            "- llm.generate(prompt?: string) -> text (runs local LLM; if prompt omitted, uses step instruction)\n"
+        ),
+    }
+    if categories is None:
+        return "\n".join(_CATALOG_SECTIONS.values())
+    return "\n".join(v for k, v in _CATALOG_SECTIONS.items() if k in categories)
 
 
 def build_planning_prompt(goal: str, allowed_tools: List[str], budget: Dict | None, planner_hints: Dict | None = None, kb_context: str = "") -> str:
@@ -365,11 +451,13 @@ def build_planning_prompt(goal: str, allowed_tools: List[str], budget: Dict | No
     manifest_text = ("\nPlanner manifest (use identifiers exactly; do not invent new ones):\n" + json.dumps(manifest)) if manifest else ""
     step_hint_text = ("\nSuggested step skeleton (align your plan to this, but keep within allowed tools):\n" + json.dumps(step_hint)) if step_hint else ""
     kb_text = f"\nReference material (use this to inform your plan):\n{kb_context}\n" if kb_context else ""
+    goal_categories = _classify_goal_intent(goal)
+    filtered_catalog = _tool_catalog_text(goal_categories)
     return (
         "You are a planning agent. Generate a plan as strict JSON only.\n"
         f"Goal: {goal}\n"
         f"Allowed tools: {allowed_tools}\n"
-        f"Tool catalog:\n{_tool_catalog_text()}\n"
+        f"Tool catalog:\n{filtered_catalog}\n"
         f"Budget: {budget or {}}\n"
         f"{manifest_text}"
         f"{step_hint_text}"
@@ -385,12 +473,13 @@ def build_planning_prompt(goal: str, allowed_tools: List[str], budget: Dict | No
     )
 
 
-async def plan_task(goal: str, model: str | None, budget: Dict | None, planner_hints: Dict | None = None, kb_context: str = "") -> Plan:
+async def plan_task(goal: str, model: str | None, budget: Dict | None, planner_hints: Dict | None = None, kb_context: str = "", enabled_tools: Optional[List[str]] = None) -> Plan:
     model_name = model or await get_default_ollama_model()
     if not model_name or model_name.strip() == "":
         model_name = "llama3.1"  # Hard fallback
         logger.warning(f"Using hard fallback model: {model_name}")
-    prompt = build_planning_prompt(goal, ALLOWED_TASK_TOOLS, budget, planner_hints, kb_context)
+    tools = enabled_tools if enabled_tools is not None else ALLOWED_TASK_TOOLS
+    prompt = build_planning_prompt(goal, tools, budget, planner_hints, kb_context)
     raw = await chat_with_provider([
         {"role": "system", "content": "You produce only JSON."},
         {"role": "user", "content": prompt},
@@ -454,211 +543,8 @@ async def plan_task(goal: str, model: str | None, budget: Dict | None, planner_h
                 success_criteria="Output fulfills the user's request succinctly",
                 max_retries=1,
             ))
-    plan = Plan(
+    return Plan(
         constraints=plan_dict.get("constraints", []),
         resources=plan_dict.get("resources", []),
         steps=steps,
     )
-    # Sanitize plan: avoid python dataframe tools unless a CSV is loaded earlier
-    try:
-        has_csv_load = any(s.tool == "python.load_csv" for s in plan.steps)
-        if not has_csv_load:
-            fixed_steps: List[PlanStep] = []
-            for s in plan.steps:
-                if s.tool and s.tool.startswith("python.") and s.tool != "python.load_csv":
-                    # Replace with a generate step to extract/transform text instead of DataFrame ops
-                    fixed_steps.append(PlanStep(
-                        id=s.id,
-                        title=(s.title or "Generate output"),
-                        instruction=(s.instruction or "Summarize and extract key points from prior step outputs."),
-                        tool="llm.generate",
-                        params={},
-                        success_criteria="Text captures key facts succinctly",
-                        max_retries=s.max_retries or 1,
-                    ))
-                else:
-                    fixed_steps.append(s)
-            plan.steps = fixed_steps
-    except Exception:
-        pass
-
-    # Gate Codex (requires OpenAI key)
-    try:
-        from services.provider_service import get_provider_status
-        status = await get_provider_status('openai')
-        if not status.get('configured'):
-            gated: List[PlanStep] = []
-            for s in plan.steps:
-                if s.tool == "codex.run":
-                    gated.append(PlanStep(
-                        id=s.id,
-                        title=s.title or "Generate output",
-                        instruction=s.instruction or "Write a concise result based on context.",
-                        tool="llm.generate",
-                        params={},
-                        success_criteria=s.success_criteria or "Produced a useful result",
-                        max_retries=s.max_retries or 1,
-                    ))
-                else:
-                    gated.append(s)
-            plan.steps = gated
-    except Exception:
-        pass
-
-    # Heuristic: add Codex step for code scaffolding goals if available
-    try:
-        from services.provider_service import get_provider_status
-        status = await get_provider_status('openai')
-        codex_ok = bool(status.get('configured'))
-        keywords = ["scaffold", "generate code", "build app", "web app", "init repo", "create files", "project structure"]
-        if codex_ok and not any(s.tool == "codex.run" for s in plan.steps):
-            gl = (goal or "").lower()
-            if any(k in gl for k in keywords):
-                plan.steps.append(PlanStep(
-                    id=f"s{len(plan.steps)+1}",
-                    title="Run Codex to generate workspace",
-                    instruction=goal,
-                    tool="codex.run",
-                    params={},
-                    success_criteria="Workspace generated with relevant files",
-                    max_retries=0,
-                ))
-    except Exception:
-        pass
-
-    # Gate Canva (requires CANVA_API_TOKEN)
-    try:
-        from services.mcp_service import app_state
-        from core.config import CANVA_SERVICE_NAME
-        _canva_cfg = app_state.mcp_configs.get(CANVA_SERVICE_NAME)
-        if _canva_cfg is not None and not _canva_cfg.enabled:
-            _CANVA_TOOLS = {"create_design", "list_designs", "get_design", "export_design"}
-            gated_canva: List[PlanStep] = []
-            for s in plan.steps:
-                if s.tool in _CANVA_TOOLS:
-                    gated_canva.append(PlanStep(
-                        id=s.id,
-                        title=s.title or "Describe design",
-                        instruction=(s.instruction or "Describe the design that would have been created.")
-                                    + " (Canva not configured — CANVA_API_TOKEN missing)",
-                        tool="llm.generate",
-                        params={},
-                        success_criteria=s.success_criteria or "Produced a useful result",
-                        max_retries=s.max_retries or 1,
-                    ))
-                else:
-                    gated_canva.append(s)
-            plan.steps = gated_canva
-    except Exception:
-        pass
-
-    # Gate Figma (requires FIGMA_ACCESS_TOKEN)
-    try:
-        from services.mcp_service import app_state
-        from core.config import FIGMA_SERVICE_NAME
-        _figma_cfg = app_state.mcp_configs.get(FIGMA_SERVICE_NAME)
-        if _figma_cfg is not None and not _figma_cfg.enabled:
-            _FIGMA_TOOLS = {"figma_get_file", "figma_get_nodes", "figma_export_images",
-                            "figma_get_comments", "figma_post_comment", "figma_get_design_system"}
-            gated_figma: List[PlanStep] = []
-            for s in plan.steps:
-                if s.tool in _FIGMA_TOOLS:
-                    gated_figma.append(PlanStep(
-                        id=s.id,
-                        title=s.title or "Describe Figma output",
-                        instruction=(s.instruction or "Describe what the Figma step would have returned.")
-                                    + " (Figma not configured — FIGMA_ACCESS_TOKEN missing)",
-                        tool="llm.generate",
-                        params={},
-                        success_criteria=s.success_criteria or "Produced a useful result",
-                        max_retries=s.max_retries or 1,
-                    ))
-                else:
-                    gated_figma.append(s)
-            plan.steps = gated_figma
-    except Exception:
-        pass
-
-    # Gate Poe (requires POE_API_KEY)
-    try:
-        from services.mcp_service import app_state
-        from core.config import POE_SERVICE_NAME
-        _poe_cfg = app_state.mcp_configs.get(POE_SERVICE_NAME)
-        if _poe_cfg is not None and not _poe_cfg.enabled:
-            _POE_TOOLS = {"poe_list_models", "poe_chat", "poe_generate_image",
-                          "poe_generate_video", "poe_generate_audio"}
-            gated_poe: List[PlanStep] = []
-            for s in plan.steps:
-                if s.tool in _POE_TOOLS:
-                    gated_poe.append(PlanStep(
-                        id=s.id,
-                        title=s.title or "Generate output",
-                        instruction=(s.instruction or "Produce the best possible text response.")
-                                    + " (Poe AI not configured — POE_API_KEY missing)",
-                        tool="llm.generate",
-                        params={},
-                        success_criteria=s.success_criteria or "Produced a useful result",
-                        max_retries=s.max_retries or 1,
-                    ))
-                else:
-                    gated_poe.append(s)
-            plan.steps = gated_poe
-    except Exception:
-        pass
-
-    # Gate CLI (requires CLI_ENABLED=true)
-    try:
-        from services.mcp_service import app_state
-        from core.config import CLI_SERVICE_NAME
-        _cli_cfg = app_state.mcp_configs.get(CLI_SERVICE_NAME)
-        if _cli_cfg is not None and not _cli_cfg.enabled:
-            _CLI_TOOLS = {
-                "cli.get_system_health", "cli.list_dir", "cli.read_log",
-                "cli.service_status", "cli.read_workspace_file",
-            }
-            gated_cli: List[PlanStep] = []
-            for s in plan.steps:
-                if s.tool in _CLI_TOOLS:
-                    gated_cli.append(PlanStep(
-                        id=s.id,
-                        title=s.title or "Describe system context",
-                        instruction=(s.instruction or "Describe what the system tool would have returned.")
-                                    + " (CLI tools not enabled — set CLI_ENABLED=true)",
-                        tool="llm.generate",
-                        params={},
-                        success_criteria=s.success_criteria or "Produced a useful result",
-                        max_retries=s.max_retries or 1,
-                    ))
-                else:
-                    gated_cli.append(s)
-            plan.steps = gated_cli
-    except Exception:
-        pass
-
-    # Heuristic: inject Poe image generation for image creation goals if Poe is available
-    try:
-        from services.mcp_service import app_state
-        from core.config import POE_SERVICE_NAME
-        _poe_cfg = app_state.mcp_configs.get(POE_SERVICE_NAME)
-        _poe_ok = _poe_cfg is not None and _poe_cfg.enabled
-        _image_keywords = [
-            "generate image", "create image", "make image", "draw", "illustrate",
-            "generate a picture", "create a picture", "image of", "picture of",
-            "generate artwork", "create artwork",
-        ]
-        if _poe_ok and not any(s.tool == "poe_generate_image" for s in plan.steps):
-            gl = (goal or "").lower()
-            if any(k in gl for k in _image_keywords):
-                plan.steps.append(PlanStep(
-                    id=f"s{len(plan.steps)+1}",
-                    title="Generate image via Poe",
-                    instruction=goal,
-                    tool="poe_generate_image",
-                    params={},
-                    success_criteria="Image generated and URL or base64 returned",
-                    max_retries=1,
-                ))
-    except Exception:
-        pass
-
-    return plan
