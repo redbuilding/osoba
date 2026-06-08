@@ -34,10 +34,6 @@ The project consists of several key components:
 
 This architecture demonstrates how MCP enables local models to access external tools and data sources, significantly enhancing their capabilities. The backend starts and supervises all MCP services for a scalable, feature-rich setup.
 
-## Demo
-
-- Watch the demo on X: https://x.com/redbuilding/status/2010124029936427450
-
 ## Features
 
 - 🧠 **Smart Web Search**: Intelligent web search with automatic content extraction from top results. Goes beyond search snippets to fetch and analyze full webpage content using advanced extraction techniques.
