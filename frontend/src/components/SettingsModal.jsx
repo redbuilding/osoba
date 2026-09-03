@@ -303,6 +303,14 @@ const SettingsModal = ({ isOpen, onClose, onSettingsUpdate, embedded = false }) 
                     No API key required for this provider.
                   </p>
                 )}
+
+                {provider.id === 'openrouter' && (
+                  <p className="text-xs text-brand-text-secondary mt-3">
+                    Note: <span className="text-brand-text-primary">meta/muse-spark-1.2</span> requires
+                    18+ age confirmation on your OpenRouter account before use
+                    (OpenRouter → Settings → Preferences).
+                  </p>
+                )}
               </div>
             ))}
           </div>

@@ -549,6 +549,26 @@ export const validateProviderSettings = async (providerId) => {
   }
 };
 
+// ---------- Model Diagnostics API ----------
+
+export const testModels = async ({
+  conversation_id = null,
+  include_ollama = true,
+} = {}) => {
+  try {
+    const response = await apiClient.post("/providers/test-models", {
+      conversation_id,
+      include_ollama,
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error testing models:", error);
+    throw error.response
+      ? error.response.data
+      : new Error("Network error or server unavailable");
+  }
+};
+
 export const getUserSettings = async () => {
   try {
     const response = await apiClient.get("/settings");

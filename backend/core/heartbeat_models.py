@@ -16,7 +16,7 @@ class HeartbeatConfig(BaseModel):
     enabled: bool = True
     interval: str = "2h"  # e.g. "1h", "30m", "2h"
     active_hours: Optional[ActiveHours] = None
-    model_name: str = "anthropic/claude-haiku-4-5"
+    model_name: str = "anthropic/claude-haiku-4-5-20251001"
     max_insights_per_day: int = 5
 
 

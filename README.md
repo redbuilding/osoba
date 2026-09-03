@@ -913,12 +913,12 @@ The smart search feature is **automatically enabled** for all web searches - use
 - The Model Picker shows models by provider. Non‑Ollama models only appear once the provider is configured.
 - Provider model naming/prefixes (examples):
   - Ollama: `llama3.1` (no prefix).
-  - OpenAI: `openai/gpt-5.4`.
-  - Anthropic: `anthropic/claude-haiku-4-5`.
+  - OpenAI: `openai/gpt-5.6-sol`.
+  - Anthropic: `anthropic/claude-sonnet-5`.
   - Google: `gemini/gemini-flash-latest`.
-  - OpenRouter: `openrouter/meta-llama/llama-3.3-70b-instruct`.
-  - Groq: `groq/llama-3.1-8b-instant`.
-  - SambaNova: `sambanova/Meta-Llama-3.1-8B-Instruct`.
+  - OpenRouter: `openrouter/z-ai/glm-5.3`.
+  - Groq: `groq/openai/gpt-oss-20b`.
+  - SambaNova: `sambanova/Meta-Llama-3.3-70B-Instruct`.
 
 API endpoints:
 - List providers: `GET /api/providers`
@@ -928,6 +928,9 @@ API endpoints:
 - Remove API key: `DELETE /api/providers/{provider_id}/settings`
 - Validate (no key returned): `GET /api/providers/{provider_id}/validate`
 - All models (flat list w/provider): `GET /api/models`
+- Model diagnostics sweep: `POST /api/providers/test-models { conversation_id?, include_ollama }` — runs a minimal real call against every configured model and posts a structured `Model Diagnostics` report into the chat conversation.
+
+**Model Diagnostics (live smoke test):** From the Model Picker, click **Test Models** to run a one-sentence real call against every configured provider model (plus installed Ollama models). Each model's status, latency, and reply/error is shown in a structured report posted into the current chat (a new `Model Diagnostics` conversation is created if there isn't one). Models are tested sequentially with a 30s per-model timeout to respect rate limits.
 
 Notes:
 - Codex MCP requires a valid OpenAI API key. The UI gates the Codex tool if OpenAI is not configured.

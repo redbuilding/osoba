@@ -1,4 +1,4 @@
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
@@ -23,6 +23,11 @@ class ProviderSettingsResponse(BaseModel):
     success: bool
     message: str
     validation: Dict[str, Any] = None
+
+class TestModelsPayload(BaseModel):
+    conversation_id: Optional[str] = None
+    user_id: str = "default"
+    include_ollama: bool = True
 
 @router.get("/api/providers")
 async def list_providers():
@@ -145,6 +150,33 @@ async def validate_provider_settings_endpoint(provider_id: str, user_id: str = "
     except Exception as e:
         logger.error(f"Error validating provider settings: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/api/providers/test-models")
+async def test_models_endpoint(payload: TestModelsPayload):
+    """Run a minimal real-call smoke test against every configured model and post a report into a chat conversation."""
+    from services.model_health import (
+        run_model_sweep, build_summary, build_report_markdown, persist_report,
+    )
+    from db.mongodb import conversations_collection
+
+    try:
+        results = await run_model_sweep(payload.user_id, include_ollama=payload.include_ollama)
+        summary = build_summary(results)
+        report = build_report_markdown(results, summary)
+        conversation_id = None
+        if conversations_collection is not None:
+            conversation_id = persist_report(
+                payload.conversation_id, report, results, summary, payload.user_id
+            )
+        return {
+            "results": results,
+            "summary": summary,
+            "report_markdown": report,
+            "conversation_id": conversation_id,
+        }
+    except Exception as e:
+        logger.error(f"Error running model test sweep: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Model test sweep failed: {str(e)}")
 
 @router.get("/api/settings")
 async def get_user_settings_endpoint(user_id: str = "default"):

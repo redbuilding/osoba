@@ -21,14 +21,14 @@ PROVIDER_CONFIGS = {
         'default_api_base': None,  # Uses LiteLLM default
         'model_prefix': 'openai/',
         'default_models': [
-            'gpt-5.4',
-            'gpt-5.4-mini',
-            'gpt-5.4-nano',
-            'gpt-4.1',
+            'gpt-5.6-sol',
+            'gpt-5.6-terra',
+            'gpt-5.6-luna',
+            'gpt-5.4-mini-2026-03-17',
         ],
         'supports_streaming': True,
         'requires_max_tokens': False,
-        'health_check_model': 'gpt-5.4'
+        'health_check_model': 'gpt-5.6-luna'
     },
     'anthropic': {
         'name': 'Anthropic',
@@ -37,14 +37,15 @@ PROVIDER_CONFIGS = {
         'default_api_base': None,
         'model_prefix': 'anthropic/',
         'default_models': [
-            'claude-opus-4-7',
-            'claude-sonnet-4-6',
-            'claude-haiku-4-5',
+            'claude-fable-5-1',
+            'claude-opus-5',
+            'claude-sonnet-5',
+            'claude-haiku-4-5-20251001',
         ],
         'supports_streaming': True,
         'requires_max_tokens': True,  # Anthropic requires max_tokens
         'default_max_tokens': 4096,
-        'health_check_model': 'claude-haiku-4-5'
+        'health_check_model': 'claude-haiku-4-5-20251001'
     },
     'google': {
         'name': 'Google',
@@ -53,13 +54,12 @@ PROVIDER_CONFIGS = {
         'default_api_base': None,
         'model_prefix': 'gemini/',
         'default_models': [
-            'gemini-3-pro-preview',
             'gemini-flash-latest',
             'gemini-flash-lite-latest',
         ],
         'supports_streaming': True,
         'requires_max_tokens': False,
-        'health_check_model': 'gemini-flash-latest'
+        'health_check_model': 'gemini-flash-lite-latest'
     },
     'openrouter': {
         'name': 'OpenRouter',
@@ -68,29 +68,18 @@ PROVIDER_CONFIGS = {
         'default_api_base': None,
         'model_prefix': 'openrouter/',
         'default_models': [
-            'openrouter/moonshotai/kimi-k2.5',
-            'openrouter/z-ai/glm-4.7',
-            'openrouter/z-ai/glm-4.7-flash',
-            'openrouter/qwen/qwen3-max',
-            'openrouter/qwen/qwen3-coder-plus',
-            'openrouter/qwen/qwen3-coder-flash',
-            'openrouter/mistralai/mistral-large-2512',
-            'openrouter/mistralai/codestral-2508',
-            'openrouter/meta-llama/llama-4-maverick',
-            'openrouter/meta-llama/llama-4-scout',
-            'openrouter/meta-llama/llama-3.3-70b-instruct',
-            'openrouter/meta-llama/llama-3.1-405b',
-            'openrouter/x-ai/grok-4.20',
-            'openrouter/x-ai/grok-4.1-fast',
+            'openrouter/moonshotai/kimi-k3',
+            'openrouter/z-ai/glm-5.3',
+            'openrouter/z-ai/glm-5.3-flash',
+            'openrouter/mistralai/mistral-medium-3-5',
+            'openrouter/meta/muse-spark-1.2',
+            'openrouter/x-ai/grok-4.6',
             'openrouter/openai/gpt-oss-120b',
-            'openrouter/openai/gpt-oss-20b',
-            'openrouter/google/gemma-4-31b-it:free',
-            'openrouter/google/gemma-4-26b-a4b-it:free',
-            'openrouter/qwen/qwen3.6-plus',
+            'openrouter/google/gemini-3.7-flash',
         ],
         'supports_streaming': True,
         'requires_max_tokens': False,
-        'health_check_model': 'openrouter/meta-llama/llama-3.3-70b-instruct'
+        'health_check_model': 'openrouter/z-ai/glm-5.3'
     },
     'groq': {
         'name': 'Groq',
@@ -99,15 +88,12 @@ PROVIDER_CONFIGS = {
         'default_api_base': None,
         'model_prefix': 'groq/',
         'default_models': [
-            'groq/meta-llama/llama-guard-4-12b',
-            'groq/llama-3.3-70b-versatile',
-            'groq/llama-3.1-8b-instant',
             'groq/openai/gpt-oss-120b',
             'groq/openai/gpt-oss-20b',
         ],
         'supports_streaming': True,
         'requires_max_tokens': False,
-        'health_check_model': 'groq/llama-3.1-8b-instant'
+        'health_check_model': 'groq/openai/gpt-oss-20b'
     },
     'sambanova': {
         'name': 'SambaNova',
@@ -116,14 +102,13 @@ PROVIDER_CONFIGS = {
         'default_api_base': None,
         'model_prefix': 'sambanova/',
         'default_models': [
-            'DeepSeek-R1-0528',
-            'DeepSeek-V3-0324',
             'Meta-Llama-3.3-70B-Instruct',
-            'Meta-Llama-3.1-8B-Instruct',
+            'MiniMax-M2.7',
+            'DeepSeek-V3.1',
         ],
         'supports_streaming': True,
         'requires_max_tokens': False,
-        'health_check_model': 'sambanova/Meta-Llama-3.1-8B-Instruct'
+        'health_check_model': 'sambanova/Meta-Llama-3.3-70B-Instruct'
     }
 }
 

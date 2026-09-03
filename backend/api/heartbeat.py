@@ -41,14 +41,14 @@ async def get_config_endpoint(user_id: str = "default"):
             return {"config": {
                 "enabled": True,
                 "interval": "2h",
-                "model_name": "anthropic/claude-haiku-4-5",
+                "model_name": "anthropic/claude-haiku-4-5-20251001",
                 "max_insights_per_day": 5
             }}
         
         config = profile.get("heartbeat_config", {
             "enabled": True,
             "interval": "2h",
-            "model_name": "anthropic/claude-haiku-4-5",
+            "model_name": "anthropic/claude-haiku-4-5-20251001",
             "max_insights_per_day": 5
         })
         return {"config": config}

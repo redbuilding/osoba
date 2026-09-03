@@ -332,6 +332,28 @@ const App = () => {
   }, []);
 
   /* --------------------------------------------------------------------- */
+  /*  Model diagnostics: navigate to / refresh after a report is posted    */
+  /* --------------------------------------------------------------------- */
+  const handleModelReportPosted = useCallback(
+    async (convId) => {
+      if (convId) {
+        if (convId !== currentConversationId) {
+          setCurrentConversationId(convId);
+        } else {
+          try {
+            const msgs = await getConversationMessages(convId);
+            setChatHistory(msgs || []);
+          } catch (err) {
+            // leave the current history as-is
+          }
+        }
+      }
+      fetchConversationsList();
+    },
+    [currentConversationId, fetchConversationsList],
+  );
+
+  /* --------------------------------------------------------------------- */
   /*  AI Profiles                                                          */
   /* --------------------------------------------------------------------- */
   const fetchProfiles = useCallback(async () => {
@@ -1141,6 +1163,8 @@ const App = () => {
         }}
         currentModel={selectedModel || selectedOllamaModel}
         onOpenSettings={() => setIsSettingsOpen(true)}
+        conversationId={currentConversationId}
+        onReportPosted={handleModelReportPosted}
       />
 
       {/* File Viewer Modal (optional future enablement) */}

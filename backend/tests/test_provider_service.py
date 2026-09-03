@@ -87,7 +87,7 @@ class TestProviderService:
             assert 'openai' in models
             assert 'anthropic' in models
             assert models['ollama'] == ['llama3.1', 'mistral']
-            assert any(m in models['openai'] for m in ['gpt-5.4', 'gpt-5.4-mini', 'gpt-4.1'])
+            assert any(m in models['openai'] for m in ['gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.4-mini-2026-03-17'])
 
     @pytest.mark.asyncio
     async def test_get_provider_status_ollama(self):

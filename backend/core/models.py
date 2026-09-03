@@ -13,6 +13,10 @@ class ChatMessage(BaseModel):
     content: str
     is_html: Optional[bool] = False
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    # Structured / special message types (e.g. 'codex_run', 'model_test')
+    type: Optional[str] = None
+    model_test: Optional[Any] = None
+    summary: Optional[Any] = None
 
 class ChatPayload(BaseModel):
     user_message: str

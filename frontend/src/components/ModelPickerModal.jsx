@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { X, Check, AlertCircle, Search } from 'lucide-react';
-import { getProviderModels } from '../services/api';
+import { X, Check, AlertCircle, Search, FlaskConical, Loader2 } from 'lucide-react';
+import { getProviderModels, testModels } from '../services/api';
 
 const ProviderItem = ({ providerId, provider, selected, onSelect }) => {
   const status = provider.status || {};
@@ -37,9 +37,10 @@ const ModelRow = ({ name, selected, onClick }) => {
   );
 };
 
-const ModelPickerModal = ({ isOpen, onClose, onSelectModel, currentModel, onOpenSettings }) => {
+const ModelPickerModal = ({ isOpen, onClose, onSelectModel, currentModel, onOpenSettings, conversationId, onReportPosted }) => {
   const [providers, setProviders] = useState({});
   const [loading, setLoading] = useState(false);
+  const [testing, setTesting] = useState(false);
   const [error, setError] = useState('');
   const [activeProvider, setActiveProvider] = useState(null);
   const [query, setQuery] = useState('');
@@ -85,6 +86,21 @@ const ModelPickerModal = ({ isOpen, onClose, onSelectModel, currentModel, onOpen
     const q = query.toLowerCase();
     return normalized.filter(m => m.toLowerCase().includes(q));
   }, [activeProvider, providers, query]);
+
+  const handleTestModels = async () => {
+    if (testing) return;
+    setTesting(true);
+    setError('');
+    try {
+      const data = await testModels({ conversation_id: conversationId, include_ollama: true });
+      if (typeof onReportPosted === 'function') onReportPosted(data.conversation_id);
+      onClose();
+    } catch (e) {
+      setError(e?.detail || e?.message || 'Model test failed.');
+    } finally {
+      setTesting(false);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -166,6 +182,25 @@ const ModelPickerModal = ({ isOpen, onClose, onSelectModel, currentModel, onOpen
                 )}
               </div>
             </div>
+          </div>
+
+          {/* Footer: run a live smoke test of every configured model */}
+          <div className="flex items-center justify-between p-3 border-t border-gray-700 bg-black/20">
+            <span className="text-xs text-brand-text-secondary">
+              Run a minimal real call against every configured model and post the report into this chat.
+            </span>
+            <button
+              onClick={handleTestModels}
+              disabled={testing}
+              className="flex items-center gap-2 px-3 py-2 text-sm bg-brand-purple text-white rounded-md hover:bg-brand-button-grad-to focus:outline-none focus:ring-2 focus:ring-brand-purple disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {testing ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <FlaskConical size={16} />
+              )}
+              {testing ? 'Testing models…' : 'Test Models'}
+            </button>
           </div>
         </div>
       </div>

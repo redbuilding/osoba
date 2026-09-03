@@ -185,7 +185,7 @@ class HeartbeatService:
             prompt = self._build_prompt(context)
             
             # Call LLM
-            model_name = config.get("model_name", "anthropic/claude-haiku-4-5")
+            model_name = config.get("model_name", "anthropic/claude-haiku-4-5-20251001")
             messages = [{"role": "user", "content": prompt}]
             
             response = await chat_with_provider(messages, model_name)

@@ -19,7 +19,8 @@ logger = get_logger("provider_service")
 
 async def chat_with_provider(messages: List[Dict[str, str]], model_name: str, 
                            repeat_penalty: float = DEFAULT_REPEAT_PENALTY,
-                           user_id: str = "default") -> Optional[str]:
+                           user_id: str = "default",
+                           raise_on_error: bool = False) -> Optional[str]:
     """
     Chat completion using any configured provider.
     """
@@ -44,16 +45,24 @@ async def chat_with_provider(messages: List[Dict[str, str]], model_name: str,
             "messages": valid_messages,
         }
 
-        # Reasoning models (o1, o3, o4, gpt-5) don't support temperature/frequency_penalty
+        # Reasoning models (o1, o3, o4, gpt-5, and the new Claude reasoning
+        # tiers) don't support temperature/frequency_penalty.
         effective_model = (clean_model or str(full_model)).lower()
         _is_reasoning = any(effective_model.startswith(p) for p in ('o1', 'o3', 'o4', 'gpt-5'))
+        _is_reasoning_claude = provider_id == 'anthropic' and any(
+            effective_model.startswith(p) for p in ('claude-fable-5', 'claude-opus-5', 'claude-sonnet-5')
+        )
 
-        if _is_reasoning:
-            request_params["reasoning_effort"] = "low"
-            request_params["max_completion_tokens"] = 16384
+        if _is_reasoning or _is_reasoning_claude:
+            if _is_reasoning:
+                request_params["reasoning_effort"] = "low"
+                request_params["max_completion_tokens"] = 16384
+            # Skip temperature/frequency_penalty for reasoning models (Anthropic
+            # reasoning tiers reject them; max_tokens is handled by requires_max_tokens)
         else:
             request_params["temperature"] = 1.0 / repeat_penalty if repeat_penalty > 0 else 1.0
-            if provider_id != 'ollama' and repeat_penalty > 1.0:
+            # Google Gemini models do not enable frequency_penalty
+            if provider_id not in ('ollama', 'google') and repeat_penalty > 1.0:
                 request_params["frequency_penalty"] = min(round((repeat_penalty - 1.0) * 2, 2), 2.0)
 
         # Let litellm silently drop any remaining unsupported params
@@ -74,6 +83,8 @@ async def chat_with_provider(messages: List[Dict[str, str]], model_name: str,
         
     except Exception as e:
         logger.error(f"[LLM] Error with model '{model_name}': {e}", exc_info=True)
+        if raise_on_error:
+            raise
         return None
 
 async def stream_chat_with_provider(messages: List[Dict[str, str]], model_name: str, 
@@ -104,16 +115,24 @@ async def stream_chat_with_provider(messages: List[Dict[str, str]], model_name: 
             "stream": True,
         }
 
-        # Reasoning models (o1, o3, o4, gpt-5) don't support temperature/frequency_penalty
+        # Reasoning models (o1, o3, o4, gpt-5, and the new Claude reasoning
+        # tiers) don't support temperature/frequency_penalty.
         effective_model = (clean_model or str(full_model)).lower()
         _is_reasoning = any(effective_model.startswith(p) for p in ('o1', 'o3', 'o4', 'gpt-5'))
+        _is_reasoning_claude = provider_id == 'anthropic' and any(
+            effective_model.startswith(p) for p in ('claude-fable-5', 'claude-opus-5', 'claude-sonnet-5')
+        )
 
-        if _is_reasoning:
-            request_params["reasoning_effort"] = "low"
-            request_params["max_completion_tokens"] = 16384
+        if _is_reasoning or _is_reasoning_claude:
+            if _is_reasoning:
+                request_params["reasoning_effort"] = "low"
+                request_params["max_completion_tokens"] = 16384
+            # Skip temperature/frequency_penalty for reasoning models (Anthropic
+            # reasoning tiers reject them; max_tokens is handled by requires_max_tokens)
         else:
             request_params["temperature"] = 1.0 / repeat_penalty if repeat_penalty > 0 else 1.0
-            if provider_id != 'ollama' and repeat_penalty > 1.0:
+            # Google Gemini models do not enable frequency_penalty
+            if provider_id not in ('ollama', 'google') and repeat_penalty > 1.0:
                 request_params["frequency_penalty"] = min(round((repeat_penalty - 1.0) * 2, 2), 2.0)
 
         # Let litellm silently drop any remaining unsupported params

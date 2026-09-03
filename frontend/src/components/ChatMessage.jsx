@@ -4,6 +4,7 @@ import DOMPurify from 'dompurify';
 import { useCopyToClipboard } from '../hooks/useCopyToClipboard';
 import CodeBlock from './CodeBlock';
 import MarkdownRenderer from './MarkdownRenderer';
+import ModelTestReport from './ModelTestReport';
 
 // Function to parse message content for code blocks
 const parseMessageContent = (content) => {
@@ -84,6 +85,17 @@ const ChatMessage = ({ message, onPromoteToTask, onSaveMessage, isStreaming = fa
           {summary && (
             <div className="text-sm text-brand-text-secondary">{summary}</div>
           )}
+        </div>
+      </div>
+    );
+  }
+
+  // Special renderer for model diagnostics report
+  if (type === 'model_test') {
+    return (
+      <div className="flex animate-slide-up justify-start mb-2 group">
+        <div className="w-full max-w-[900px] p-3 rounded-lg shadow bg-brand-surface-bg text-brand-text-primary rounded-bl-none">
+          <ModelTestReport results={message.model_test || []} summary={message.summary || {}} />
         </div>
       </div>
     );

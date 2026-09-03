@@ -12,6 +12,12 @@ export default defineConfig({
     postcss: "./postcss.config.js", // This path is now relative to 'frontend/'
   },
 
+  test: {
+    environment: "jsdom",
+    globals: true,
+    setupFiles: "./src/test/setup.js",
+  },
+
   // Other Vite options like server, build, resolve, etc.,
   // will also now operate relative to the new root ('frontend/').
   // For example, `build.outDir` will default to 'frontend/dist'.
